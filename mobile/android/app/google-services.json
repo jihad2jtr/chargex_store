@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1079509242678",
+    "project_id": "lyan-chargex",
+    "storage_bucket": "lyan-chargex.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1079509242678:android:f4702c9bbe83e0befad997",
+        "android_client_info": {
+          "package_name": "com.layanchargex.app.layan_chargex"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBMb_W9_KhfZkk_yIBmBZDmP1RaOlWj-3Q"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
