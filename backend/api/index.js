@@ -13,7 +13,7 @@ let cachedHandler = null;
 module.exports = async (req, res) => {
   try {
     if (!cachedHandler) {
-      const main = require('../dist/main.js');
+      const main = await import('../dist/main.js');
       cachedHandler = main.default || main;
     }
     return await cachedHandler(req, res);
