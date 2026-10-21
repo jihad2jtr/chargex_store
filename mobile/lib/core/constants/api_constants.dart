@@ -4,10 +4,15 @@ class ApiConstants {
   // Host IP for backend connection
   // استخدم '127.0.0.1' عند توصيل الهاتف بكابل USB مع (adb reverse tcp:3000 tcp:3000)
   // أو IP الكمبيوتر المحلي '192.168.1.198' عند الاتصال بالـ Wi-Fi (مع إيقاف VPN أو تفعيل Allow LAN)
+  // Public Cloud Server (Vercel)
+  static const String cloudUrl = 'https://jgo-store.vercel.app/api';
+
+  // Local fallback
   static const String serverHost = '192.168.1.198';
   static const String serverPort = '3000';
 
-  static String get baseUrl => 'http://$serverHost:$serverPort/api';
+  // Use cloud URL by default
+  static String get baseUrl => cloudUrl;
 
   // Endpoints
   static const String authLogin = '/auth/login';
