@@ -420,7 +420,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(dateStr, style: AppTypography.plusJakartaSans(fontSize: 10, color: AppColors.slate600)),
-                    Text('ChargeX Verified Pass', style: AppTypography.technicalCode(fontSize: 9, color: AppColors.slate600.withValues(alpha: 0.6))),
+                    Text('JGO Verified Pass', style: AppTypography.technicalCode(fontSize: 9, color: AppColors.slate600.withValues(alpha: 0.6))),
                   ],
                 ),
               ],

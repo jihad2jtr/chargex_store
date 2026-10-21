@@ -32,18 +32,18 @@ void main() async {
         ChangeNotifierProvider(create: (_) => ManualServicesProvider()),
         ChangeNotifierProvider(create: (_) => AgentProvider()),
       ],
-      child: const ChargeXApp(),
+      child: const JGOApp(),
     ),
   );
 }
 
-class ChargeXApp extends StatelessWidget {
-  const ChargeXApp({super.key});
+class JGOApp extends StatelessWidget {
+  const JGOApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'ChargeX Digital Recharge Hub',
+      title: 'JGO',
       navigatorKey: rootNavigatorKey,
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
@@ -99,22 +99,22 @@ class _AuthGateState extends State<AuthGate> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  gradient: AppColors.brandGradient,
-                  borderRadius: BorderRadius.circular(20),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Image.asset(
+                  'assets/app_icon.png',
+                  width: 76,
+                  height: 76,
+                  fit: BoxFit.cover,
                 ),
-                child: const Icon(Icons.bolt, size: 44, color: Colors.white),
               ),
               const SizedBox(height: 24),
               const CircularProgressIndicator(color: AppColors.secondary),
               const SizedBox(height: 16),
               const Text(
-                'ChargeX',
+                'JGO',
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.w900,
                   color: AppColors.onSurface,
                   letterSpacing: 1.2,

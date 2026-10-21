@@ -104,7 +104,7 @@ class _UpdateCheckDialogState extends State<UpdateCheckDialog> {
             Text(
               _isChecking
                   ? 'يتم الاتصال بالخادم للتحقق من توافر إصدارات جديدة'
-                  : 'تطبيق ChargeX محدث إلى أحدث نسخة مستقرة.',
+                  : 'تطبيق JGO محدث إلى أحدث نسخة مستقرة.',
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 13, color: AppColors.onSurfaceVariant),
             ),

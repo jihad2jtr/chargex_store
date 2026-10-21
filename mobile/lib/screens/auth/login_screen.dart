@@ -104,40 +104,26 @@ class _LoginScreenState extends State<LoginScreen> {
                     child: Column(
                       children: [
                         Container(
-                          width: 68,
-                          height: 68,
+                          width: 76,
+                          height: 76,
                           decoration: BoxDecoration(
-                            color: AppColors.darkNav,
                             borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.4), width: 1.5),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primaryBlue.withValues(alpha: 0.25),
-                                blurRadius: 18,
-                                offset: const Offset(0, 6),
+                                color: const Color(0xFFF18223).withValues(alpha: 0.35),
+                                blurRadius: 20,
+                                offset: const Offset(0, 8),
                               ),
                             ],
                           ),
-                          child: Stack(
-                            alignment: Alignment.center,
-                            children: [
-                              const Icon(Icons.bolt_rounded, size: 36, color: AppColors.ticketAmber),
-                              Positioned(
-                                top: 4,
-                                right: 6,
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.primaryBlue,
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'PASS',
-                                    style: AppTypography.technicalCode(fontSize: 7.5, color: Colors.white),
-                                  ),
-                                ),
-                              ),
-                            ],
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(20),
+                            child: Image.asset(
+                              'assets/app_icon.png',
+                              width: 76,
+                              height: 76,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -145,9 +131,9 @@ class _LoginScreenState extends State<LoginScreen> {
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Text(
-                              'ChargeX',
+                              'JGO',
                               style: AppTypography.plusJakartaSans(
-                                fontSize: 26,
+                                fontSize: 28,
                                 fontWeight: FontWeight.w900,
                                 color: AppColors.textPrimary,
                                 letterSpacing: -0.5,

@@ -101,7 +101,7 @@ class UnifiedTactileHeader extends StatelessWidget {
           ],
         ),
         content: Text(
-          'هل أنت متأكد من رغبتك في تسجيل الخروج من تطبيق ChargeX؟',
+          'هل أنت متأكد من رغبتك في تسجيل الخروج من تطبيق JGO؟',
           style: AppTypography.cairo(
             color: const Color(0xFF64748B),
             fontSize: 14,
@@ -148,7 +148,7 @@ class UnifiedTactileHeader extends StatelessWidget {
     final uid = currentUser?.displayId ?? currentUser?.id ?? '8940-CX';
     final clientName = (currentUser?.name != null && currentUser!.name.trim().isNotEmpty)
         ? currentUser.name.trim()
-        : 'عميل ChargeX';
+        : 'عميل JGO';
 
     showDialog(
       context: context,
@@ -545,7 +545,7 @@ class UnifiedTactileHeader extends StatelessWidget {
                   ),
                   onPressed: () async {
                     final shareText = '''
-بطاقة حساب ChargeX:
+بطاقة حساب JGO:
 👤 الاسم: $clientName
 🆔 آيدي الحساب (UID): $uid
 ⚡ يمكن استخدام هذا الآيدي للتحويل المالي المباشر أو شحن الرصيد الفوري عبر التطبيق.
@@ -558,7 +558,7 @@ class UnifiedTactileHeader extends StatelessWidget {
                     await SharePlus.instance.share(
                       ShareParams(
                         text: shareText,
-                        subject: 'ChargeX Account ID - $uid',
+                        subject: 'JGO Account ID - $uid',
                         sharePositionOrigin: origin,
                       ),
                     );
@@ -715,18 +715,21 @@ class UnifiedTactileHeader extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFF1E293B),
-                        width: 1.2,
-                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFF18223).withValues(alpha: 0.25),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    alignment: Alignment.center,
-                    child: const Icon(
-                      Icons.bolt_rounded,
-                      color: Color(0xFFFBBF24),
-                      size: 20,
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      'assets/app_icon.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
@@ -742,11 +745,12 @@ class UnifiedTactileHeader extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            "ChargeX",
+                            "JGO",
                             style: AppTypography.plusJakartaSans(
-                              fontSize: 14.5,
+                              fontSize: 15.5,
                               fontWeight: FontWeight.w900,
                               color: const Color(0xFF020617),
+                              letterSpacing: -0.3,
                             ),
                           ),
                           const SizedBox(width: 4),

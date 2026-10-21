@@ -148,7 +148,7 @@ class ProfileScreen extends StatelessWidget {
                               const Icon(Icons.shield_outlined, size: 12, color: AppColors.primaryBlue),
                               const SizedBox(width: 5),
                               Text(
-                                'CHARGEX USER PASS',
+                                'JGO USER PASS',
                                 style: AppTypography.technicalCode(fontSize: 9, color: Colors.white),
                               ),
                             ],
@@ -369,7 +369,7 @@ class ProfileScreen extends StatelessWidget {
                 icon: Icons.system_update_outlined,
                 iconColor: AppColors.primaryBlue,
                 title: 'التحقق من التحديثات',
-                subtitle: 'الإصدار الحالي: v1.0.0 (ChargeX Final)',
+                subtitle: 'الإصدار الحالي: v1.0.0 (JGO Final)',
                 badge: 'أحدث إصدار',
                 onTap: () => UpdateCheckDialog.show(context),
               ),

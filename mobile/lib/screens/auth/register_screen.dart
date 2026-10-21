@@ -121,7 +121,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             ),
                             const SizedBox(width: 8),
                             Text(
-                              'انضم إلى شبكة ChargeX',
+                              'انضم إلى شبكة JGO',
                               style: AppTypography.cairo(
                                 fontSize: 17,
                                 fontWeight: FontWeight.w900,
