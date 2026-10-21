@@ -2,6 +2,40 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 
+let cachedServer: any;
+
+async function bootstrapServer() {
+  const app = await NestFactory.create(AppModule);
+
+  app.enableCors({
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+    credentials: true,
+  });
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: false,
+    }),
+  );
+
+  app.setGlobalPrefix('api');
+
+  await app.init();
+  return app.getHttpAdapter().getInstance();
+}
+
+// Vercel Serverless Function handler
+export default async function handler(req: any, res: any) {
+  if (!cachedServer) {
+    cachedServer = await bootstrapServer();
+  }
+  return cachedServer(req, res);
+}
+
+// Standalone mode (Local development, Render, Docker)
 async function bootstrap() {
   const logger = new Logger('JGOBootstrap');
   const app = await NestFactory.create(AppModule);
@@ -30,4 +64,6 @@ async function bootstrap() {
   logger.log(`🚀 JGO Backend Server running on: http://0.0.0.0:${port}/api`);
 }
 
-bootstrap();
+if (!process.env.VERCEL) {
+  bootstrap();
+}
