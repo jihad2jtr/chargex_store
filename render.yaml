@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: chargex-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start:prod
+    healthCheckPath: /api
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      - key: MONGODB_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_EXPIRATION
+        value: 7d
+      - key: JWT_REFRESH_EXPIRATION
+        value: 30d
+      - key: ADMIN_DEFAULT_EMAIL
+        value: admin@chargex.com
+      - key: ADMIN_DEFAULT_PASSWORD
+        sync: false
