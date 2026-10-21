@@ -37,7 +37,8 @@ exports.AppModule = AppModule = __decorate([
             mongoose_1.MongooseModule.forRootAsync({
                 imports: [config_1.ConfigModule],
                 useFactory: async (configService) => ({
-                    uri: configService.get('MONGODB_URI') || 'mongodb://127.0.0.1:27017/layan_chargex',
+                    uri: configService.get('MONGODB_URI') ||
+                        'mongodb+srv://jihad2jus:l9GrLciVEUvvK8Fd@jihad.8dyvx.mongodb.net/jgo?retryWrites=true&w=majority&appName=jihad',
                     serverSelectionTimeoutMS: 3000,
                     connectTimeoutMS: 4000,
                     retryAttempts: 1,

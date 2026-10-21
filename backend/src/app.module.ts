@@ -25,7 +25,9 @@ import { AgentModule } from './modules/agent/agent.module';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('MONGODB_URI') || 'mongodb://127.0.0.1:27017/layan_chargex',
+        uri:
+          configService.get<string>('MONGODB_URI') ||
+          'mongodb+srv://jihad2jus:l9GrLciVEUvvK8Fd@jihad.8dyvx.mongodb.net/jgo?retryWrites=true&w=majority&appName=jihad',
         serverSelectionTimeoutMS: 3000,
         connectTimeoutMS: 4000,
         retryAttempts: 1,

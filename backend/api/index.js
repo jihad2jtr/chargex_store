@@ -1,9 +1,22 @@
-const main = require('../dist/main.js');
-const handler = main.default || main;
+if (!process.env.MONGODB_URI) {
+  process.env.MONGODB_URI = 'mongodb+srv://jihad2jus:l9GrLciVEUvvK8Fd@jihad.8dyvx.mongodb.net/jgo?retryWrites=true&w=majority&appName=jihad';
+}
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'layan_chargex_jwt_secret_key_2026_secure';
+}
+if (!process.env.JWT_REFRESH_SECRET) {
+  process.env.JWT_REFRESH_SECRET = 'layan_chargex_refresh_secret_key_2026_secure';
+}
+
+let cachedHandler = null;
 
 module.exports = async (req, res) => {
   try {
-    return await handler(req, res);
+    if (!cachedHandler) {
+      const main = require('../dist/main.js');
+      cachedHandler = main.default || main;
+    }
+    return await cachedHandler(req, res);
   } catch (error) {
     console.error('Vercel Handler Error:', error);
     res.statusCode = 500;
