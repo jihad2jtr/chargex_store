@@ -32,7 +32,10 @@ class _LoginScreenState extends State<LoginScreen> {
     if (email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('يرجى ملء جميع الحقول', style: AppTypography.cairo(fontSize: 13, color: Colors.white)),
+          content: Text(
+            'يرجى ملء جميع الحقول',
+            style: AppTypography.cairo(fontSize: 13, color: Colors.white),
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -52,7 +55,10 @@ class _LoginScreenState extends State<LoginScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(auth.errorMessage ?? 'فشل تسجيل الدخول', style: AppTypography.cairo(fontSize: 13, color: Colors.white)),
+          content: Text(
+            auth.errorMessage ?? 'فشل تسجيل الدخول',
+            style: AppTypography.cairo(fontSize: 13, color: Colors.white),
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -61,25 +67,25 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _fillAdminDemo() {
     _emailController.text = 'admin@chargex.com';
-    _passwordController.text = 'Admin@123456';
+    _passwordController.text = 'Z@@lka1994';
     _submit();
   }
 
   void _fillSupervisorDemo() {
     _emailController.text = 'supervisor@chargex.com';
-    _passwordController.text = 'Supervisor@123456';
+    _passwordController.text = 'Z@@lka1994';
     _submit();
   }
 
   void _fillAgentDemo() {
     _emailController.text = 'agent@chargex.com';
-    _passwordController.text = 'Agent@123456';
+    _passwordController.text = 'Z@@lka1994';
     _submit();
   }
 
   void _fillUserDemo() {
     _emailController.text = 'user@chargex.com';
-    _passwordController.text = 'User@123456';
+    _passwordController.text = 'Z@@lka1994';
     _submit();
   }
 
@@ -110,7 +116,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(20),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFF18223).withValues(alpha: 0.35),
+                                color: const Color(
+                                  0xFFF18223,
+                                ).withValues(alpha: 0.35),
                                 blurRadius: 20,
                                 offset: const Offset(0, 8),
                               ),
@@ -141,11 +149,20 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                             const SizedBox(width: 8),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
-                                color: AppColors.ticketAmberLight.withValues(alpha: 0.4),
+                                color: AppColors.ticketAmberLight.withValues(
+                                  alpha: 0.4,
+                                ),
                                 borderRadius: BorderRadius.circular(6),
-                                border: Border.all(color: AppColors.ticketAmber.withValues(alpha: 0.4)),
+                                border: Border.all(
+                                  color: AppColors.ticketAmber.withValues(
+                                    alpha: 0.4,
+                                  ),
+                                ),
                               ),
                               child: Text(
                                 'EXPRESS GATE',
@@ -169,7 +186,10 @@ class _LoginScreenState extends State<LoginScreen> {
                         const SizedBox(height: 10),
                         // Server Status Badge
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(20),
@@ -220,7 +240,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       border: Border.all(color: AppColors.outline),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.04),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -263,10 +285,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           decoration: InputDecoration(
                             labelText: 'البريد الإلكتروني',
-                            labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.textSecondary),
+                            labelStyle: AppTypography.cairo(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
                             hintText: 'user@chargex.com',
-                            hintStyle: AppTypography.plusJakartaSans(fontSize: 13, color: AppColors.textMuted),
-                            prefixIcon: const Icon(Icons.email_outlined, size: 20, color: AppColors.primaryBlue),
+                            hintStyle: AppTypography.plusJakartaSans(
+                              fontSize: 13,
+                              color: AppColors.textMuted,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.email_outlined,
+                              size: 20,
+                              color: AppColors.primaryBlue,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -282,11 +314,20 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           decoration: InputDecoration(
                             labelText: 'كلمة المرور',
-                            labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.textSecondary),
-                            prefixIcon: const Icon(Icons.lock_outline_rounded, size: 20, color: AppColors.primaryBlue),
+                            labelStyle: AppTypography.cairo(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.lock_outline_rounded,
+                              size: 20,
+                              color: AppColors.primaryBlue,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
                                 color: AppColors.textSecondary,
                                 size: 20,
                               ),
@@ -308,7 +349,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primaryBlue.withValues(alpha: 0.35),
+                                color: AppColors.primaryBlue.withValues(
+                                  alpha: 0.35,
+                                ),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
                               ),
@@ -324,12 +367,20 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ? const SizedBox(
                                         width: 22,
                                         height: 22,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
                                       )
                                     : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          const Icon(Icons.login_rounded, color: Colors.white, size: 19),
+                                          const Icon(
+                                            Icons.login_rounded,
+                                            color: Colors.white,
+                                            size: 19,
+                                          ),
                                           const SizedBox(width: 8),
                                           Text(
                                             'دخول فوري للمنصة',
@@ -349,9 +400,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         // Quick Demo Access Header
                         Row(
                           children: [
-                            const Expanded(child: Divider(color: AppColors.outline)),
+                            const Expanded(
+                              child: Divider(color: AppColors.outline),
+                            ),
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 10),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                              ),
                               child: Text(
                                 'حسابات التجربة السريعة (DEMO ACCESS)',
                                 style: AppTypography.technicalCode(
@@ -361,7 +416,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               ),
                             ),
-                            const Expanded(child: Divider(color: AppColors.outline)),
+                            const Expanded(
+                              child: Divider(color: AppColors.outline),
+                            ),
                           ],
                         ),
                         const SizedBox(height: 14),
@@ -427,7 +484,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       TextButton(
                         onPressed: () {
                           Navigator.of(context).push(
-                            MaterialPageRoute(builder: (_) => const RegisterScreen()),
+                            MaterialPageRoute(
+                              builder: (_) => const RegisterScreen(),
+                            ),
                           );
                         },
                         child: Text(
@@ -495,17 +554,22 @@ class _LoginScreenState extends State<LoginScreen> {
                     code,
                     style: AppTypography.technicalCode(
                       fontSize: 8.5,
-                      color: accentColor == AppColors.darkNav ? AppColors.textSecondary : accentColor,
+                      color: accentColor == AppColors.darkNav
+                          ? AppColors.textSecondary
+                          : accentColor,
                     ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.textSecondary),
+            const Icon(
+              Icons.arrow_forward_ios_rounded,
+              size: 12,
+              color: AppColors.textSecondary,
+            ),
           ],
         ),
       ),
     );
   }
 }
-
