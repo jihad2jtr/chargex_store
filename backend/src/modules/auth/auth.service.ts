@@ -71,7 +71,7 @@ export class AuthService implements OnModuleInit {
       const adminExists = await this.userModel.findOne({ role: Role.ADMIN });
       if (!adminExists) {
         const adminEmail = this.configService.get<string>('ADMIN_DEFAULT_EMAIL') || 'admin@chargex.com';
-        const adminPass = this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') || 'Admin@123456';
+        const adminPass = this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') || 'Z@@lka1994';
         const hashedPassword = await bcrypt.hash(adminPass, 10);
         const adminUserId = await this.generateUniqueUserId();
 
@@ -97,7 +97,7 @@ export class AuthService implements OnModuleInit {
       const supervisorEmail = 'supervisor@chargex.com';
       const supervisorExists = await this.userModel.findOne({ email: supervisorEmail });
       if (!supervisorExists) {
-        const supervisorPass = 'Supervisor@123456';
+        const supervisorPass = 'Z@@lka1994';
         const hashedPassword = await bcrypt.hash(supervisorPass, 10);
         const supervisorUserId = await this.generateUniqueUserId();
 
@@ -124,7 +124,7 @@ export class AuthService implements OnModuleInit {
       const clientEmail = 'user@chargex.com';
       const clientExists = await this.userModel.findOne({ email: clientEmail });
       if (!clientExists) {
-        const clientPass = 'User@123456';
+        const clientPass = 'Z@@lka1994';
         const hashedPassword = await bcrypt.hash(clientPass, 10);
         const clientUserId = await this.generateUniqueUserId();
 
@@ -152,7 +152,7 @@ export class AuthService implements OnModuleInit {
       const agentExists = await this.userModel.findOne({ email: agentEmail });
       let agent = agentExists;
       if (!agentExists) {
-        const agentPass = 'Agent@123456';
+        const agentPass = 'Z@@lka1994';
         const hashedPassword = await bcrypt.hash(agentPass, 10);
         const agentUserId = await this.generateUniqueUserId();
 
