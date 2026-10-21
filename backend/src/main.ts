@@ -21,7 +21,9 @@ async function bootstrapServer() {
     }),
   );
 
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['/', 'health'],
+  });
 
   await app.init();
   return app.getHttpAdapter().getInstance();
@@ -57,7 +59,9 @@ async function bootstrap() {
   );
 
   // Set Global Prefix
-  app.setGlobalPrefix('api');
+  app.setGlobalPrefix('api', {
+    exclude: ['/', 'health'],
+  });
 
   const port = process.env.PORT || 3000;
   await app.listen(port, '0.0.0.0');

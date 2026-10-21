@@ -26,6 +26,8 @@ import { AgentModule } from './modules/agent/agent.module';
       imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => ({
         uri: configService.get<string>('MONGODB_URI') || 'mongodb://127.0.0.1:27017/layan_chargex',
+        serverSelectionTimeoutMS: 6000,
+        connectTimeoutMS: 8000,
       }),
       inject: [ConfigService],
     }),
