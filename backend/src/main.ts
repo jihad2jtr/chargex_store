@@ -4,7 +4,7 @@ import { AppModule } from './app.module';
 
 let cachedServer: any;
 
-async function bootstrapServer() {
+export async function bootstrapServer() {
   const app = await NestFactory.create(AppModule);
 
   app.enableCors({
@@ -68,6 +68,6 @@ async function bootstrap() {
   logger.log(`🚀 JGO Backend Server running on: http://0.0.0.0:${port}/api`);
 }
 
-if (!process.env.VERCEL) {
+if (typeof require !== 'undefined' && require.main === module) {
   bootstrap();
 }

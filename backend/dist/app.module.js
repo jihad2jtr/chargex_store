@@ -24,6 +24,8 @@ const notifications_module_1 = require("./modules/notifications/notifications.mo
 const upload_module_1 = require("./modules/upload/upload.module");
 const banners_module_1 = require("./modules/banners/banners.module");
 const agent_module_1 = require("./modules/agent/agent.module");
+const app_controller_1 = require("./app.controller");
+const app_service_1 = require("./app.service");
 let AppModule = class AppModule {
 };
 exports.AppModule = AppModule;
@@ -61,6 +63,8 @@ exports.AppModule = AppModule = __decorate([
             banners_module_1.BannersModule,
             agent_module_1.AgentModule,
         ],
+        controllers: [app_controller_1.AppController],
+        providers: [app_service_1.AppService],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

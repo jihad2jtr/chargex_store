@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.bootstrapServer = bootstrapServer;
 exports.default = handler;
 const core_1 = require("@nestjs/core");
 const common_1 = require("@nestjs/common");
@@ -49,7 +50,7 @@ async function bootstrap() {
     await app.listen(port, '0.0.0.0');
     logger.log(`🚀 JGO Backend Server running on: http://0.0.0.0:${port}/api`);
 }
-if (!process.env.VERCEL) {
+if (typeof require !== 'undefined' && require.main === module) {
     bootstrap();
 }
 //# sourceMappingURL=main.js.map
