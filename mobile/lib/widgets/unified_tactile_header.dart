@@ -665,17 +665,38 @@ class UnifiedTactileHeader extends StatelessWidget {
     final balanceVal = currentUser?.balance ?? 1248.50;
     final balanceStr = balanceVal.toStringAsFixed(2);
 
-    // Unified role badge text
-    final String roleBadgeText = currentUser?.isAdmin == true
-        ? "مدير"
-        : currentUser?.isSupervisor == true
-            ? "مشرف"
-            : currentUser?.isAgent == true
-                ? "وكيل"
-                : "عميل";
+    final String clientName = (currentUser?.name != null && currentUser!.name.trim().isNotEmpty)
+        ? currentUser.name.trim()
+        : 'عميل JGO';
+    final String clientId = currentUser?.displayId ?? '8940-CX';
 
-    // Unified subtitle for all roles
-    const String subtitle = "بوابة الصرف والخدمات الرقمية";
+    // Role badge text and tailored luxury color tokens
+    final String roleBadgeText;
+    final Color roleBadgeBg;
+    final Color roleBadgeTextCol;
+    final Color roleBadgeBorder;
+
+    if (currentUser?.isAdmin == true) {
+      roleBadgeText = "ادمن";
+      roleBadgeBg = const Color(0xFFFAF5FF);
+      roleBadgeTextCol = const Color(0xFF7E22CE);
+      roleBadgeBorder = const Color(0xFFD8B4FE);
+    } else if (currentUser?.isSupervisor == true || currentUser?.role.toLowerCase() == 'provider') {
+      roleBadgeText = "مقدم خدمة";
+      roleBadgeBg = const Color(0xFFF0F9FF);
+      roleBadgeTextCol = const Color(0xFF0369A1);
+      roleBadgeBorder = const Color(0xFFBAE6FD);
+    } else if (currentUser?.isAgent == true) {
+      roleBadgeText = "وكيل";
+      roleBadgeBg = const Color(0xFFFFFBEB);
+      roleBadgeTextCol = const Color(0xFFB45309);
+      roleBadgeBorder = const Color(0xFFFDE68A);
+    } else {
+      roleBadgeText = "عميل";
+      roleBadgeBg = const Color(0xFFECFDF5);
+      roleBadgeTextCol = const Color(0xFF047857);
+      roleBadgeBorder = const Color(0xFFA7F3D0);
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -695,7 +716,7 @@ class UnifiedTactileHeader extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // -------------------------------------------------------------
-          // 1. START: Clean Brand Emblem & Title Station
+          // 1. START: Clean Brand Emblem & Customer Identity Station
           // -------------------------------------------------------------
           Flexible(
             child: Row(
@@ -735,36 +756,54 @@ class UnifiedTactileHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 7),
 
-                // Title & Unified Role Badge
+                // Customer Name (Top) & Customer ID + Role Badge (Below)
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      // اسم العميل
+                      Text(
+                        clientName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: const Color(0xFF0F172A),
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+
+                      // ايدي العميل وبجانبه نوع الدور (role)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            "JGO",
-                            style: AppTypography.plusJakartaSans(
-                              fontSize: 15.5,
-                              fontWeight: FontWeight.w900,
-                              color: const Color(0xFF020617),
-                              letterSpacing: -0.3,
+                          Flexible(
+                            child: Text(
+                              '#$clientId',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.technicalCode(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF64748B),
+                                letterSpacing: 0.3,
+                              ),
                             ),
                           ),
                           const SizedBox(width: 4),
-                          // Unified Role Badge for Everyone
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
+                              horizontal: 5,
+                              vertical: 1,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
-                              borderRadius: BorderRadius.circular(6),
+                              color: roleBadgeBg,
+                              borderRadius: BorderRadius.circular(5),
                               border: Border.all(
-                                color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
+                                color: roleBadgeBorder,
                                 width: 0.8,
                               ),
                             ),
@@ -773,22 +812,12 @@ class UnifiedTactileHeader extends StatelessWidget {
                               style: AppTypography.cairo(
                                 fontSize: 8.5,
                                 fontWeight: FontWeight.w900,
-                                color: const Color(0xFFFBBF24),
+                                color: roleBadgeTextCol,
+                                height: 1.1,
                               ),
                             ),
                           ),
                         ],
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.cairo(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF64748B),
-                        ),
                       ),
                     ],
                   ),
