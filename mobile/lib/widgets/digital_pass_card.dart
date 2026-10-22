@@ -84,11 +84,7 @@ class TicketPassClipper extends CustomClipper<Path> {
     path.lineTo(0, r);
 
     // 13. Top-left corner
-    path.arcToPoint(
-      Offset(r, 0),
-      radius: Radius.circular(r),
-      clockwise: true,
-    );
+    path.arcToPoint(Offset(r, 0), radius: Radius.circular(r), clockwise: true);
 
     path.close();
     return path;
@@ -205,6 +201,34 @@ class DashedLinePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
+class VerticalDashedLinePainter extends CustomPainter {
+  final Color color;
+  final double dashHeight;
+  final double dashSpace;
+
+  VerticalDashedLinePainter({
+    this.color = const Color(0x33FFFFFF),
+    this.dashHeight = 4.0,
+    this.dashSpace = 3.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.0;
+
+    double startY = 0;
+    while (startY < size.height) {
+      canvas.drawLine(Offset(0, startY), Offset(0, startY + dashHeight), paint);
+      startY += dashHeight + dashSpace;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
 // -----------------------------------------------------------------------------
 // 2. DIGITAL PASS ITEM MODEL & SAMPLE DATA
 // -----------------------------------------------------------------------------
@@ -246,251 +270,60 @@ class DigitalPassItem {
     required this.imageUrl,
   });
 
-  /// Helper to resolve card image from local assets (600x400) or fallback
+  /// Helper to resolve card image from server URL (app.iconUrl)
   static String resolveCardImage(String name, {String? fallbackUrl}) {
-    // If an explicit asset path or remote URL was assigned, honor it directly
     if (fallbackUrl != null && fallbackUrl.trim().isNotEmpty) {
-      final trimmed = fallbackUrl.trim();
-      if (trimmed.startsWith('assets/') ||
-          trimmed.startsWith('http://') ||
-          trimmed.startsWith('https://')) {
-        return trimmed;
-      }
+      return fallbackUrl.trim();
     }
-
-    final lower = name.toLowerCase();
-
-    // 1. Games (18 games)
-    if (lower.contains('pubg') || lower.contains('ببجي') || lower.contains('بوبجي')) {
-      return 'assets/cards/pubg-mobile.png';
-    }
-    if (lower.contains('free') || lower.contains('فاير') || lower.contains('fire')) {
-      return 'assets/cards/free-fire.png';
-    }
-    if (lower.contains('call of duty') || lower.contains('كول اوف') || lower.contains('cod') || lower.contains('كود')) {
-      return 'assets/cards/call-of-duty-mobile.png';
-    }
-    if (lower.contains('ea') || lower.contains('fifa') || lower.contains('فيفا') || lower.contains('fc 2') || lower.contains('fc2')) {
-      return 'assets/cards/ea-sports-fc.png';
-    }
-    if (lower.contains('efootball') || lower.contains('pes') || lower.contains('بيس')) {
-      return 'assets/cards/efootball.png';
-    }
-    if (lower.contains('clash royale') || lower.contains('كلاش رويال')) {
-      return 'assets/cards/clash-royale.png';
-    }
-    if (lower.contains('clash') || lower.contains('كلاش')) {
-      return 'assets/cards/clash-of-clans.png';
-    }
-    if (lower.contains('brawl') || lower.contains('براول')) {
-      return 'assets/cards/brawl-stars.png';
-    }
-    if (lower.contains('roblox') || lower.contains('روبلوكس') || lower.contains('روبلكس')) {
-      return 'assets/cards/roblox.png';
-    }
-    if (lower.contains('minecraft') || lower.contains('ماين كرافت') || lower.contains('ماينكرافت')) {
-      return 'assets/cards/minecraft.png';
-    }
-    if (lower.contains('fortnite') || lower.contains('فورتنايت') || lower.contains('فورت نايت')) {
-      return 'assets/cards/fortnite.png';
-    }
-    if (lower.contains('valorant') || lower.contains('فالورانت') || lower.contains('فالورنت')) {
-      return 'assets/cards/valorant.png';
-    }
-    if (lower.contains('league of legends') || lower.contains('lol') || lower.contains('ليج أوف ليجندز') || lower.contains('ليق')) {
-      return 'assets/cards/league-of-legends.png';
-    }
-    if (lower.contains('legends') || lower.contains('ليجند') || lower.contains('mlbb')) {
-      return 'assets/cards/mobile-legends.png';
-    }
-    if (lower.contains('genshin') || lower.contains('قنشن') || lower.contains('جينشين')) {
-      return 'assets/cards/genshin-impact.png';
-    }
-    if (lower.contains('honkai') || lower.contains('star rail') || lower.contains('هونكاي')) {
-      return 'assets/cards/honkai-star-rail.png';
-    }
-    if (lower.contains('asphalt') || lower.contains('اسفلت') || lower.contains('أسفلت')) {
-      return 'assets/cards/asphalt-9.png';
-    }
-    if (lower.contains('among us') || lower.contains('among-us') || lower.contains('امونج') || lower.contains('امونغ')) {
-      return 'assets/cards/among-us.png';
-    }
-
-    // 2. Apps & Social & AI (14 apps)
-    if (lower.contains('chatgpt') || lower.contains('chat gpt') || lower.contains('openai') || lower.contains('جي بي تي')) {
-      return 'assets/cards/chatgpt.png';
-    }
-    if (lower.contains('tiktok') || lower.contains('تيك توك') || lower.contains('تيك')) {
-      return 'assets/cards/tiktok.png';
-    }
-    if (lower.contains('snap') || lower.contains('سناب')) {
-      return 'assets/cards/snapchat.png';
-    }
-    if (lower.contains('instagram') || lower.contains('انستقرام') || lower.contains('انستغرام') || lower.contains('انستا')) {
-      return 'assets/cards/instagram.png';
-    }
-    if (lower.contains('telegram') || lower.contains('تيليجرام') || lower.contains('تليجرام') || lower.contains('تليغرام')) {
-      return 'assets/cards/telegram.png';
-    }
-    if (lower.contains('whatsapp') || lower.contains('واتساب') || lower.contains('واتس')) {
-      return 'assets/cards/whatsapp.png';
-    }
-    if (lower.contains('facebook') || lower.contains('فيسبوك') || lower.contains('فيس')) {
-      return 'assets/cards/facebook.png';
-    }
-    if (lower == 'x' || lower.contains('twitter') || lower.contains('تويتر') || lower.contains('منصة x')) {
-      return 'assets/cards/x.png';
-    }
-    if (lower.contains('discord') || lower.contains('ديسكورد')) {
-      return 'assets/cards/discord.png';
-    }
-    if (lower.contains('spotify') || lower.contains('سبوتيفاي') || lower.contains('سبوتفاي')) {
-      return 'assets/cards/spotify.png';
-    }
-    if (lower.contains('netflix') || lower.contains('نتفلكس') || lower.contains('نتفليكس')) {
-      return 'assets/cards/netflix.png';
-    }
-    if (lower.contains('youtube') || lower.contains('يوتيوب')) {
-      return 'assets/cards/youtube-premium.png';
-    }
-    if (lower.contains('canva') || lower.contains('كانفا')) {
-      return 'assets/cards/canva.png';
-    }
-    if (lower.contains('gmail') || lower.contains('جيميل')) {
-      return 'assets/cards/gmail.png';
-    }
-
-    // 3. Digital Stores & Consoles (8 services)
-    if (lower.contains('playstation') || lower.contains('psn') || lower.contains('بلايستيشن') || lower.contains('بلاي ستيشن') || lower.contains('ps5') || lower.contains('ps4')) {
-      return 'assets/cards/playstation.png';
-    }
-    if (lower.contains('xbox') || lower.contains('اكس بوكس') || lower.contains('إكس بوكس')) {
-      return 'assets/cards/xbox.png';
-    }
-    if (lower.contains('steam') || lower.contains('ستيم')) {
-      return 'assets/cards/steam.png';
-    }
-    if (lower.contains('nintendo') || lower.contains('نينتندو') || lower.contains('سويتش')) {
-      return 'assets/cards/nintendo.png';
-    }
-    if (lower.contains('icloud') || lower.contains('اي كلاود') || lower.contains('آي كلاود')) {
-      return 'assets/cards/icloud.png';
-    }
-    if (lower.contains('microsoft') || lower.contains('مايكروسوفت') || lower.contains('office') || lower.contains('اوفيس')) {
-      return 'assets/cards/microsoft-365.png';
-    }
-    if (lower.contains('google') || lower.contains('جوجل') || lower.contains('قوقل') || lower.contains('play')) {
-      return 'assets/cards/google-play.png';
-    }
-    if (lower.contains('apple') || lower.contains('app store') || lower.contains('ابل') || lower.contains('أبل') || lower.contains('itunes')) {
-      return 'assets/cards/app-store.png';
-    }
-
-    // Explicit icon or fallback if not matching predefined card artwork
-    if (fallbackUrl != null && fallbackUrl.trim().isNotEmpty) {
-      return fallbackUrl;
-    }
-    return 'assets/cards/pubg-mobile.png';
+    return '';
   }
 
+  /// Construct a dynamic digital pass item strictly using data from the server/admin panel
   factory DigitalPassItem.fromApp(AppItemModel app) {
-    final nameLower = app.name.toLowerCase();
-    final isPubg = nameLower.contains('pubg') || app.name.contains('ببجي');
-    final isFF = nameLower.contains('fire') || app.name.contains('فاير');
-    final isTikTok = nameLower.contains('tiktok') || app.name.contains('تيك');
-    final isML = nameLower.contains('legends') || app.name.contains('ليجند');
+    // Generate clean code for ticket badge (e.g., TKT #PUBG, TKT #FREE)
+    final String cleanCode = app.name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    final String tktCode = cleanCode.isNotEmpty
+        ? "TKT #${cleanCode.length > 5 ? cleanCode.substring(0, 5).toUpperCase() : cleanCode.toUpperCase()}"
+        : "TKT #${app.name.split(' ').first.toUpperCase()}";
 
     final resolvedImg = resolveCardImage(app.name, fallbackUrl: app.iconUrl);
 
-    if (isPubg) {
-      return DigitalPassItem(
-        id: app.id,
-        tktCode: "TKT #PUBG",
-        title: "ببجي موبايل",
-        categoryRange: "60 إلى 8100 شدة UC",
-        priceStarting: "\$0.99",
-        topBadgeText: "FAST-PASS 60s",
-        topBadgeIcon: Icons.bolt,
-        topBadgeBg: const Color(0xF2FFFFFF),
-        topBadgeTextCol: const Color(0xFF065F46),
-        topBadgeIconCol: const Color(0xFF059669),
-        secondaryTag: "DIRECT",
-        secondaryTagBg: const Color(0xCC082F49),
-        secondaryTagBorder: const Color(0x660284C7),
-        secondaryTagTextCol: const Color(0xFF7DD3FC),
-        buttonLabel: "شحن",
-        imageUrl: resolvedImg,
-      );
-    } else if (isFF) {
-      return DigitalPassItem(
-        id: app.id,
-        tktCode: "TKT #FF",
-        title: "فري فاير",
-        categoryRange: "100 إلى 2180 جوهرة",
-        priceStarting: "\$0.85",
-        topBadgeText: "ID مباشر",
-        topBadgeIcon: Icons.fingerprint,
-        topBadgeBg: const Color(0xF2FFFFFF),
-        topBadgeTextCol: const Color(0xFF075985),
-        topBadgeIconCol: const Color(0xFF0284C7),
-        secondaryTag: "G-PASS",
-        secondaryTagBg: const Color(0xCC451A03),
-        secondaryTagBorder: const Color(0x66F59E0B),
-        secondaryTagTextCol: const Color(0xFFFDE68A),
-        buttonLabel: "شحن",
-        imageUrl: resolvedImg,
-      );
-    } else if (isTikTok) {
-      return DigitalPassItem(
-        id: app.id,
-        tktCode: "TKT #TKCOIN",
-        title: "تيك توك عملات",
-        categoryRange: "70 إلى 7000 عملة",
-        priceStarting: "\$1.20",
-        topBadgeText: "تلقائي AUTO",
-        topBadgeIcon: Icons.flash_on,
-        topBadgeBg: const Color(0xF2FFFFFF),
-        topBadgeTextCol: const Color(0xFF065F46),
-        topBadgeIconCol: const Color(0xFF059669),
-        secondaryTag: "LIVE",
-        secondaryTagBg: const Color(0xCC064E3B),
-        secondaryTagBorder: const Color(0x6610B981),
-        secondaryTagTextCol: const Color(0xFF6EE7B7),
-        buttonLabel: "شحن فوري",
-        imageUrl: resolvedImg,
-      );
-    } else if (isML) {
-      return DigitalPassItem(
-        id: app.id,
-        tktCode: "TKT #MLBB",
-        title: "موبايل ليجندز",
-        categoryRange: "ماس + باقة النجوم",
-        priceStarting: "\$1.50",
-        topBadgeText: "شحن خادم",
-        topBadgeIcon: Icons.verified,
-        topBadgeBg: const Color(0xF2FFFFFF),
-        topBadgeTextCol: const Color(0xFF075985),
-        topBadgeIconCol: const Color(0xFF0284C7),
-        secondaryTag: "VIP PASS",
-        secondaryTagBg: const Color(0xCC3B0764),
-        secondaryTagBorder: const Color(0x66A855F7),
-        secondaryTagTextCol: const Color(0xFFD8B4FE),
-        buttonLabel: "شحن فوري",
-        imageUrl: resolvedImg,
-      );
+    // Determine badge and tag based on app category/type dynamically
+    String badgeText = "فوري";
+    IconData badgeIcon = Icons.bolt;
+    Color badgeTextCol = const Color(0xFF065F46);
+    Color badgeIconCol = const Color(0xFF059669);
+
+    if (app.appType == 'game' || (app.category != null && app.category!.contains('ألعاب'))) {
+      badgeText = "شحن فوري";
+      badgeIcon = Icons.sports_esports;
+    } else if (app.appType == 'service') {
+      badgeText = "خدمة رقمية";
+      badgeIcon = Icons.verified;
+      badgeTextCol = const Color(0xFF075985);
+      badgeIconCol = const Color(0xFF0284C7);
+    } else if (app.category != null && app.category!.isNotEmpty) {
+      badgeText = app.category!;
     }
 
-    final code = "TKT #${app.name.split(' ').first.toUpperCase()}";
     return DigitalPassItem(
       id: app.id,
-      tktCode: code,
+      tktCode: tktCode,
       title: app.name,
-      categoryRange: app.description ?? "شحن فوري 24/7",
-      priceStarting: "\$0.99",
-      topBadgeText: app.category ?? "فوري",
-      topBadgeIcon: Icons.bolt,
-      secondaryTag: "PASS",
-      buttonLabel: "شحن",
+      categoryRange: (app.description != null && app.description!.trim().isNotEmpty)
+          ? app.description!
+          : (app.category ?? "شحن فوري 24/7"),
+      priceStarting: "باقات متعددة",
+      topBadgeText: badgeText,
+      topBadgeIcon: badgeIcon,
+      topBadgeBg: const Color(0xF2FFFFFF),
+      topBadgeTextCol: badgeTextCol,
+      topBadgeIconCol: badgeIconCol,
+      secondaryTag: app.appType.toUpperCase(),
+      secondaryTagBg: const Color(0xCC082F49),
+      secondaryTagBorder: const Color(0x660284C7),
+      secondaryTagTextCol: const Color(0xFF7DD3FC),
+      buttonLabel: "عرض الباقات",
       imageUrl: resolvedImg,
     );
   }
@@ -534,7 +367,10 @@ class DigitalPassItem {
     }
 
     // TKT code from product or app
-    final String cleanCode = product.name.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '');
+    final String cleanCode = product.name.replaceAll(
+      RegExp(r'[^a-zA-Z0-9]'),
+      '',
+    );
     final String tktCode = cleanCode.isNotEmpty
         ? "TKT #${cleanCode.length > 5 ? cleanCode.substring(0, 5).toUpperCase() : cleanCode.toUpperCase()}"
         : "TKT #${app.name.split(' ').first.toUpperCase()}";
@@ -549,13 +385,14 @@ class DigitalPassItem {
       id: product.id,
       tktCode: tktCode,
       title: product.name,
-      categoryRange: product.description != null && product.description!.isNotEmpty
+      categoryRange:
+          product.description != null && product.description!.isNotEmpty
           ? product.description!
           : (product.type == 'codes'
-              ? 'تسليم كود فوري آلياً'
-              : (product.type == 'manual'
-                  ? 'تنفيذ فوري عبر المشرف'
-                  : 'شحن حساب رسمي مباشر')),
+                ? 'تسليم كود فوري آلياً'
+                : (product.type == 'manual'
+                      ? 'تنفيذ فوري عبر المشرف'
+                      : 'شحن حساب رسمي مباشر')),
       priceStarting: formattedPrice,
       topBadgeText: topBadgeText,
       topBadgeIcon: topBadgeIcon,
@@ -829,7 +666,8 @@ class _HeroTicketBannerState extends State<HeroTicketBanner> {
                             children: [
                               // Top Row: Badges
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(
@@ -1011,11 +849,7 @@ class DigitalPassCardWidget extends StatelessWidget {
     return Container(
       color: const Color(0xFF0F172A),
       child: const Center(
-        child: Icon(
-          Icons.sports_esports,
-          color: Color(0xFFF59E0B),
-          size: 32,
-        ),
+        child: Icon(Icons.sports_esports, color: Color(0xFFF59E0B), size: 32),
       ),
     );
   }
@@ -1092,286 +926,668 @@ class DigitalPassCardWidget extends StatelessWidget {
               color: const Color(0xFF0F172A),
               child: Stack(
                 children: [
-            // 1. Full-Bleed Artwork Image
-            Positioned.fill(
-              child: item.imageUrl.startsWith('assets/')
-                  ? Image.asset(
-                      item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (ctx, err, stack) => Container(
-                        color: const Color(0xFF0F172A),
-                        child: const Center(
-                          child: Icon(
-                            Icons.sports_esports,
-                            color: Color(0xFFF59E0B),
-                            size: 32,
+                  // 1. Full-Bleed Artwork Image
+                  Positioned.fill(
+                    child: item.imageUrl.startsWith('assets/')
+                        ? Image.asset(
+                            item.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, stack) => Container(
+                              color: const Color(0xFF0F172A),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.sports_esports,
+                                  color: Color(0xFFF59E0B),
+                                  size: 32,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Image.network(
+                            item.imageUrl,
+                            fit: BoxFit.cover,
+                            errorBuilder: (ctx, err, stack) => Container(
+                              color: const Color(0xFF0F172A),
+                              child: const Center(
+                                child: Icon(
+                                  Icons.sports_esports,
+                                  color: Color(0xFFF59E0B),
+                                  size: 32,
+                                ),
+                              ),
+                            ),
                           ),
+                  ),
+
+                  // 2. Cinematic Gradient Overlay
+                  Positioned.fill(
+                    child: Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.topCenter,
+                          colors: [
+                            Color(0xFF020617),
+                            Color(0xCC0F172A),
+                            Color(0x660F172A),
+                          ],
+                          stops: [0.0, 0.55, 1.0],
                         ),
                       ),
-                    )
-                  : Image.network(
-                      item.imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (ctx, err, stack) => Container(
-                        color: const Color(0xFF0F172A),
-                        child: const Center(
-                          child: Icon(
-                            Icons.sports_esports,
-                            color: Color(0xFFF59E0B),
-                            size: 32,
+                    ),
+                  ),
+
+                  // 3. Foreground Content
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9.0,
+                      vertical: 6.0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // UPPER SECTION
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Top Row: Badges
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                // Status Badge: Plus Jakarta Sans / Space Mono
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: item.topBadgeBg,
+                                    borderRadius: BorderRadius.circular(5),
+                                    border: Border.all(
+                                      color: const Color(0xFFE2E8F0),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        item.topBadgeIcon,
+                                        size: 10,
+                                        color: item.topBadgeIconCol,
+                                      ),
+                                      const SizedBox(width: 3),
+                                      Text(
+                                        item.topBadgeText,
+                                        style: AppTypography.fintechBadge(
+                                          fontSize: 8.0,
+                                          fontWeight: FontWeight.w900,
+                                          color: item.topBadgeTextCol,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // TKT Code: Space Mono
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xE60F172A),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.20,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    item.tktCode,
+                                    style: AppTypography.technicalCode(
+                                      fontSize: 7.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 5),
+
+                            // Game Title & Tag Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    item.title,
+                                    textAlign: TextAlign.right,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.arabicCardTitle(
+                                      fontSize: 13,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1.5,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: item.secondaryTagBg,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: item.secondaryTagBorder,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    item.secondaryTag,
+                                    style: AppTypography.technicalCode(
+                                      fontSize: 7.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: item.secondaryTagTextCol,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+
+                            // Category Range: Cairo Arabic
+                            Text(
+                              item.categoryRange,
+                              textAlign: TextAlign.right,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.cairo(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w600,
+                                color: const Color(0xFFCBD5E1),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        // LOWER SECTION (Fare & Button together)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            // Perforated Dashed Line
+                            CustomPaint(
+                              painter: DashedLinePainter(
+                                color: Colors.white.withValues(alpha: 0.20),
+                              ),
+                              size: const Size(double.infinity, 1),
+                            ),
+                            const SizedBox(height: 5),
+
+                            // Fare & Action Row
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                // Price & Fare Label
+                                Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      item.priceStarting,
+                                      style: AppTypography.price(
+                                        fontSize: 13.5,
+                                        color: const Color(0xFFFDE047),
+                                      ),
+                                    ),
+                                    Text(
+                                      "FARE / يبدأ من",
+                                      style: AppTypography.technicalCode(
+                                        fontSize: 7.5,
+                                        fontWeight: FontWeight.bold,
+                                        color: const Color(0xFF94A3B8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+
+                                // Compact Action Button
+                                InkWell(
+                                  onTap: onTapCharge,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Container(
+                                    height: 28,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFBBF24),
+                                      borderRadius: BorderRadius.circular(8),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.25,
+                                          ),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.bolt,
+                                          size: 13,
+                                          color: Color(0xFF020617),
+                                        ),
+                                        const SizedBox(width: 3),
+                                        Text(
+                                          item.buttonLabel,
+                                          style: AppTypography.arabicButton(
+                                            fontSize: 10.5,
+                                            color: const Color(0xFF020617),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// -----------------------------------------------------------------------------
+// 5. HORIZONTAL RECTANGULAR DIGITAL PASS CARD WIDGET (كروت الباقات المستطيلة)
+// -----------------------------------------------------------------------------
+
+class HorizontalDigitalPassCardWidget extends StatelessWidget {
+  final DigitalPassItem item;
+  final ProductModel product;
+  final VoidCallback onTapCharge;
+  final double displayPrice;
+  final String? marginText;
+
+  const HorizontalDigitalPassCardWidget({
+    super.key,
+    required this.item,
+    required this.product,
+    required this.onTapCharge,
+    required this.displayPrice,
+    this.marginText,
+  });
+
+  Widget _buildPlaceholder() {
+    return Container(
+      color: const Color(0xFF0F172A),
+      child: const Center(
+        child: Icon(Icons.sports_esports, color: Color(0xFFF59E0B), size: 32),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const double notchPositionFraction = 0.50;
+    const double cornerRadius = 14.0;
+    const double cardHeight = 104.0;
+
+    return Container(
+      height: cardHeight,
+      margin: const EdgeInsets.only(bottom: 12),
+      child: GestureDetector(
+        onTap: onTapCharge,
+        behavior: HitTestBehavior.opaque,
+        child: CustomPaint(
+          painter: TicketPassShadowPainter(
+            cornerRadius: cornerRadius,
+            notchPositionFraction: notchPositionFraction,
+            notchRadius: 8.0,
+            elevation: 4.0,
+          ),
+          child: CustomPaint(
+            foregroundPainter: TicketPassBorderPainter(
+              cornerRadius: cornerRadius,
+              notchPositionFraction: notchPositionFraction,
+              notchRadius: 8.0,
+              borderColor: Colors.white.withValues(alpha: 0.16),
+              borderWidth: 1.0,
+            ),
+            child: ClipPath(
+              clipper: TicketPassClipper(
+                cornerRadius: cornerRadius,
+                notchPositionFraction: notchPositionFraction,
+                notchRadius: 8.0,
+              ),
+              child: Container(
+                color: const Color(0xFF0F172A),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 1. Full-Bleed Artwork Image
+                    Positioned.fill(
+                      child: item.imageUrl.startsWith('assets/')
+                          ? Image.asset(
+                              item.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, err, stack) =>
+                                  _buildPlaceholder(),
+                            )
+                          : Image.network(
+                              item.imageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (ctx, err, stack) =>
+                                  _buildPlaceholder(),
+                            ),
+                    ),
+
+                    // 2. Cinematic Gradient Overlay (Darkens toward the price side)
+                    Positioned.fill(
+                      child: Container(
+                        decoration: const BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.centerLeft,
+                            end: Alignment.centerRight,
+                            colors: [
+                              Color(0xFF020617),
+                              Color(0xF00F172A),
+                              Color(0x990F172A),
+                            ],
+                            stops: [0.0, 0.45, 1.0],
                           ),
                         ),
                       ),
                     ),
-            ),
 
-            // 2. Cinematic Gradient Overlay
-            Positioned.fill(
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.bottomCenter,
-                    end: Alignment.topCenter,
-                    colors: [
-                      Color(0xFF020617),
-                      Color(0xCC0F172A),
-                      Color(0x660F172A),
-                    ],
-                    stops: [0.0, 0.55, 1.0],
-                  ),
-                ),
-              ),
-            ),
-
-            // 3. Foreground Content
-            Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 9.0,
-                vertical: 6.0,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  // UPPER SECTION
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Top Row: Badges
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    // 3. Foreground Content
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 9.0,
+                      ),
+                      child: Row(
                         children: [
-                          // Status Badge: Plus Jakarta Sans / Space Mono
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: item.topBadgeBg,
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                color: const Color(0xFFE2E8F0),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
+                          // RIGHT SECTION (In RTL: Package Info)
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Icon(
-                                  item.topBadgeIcon,
-                                  size: 10,
-                                  color: item.topBadgeIconCol,
+                                // Top Badges Row
+                                Row(
+                                  children: [
+                                    // Status Badge (Fast-Pass / كود رقمي / شحن ID)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: item.topBadgeBg,
+                                        borderRadius: BorderRadius.circular(5),
+                                        border: Border.all(
+                                          color: const Color(0xFFE2E8F0),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            item.topBadgeIcon,
+                                            size: 10,
+                                            color: item.topBadgeIconCol,
+                                          ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            item.topBadgeText,
+                                            style: AppTypography.fintechBadge(
+                                              fontSize: 8.0,
+                                              fontWeight: FontWeight.w900,
+                                              color: item.topBadgeTextCol,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+
+                                    // TKT Code
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xE60F172A),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.20,
+                                          ),
+                                        ),
+                                      ),
+                                      child: Text(
+                                        item.tktCode,
+                                        style: AppTypography.technicalCode(
+                                          fontSize: 7.5,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 6),
+
+                                    // Secondary Tag (Codes / Direct / Manual)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 1.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: item.secondaryTagBg,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: item.secondaryTagBorder,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        item.secondaryTag,
+                                        style: AppTypography.technicalCode(
+                                          fontSize: 7.5,
+                                          fontWeight: FontWeight.w900,
+                                          color: item.secondaryTagTextCol,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(width: 3),
+
+                                // Package Title
                                 Text(
-                                  item.topBadgeText,
-                                  style: AppTypography.fintechBadge(
-                                    fontSize: 8.0,
-                                    fontWeight: FontWeight.w900,
-                                    color: item.topBadgeTextCol,
+                                  product.name,
+                                  textAlign: TextAlign.right,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.arabicCardTitle(
+                                    fontSize: 15,
+                                    color: Colors.white,
                                   ),
+                                ),
+
+                                // Bottom Row: Category / Description & Reseller Margin
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        item.categoryRange,
+                                        textAlign: TextAlign.right,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTypography.cairo(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: const Color(0xFFCBD5E1),
+                                        ),
+                                      ),
+                                    ),
+                                    if (marginText != null) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 5,
+                                          vertical: 1.5,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0x3310B981),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
+                                          border: Border.all(
+                                            color: const Color(0x6610B981),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          marginText!,
+                                          style: AppTypography.cairo(
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                            color: const Color(0xFF34D399),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ],
                             ),
                           ),
 
-                          // TKT Code: Space Mono
+                          // Vertical Perforated Dashed Line
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: CustomPaint(
+                              painter: VerticalDashedLinePainter(
+                                color: Colors.white.withValues(alpha: 0.22),
+                              ),
+                              size: const Size(1, 68),
+                            ),
+                          ),
+
+                          // LEFT SECTION (In RTL: Yellow Gradient Price Container)
                           Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 2,
+                              horizontal: 13,
+                              vertical: 7,
                             ),
                             decoration: BoxDecoration(
-                              color: const Color(0xE60F172A),
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.20),
-                              ),
-                            ),
-                            child: Text(
-                              item.tktCode,
-                              style: AppTypography.technicalCode(
-                                fontSize: 7.5,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 5),
-
-                      // Game Title & Tag Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Text(
-                              item.title,
-                              textAlign: TextAlign.right,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.arabicCardTitle(
-                                fontSize: 13,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 1.5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: item.secondaryTagBg,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: item.secondaryTagBorder,
-                              ),
-                            ),
-                            child: Text(
-                              item.secondaryTag,
-                              style: AppTypography.technicalCode(
-                                fontSize: 7.5,
-                                fontWeight: FontWeight.w900,
-                                color: item.secondaryTagTextCol,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 2),
-
-                      // Category Range: Cairo Arabic
-                      Text(
-                        item.categoryRange,
-                        textAlign: TextAlign.right,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.cairo(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFFCBD5E1),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  // LOWER SECTION (Fare & Button together)
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // Perforated Dashed Line
-                      CustomPaint(
-                        painter: DashedLinePainter(
-                          color: Colors.white.withValues(alpha: 0.20),
-                        ),
-                        size: const Size(double.infinity, 1),
-                      ),
-                      const SizedBox(height: 5),
-
-                      // Fare & Action Row
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          // Price & Fare Label
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                item.priceStarting,
-                                style: AppTypography.price(
-                                  fontSize: 13.5,
-                                  color: const Color(0xFFFDE047),
-                                ),
-                              ),
-                              Text(
-                                "FARE / يبدأ من",
-                                style: AppTypography.technicalCode(
-                                  fontSize: 7.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: const Color(0xFF94A3B8),
-                                ),
-                              ),
-                            ],
-                          ),
-
-                          // Compact Action Button
-                          InkWell(
-                            onTap: onTapCharge,
-                            borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              height: 28,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFFBBF24),
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.25),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
+                              gradient: const LinearGradient(
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                                colors: [
+                                  Color(0xFFFFEE82), // Soft bright yellow
+                                  Color(0xFFFBBF24), // Vibrant warm yellow
+                                  Color(0xFFF59E0B), // Golden amber
                                 ],
                               ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.bolt,
-                                    size: 13,
-                                    color: Color(0xFF020617),
-                                  ),
-                                  const SizedBox(width: 3),
+                              borderRadius: BorderRadius.circular(11),
+                              border: Border.all(
+                                color: const Color(0xFFFFFBEB),
+                                width: 1.2,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: const Color(
+                                    0xFFF59E0B,
+                                  ).withValues(alpha: 0.45),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                if (product.hasPriceChanged &&
+                                    product.previousPrice != null)
                                   Text(
-                                    item.buttonLabel,
-                                    style: AppTypography.arabicButton(
-                                      fontSize: 10.5,
-                                      color: const Color(0xFF020617),
+                                    '\$${product.previousPrice!.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      fontSize: 9.5,
+                                      color: Color(0xFF92400E),
+                                      fontWeight: FontWeight.w700,
+                                      decoration: TextDecoration.lineThrough,
+                                      height: 1.0,
                                     ),
                                   ),
-                                ],
-                              ),
+                                Text(
+                                  '\$${displayPrice.toStringAsFixed(2)}',
+                                  style: AppTypography.price(
+                                    fontSize: 16.5,
+                                    fontWeight: FontWeight.w900,
+                                    color: const Color(0xFF0F172A),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF0F172A),
+                                    borderRadius: BorderRadius.circular(5),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(
+                                        Icons.bolt,
+                                        size: 11,
+                                        color: Color(0xFFFBBF24),
+                                      ),
+                                      const SizedBox(width: 2),
+                                      Text(
+                                        item.buttonLabel,
+                                        style: AppTypography.arabicButton(
+                                          fontSize: 10,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                  ],
+                ),
               ),
             ),
-          ],
+          ),
         ),
       ),
-    ),
-  ),
-  ),
-  );
-}
+    );
+  }
 }
