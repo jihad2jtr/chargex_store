@@ -11,6 +11,8 @@ import '../../providers/auth_provider.dart';
 import '../user/user_main_screen.dart';
 import '../auth/login_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
+import '../../widgets/live_status_console.dart';
+import '../../widgets/floating_role_dashboard_shield.dart';
 
 class AgentDashboardScreen extends StatefulWidget {
   const AgentDashboardScreen({super.key});
@@ -19,7 +21,8 @@ class AgentDashboardScreen extends StatefulWidget {
   State<AgentDashboardScreen> createState() => _AgentDashboardScreenState();
 }
 
-class _AgentDashboardScreenState extends State<AgentDashboardScreen> with SingleTickerProviderStateMixin {
+class _AgentDashboardScreenState extends State<AgentDashboardScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   Timer? _refreshTimer;
@@ -35,7 +38,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
     // Auto-refresh silently every 15 seconds
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
-        Provider.of<AgentProvider>(context, listen: false).refreshAll(silent: true);
+        Provider.of<AgentProvider>(
+          context,
+          listen: false,
+        ).refreshAll(silent: true);
       }
     });
   }
@@ -66,23 +72,37 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
           children: [
             const Icon(Icons.logout_rounded, color: AppColors.error, size: 22),
             const SizedBox(width: 10),
-            Text('تسجيل الخروج', style: AppTypography.cairo(fontWeight: FontWeight.w900, fontSize: 16)),
+            Text(
+              'تسجيل الخروج',
+              style: AppTypography.cairo(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
         content: Text(
           'هل أنت متأكد من رغبتك في تسجيل الخروج من لوحة الوكيل المعتمد؟',
-          style: AppTypography.cairo(color: AppColors.textSecondary, fontSize: 13),
+          style: AppTypography.cairo(
+            color: AppColors.textSecondary,
+            fontSize: 13,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('إلغاء', style: AppTypography.cairo(color: AppColors.textSecondary)),
+            child: Text(
+              'إلغاء',
+              style: AppTypography.cairo(color: AppColors.textSecondary),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.error,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 0,
             ),
             onPressed: () async {
@@ -96,7 +116,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                 );
               }
             },
-            child: Text('خروج', style: AppTypography.cairo(fontWeight: FontWeight.w800)),
+            child: Text(
+              'خروج',
+              style: AppTypography.cairo(fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -112,120 +135,161 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: AppColors.primaryBlue,
-          onRefresh: () => agentProvider.refreshAll(),
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            slivers: [
-              // 0. Unified Top Bar
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: UnifiedTactileHeader(isDashboard: true),
+      body: Stack(
+        children: [
+          SafeArea(
+            child: RefreshIndicator(
+              color: AppColors.primaryBlue,
+              onRefresh: () => agentProvider.refreshAll(),
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(
+                  parent: BouncingScrollPhysics(),
                 ),
-              ),
-
-              // 1. Vault Header
-              SliverToBoxAdapter(
-                child: _buildVaultHeader(agentUser, stats),
-              ),
-
-              // 2. Metrics Bento Grid
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: _buildMetricsGrid(stats),
-                ),
-              ),
-
-              // 3. Quick Action Bar (Add Client / Link Client)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  child: _buildQuickActionBar(),
-                ),
-              ),
-
-              // 4. Tab Bar (Sub-Users vs Transfers Log)
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: AppColors.surfaceDim,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.outline),
+                slivers: [
+                  // 0. Unified Top Bar
+                  const SliverToBoxAdapter(
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      child: UnifiedTactileHeader(isDashboard: true),
                     ),
-                    child: TabBar(
-                      controller: _tabController,
-                      indicator: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                  ),
+
+                  // 1. Vault Header
+                  SliverToBoxAdapter(
+                    child: _buildVaultHeader(agentUser, stats),
+                  ),
+
+                  // 2. Metrics Bento Grid
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
                       ),
-                      labelColor: AppColors.darkNav,
-                      unselectedLabelColor: AppColors.textSecondary,
-                      labelStyle: AppTypography.cairo(fontWeight: FontWeight.w900, fontSize: 13),
-                      unselectedLabelStyle: AppTypography.cairo(fontWeight: FontWeight.w700, fontSize: 13),
-                      indicatorSize: TabBarIndicatorSize.tab,
-                      dividerColor: Colors.transparent,
-                      tabs: [
-                        Tab(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.people_alt_rounded, size: 16),
-                              const SizedBox(width: 6),
-                              Text('العملاء التابعون (${stats.totalSubUsers})'),
+                      child: _buildMetricsGrid(stats),
+                    ),
+                  ),
+
+                  // 3. Quick Action Bar (Add Client / Link Client)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      child: _buildQuickActionBar(),
+                    ),
+                  ),
+
+                  // 4. Tab Bar (Sub-Users vs Transfers Log)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: AppColors.surfaceDim,
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(color: AppColors.outline),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          indicator: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(10),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.05),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
                             ],
                           ),
-                        ),
-                        Tab(
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              const Icon(Icons.history_rounded, size: 16),
-                              const SizedBox(width: 6),
-                              Text('سجل التحويلات (${stats.transferCount})'),
-                            ],
+                          labelColor: AppColors.darkNav,
+                          unselectedLabelColor: AppColors.textSecondary,
+                          labelStyle: AppTypography.cairo(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13,
                           ),
+                          unselectedLabelStyle: AppTypography.cairo(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                          ),
+                          indicatorSize: TabBarIndicatorSize.tab,
+                          dividerColor: Colors.transparent,
+                          tabs: [
+                            Tab(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.people_alt_rounded,
+                                    size: 16,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'العملاء التابعون (${stats.totalSubUsers})',
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Tab(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(Icons.history_rounded, size: 16),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    'سجل التحويلات (${stats.transferCount})',
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
+                      ),
+                    ),
+                  ),
+
+                  // 5. Dynamic Content (Tab 0: Sub-users with filters / Tab 1: Transfers log)
+                  SliverFillRemaining(
+                    hasScrollBody: true,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildSubUsersTab(agentProvider),
+                        _buildTransfersTab(agentProvider),
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
-
-              // 5. Dynamic Content (Tab 0: Sub-users with filters / Tab 1: Transfers log)
-              SliverFillRemaining(
-                hasScrollBody: true,
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildSubUsersTab(agentProvider),
-                    _buildTransfersTab(agentProvider),
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
+          FloatingRoleDashboardShield(
+            onCustomTap: () => _returnToClientView(context),
+          ),
+        ],
       ),
     );
   }
 
+  /// زر الدرع: العودة إلى واجهة العميل
+  void _returnToClientView(BuildContext context) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const UserMainScreen()),
+      );
+    }
+  }
+
   // --- Top Vault Header ---
   Widget _buildVaultHeader(dynamic agentUser, AgentDashboardStats stats) {
-    final balance = stats.agentBalance > 0 ? stats.agentBalance : (agentUser?.balance ?? 0.0);
+    final balance = stats.agentBalance > 0
+        ? stats.agentBalance
+        : (agentUser?.balance ?? 0.0);
 
     return Container(
       margin: const EdgeInsets.all(16),
@@ -233,7 +297,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
       decoration: BoxDecoration(
         color: AppColors.darkNav,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.35), width: 1.2),
+        border: Border.all(
+          color: AppColors.primaryBlue.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.darkNav.withValues(alpha: 0.3),
@@ -267,7 +334,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     ),
                   ],
                 ),
-                child: const Icon(Icons.storefront_rounded, color: Colors.white, size: 26),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  color: Colors.white,
+                  size: 26,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -290,11 +361,18 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                         ),
                         const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.accentGreen.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.5)),
+                            border: Border.all(
+                              color: AppColors.accentGreen.withValues(
+                                alpha: 0.5,
+                              ),
+                            ),
                           ),
                           child: Text(
                             'وكيل معتمد',
@@ -331,52 +409,23 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   ],
                 ),
               ),
-              // Switch to Client View button
-              InkWell(
-                onTap: () {
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  } else {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => const UserMainScreen()),
-                    );
-                  }
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.storefront_rounded, size: 14, color: AppColors.ticketAmber),
-                      const SizedBox(width: 4),
-                      Text(
-                        'واجهة العميل',
-                        style: AppTypography.cairo(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
               // Refresh Icon Button
               IconButton(
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 20),
+                icon: const Icon(
+                  Icons.refresh_rounded,
+                  color: Colors.white70,
+                  size: 20,
+                ),
                 tooltip: 'تحديث البيانات',
                 onPressed: _loadData,
               ),
               // Logout Icon Button
               IconButton(
-                icon: const Icon(Icons.logout_rounded, color: Color(0xFFF87171), size: 20),
+                icon: const Icon(
+                  Icons.logout_rounded,
+                  color: Color(0xFFF87171),
+                  size: 20,
+                ),
                 tooltip: 'تسجيل الخروج',
                 onPressed: _showLogoutDialog,
               ),
@@ -446,7 +495,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
 
               // Quick Info Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.08),
                   borderRadius: BorderRadius.circular(10),
@@ -454,7 +506,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.bolt_rounded, color: AppColors.ticketAmber, size: 16),
+                    const Icon(
+                      Icons.bolt_rounded,
+                      color: AppColors.ticketAmber,
+                      size: 16,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       'تحويل فوري 0.0s',
@@ -474,136 +530,51 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
     );
   }
 
-  // --- Metrics Bento Grid (4 Cards) ---
+  // --- Live Status Console (مؤشرات محفظة الوكيل) ---
   Widget _buildMetricsGrid(AgentDashboardStats stats) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildBentoCard(
-                title: 'إجمالي العملاء',
-                value: '${stats.totalSubUsers}',
-                subtitle: 'عميل تابع لك',
-                icon: Icons.groups_rounded,
-                accentColor: AppColors.primaryBlue,
-                bgColor: const Color(0xFFF0F9FF),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildBentoCard(
-                title: 'عملاء نشطين',
-                value: '${stats.activeSubUsers}',
-                subtitle: 'حسابات مصرحة',
-                icon: Icons.check_circle_rounded,
-                accentColor: AppColors.accentGreen,
-                bgColor: const Color(0xFFECFDF5),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildBentoCard(
-                title: 'موقوف (احتيال / نصب)',
-                value: '${stats.suspendedSubUsers}',
-                subtitle: 'تجميد لمنع النصب',
-                icon: Icons.gpp_bad_rounded,
-                accentColor: AppColors.error,
-                bgColor: const Color(0xFFFEF2F2),
-                isAlert: stats.suspendedSubUsers > 0,
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildBentoCard(
-                title: 'إجمالي المحول',
-                value: '\$${stats.totalTransferred.toStringAsFixed(1)}',
-                subtitle: '${stats.transferCount} عملية تحويل',
-                icon: Icons.payments_rounded,
-                accentColor: AppColors.ticketAmber,
-                bgColor: const Color(0xFFFFFBEB),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+    final metrics = [
+      LiveStatusMetric(
+        label: 'إجمالي العملاء',
+        sub: 'عميل تابع لك',
+        value: '${stats.totalSubUsers}',
+        icon: Icons.groups_rounded,
+        accent: AppColors.primaryBlue,
+        statusText: 'الكل',
+        rawValue: stats.totalSubUsers,
+      ),
+      LiveStatusMetric(
+        label: 'عملاء نشطين',
+        sub: 'حسابات مصرحة',
+        value: '${stats.activeSubUsers}',
+        icon: Icons.check_circle_rounded,
+        accent: AppColors.accentGreen,
+        statusText: 'نشط',
+        rawValue: stats.activeSubUsers,
+      ),
+      LiveStatusMetric(
+        label: 'موقوف (احتيال / نصب)',
+        sub: 'تجميد لمنع النصب',
+        value: '${stats.suspendedSubUsers}',
+        icon: Icons.gpp_bad_rounded,
+        accent: AppColors.error,
+        statusText: stats.suspendedSubUsers > 0 ? 'تنبيه' : 'مستقر',
+        isAlert: stats.suspendedSubUsers > 0,
+        rawValue: stats.suspendedSubUsers,
+      ),
+      LiveStatusMetric(
+        label: 'إجمالي المحول',
+        sub: '${stats.transferCount} عملية تحويل',
+        value: '\$${stats.totalTransferred.toStringAsFixed(1)}',
+        icon: Icons.payments_rounded,
+        accent: AppColors.ticketAmber,
+        statusText: 'محوّل',
+        rawValue: stats.transferCount,
+      ),
+    ];
 
-  Widget _buildBentoCard({
-    required String title,
-    required String value,
-    required String subtitle,
-    required IconData icon,
-    required Color accentColor,
-    required Color bgColor,
-    bool isAlert = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isAlert ? AppColors.error.withValues(alpha: 0.5) : AppColors.outline,
-          width: isAlert ? 1.5 : 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                title,
-                style: AppTypography.cairo(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w800,
-                  color: isAlert ? AppColors.error : AppColors.textSecondary,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(5),
-                decoration: BoxDecoration(
-                  color: bgColor,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(icon, color: accentColor, size: 15),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: AppTypography.plusJakartaSans(
-              fontSize: 19,
-              fontWeight: FontWeight.w900,
-              color: isAlert ? AppColors.error : AppColors.darkNav,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: AppTypography.cairo(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
+    return LiveStatusConsole(
+      title: 'ملخّص العملاء والتحويلات',
+      metrics: metrics,
     );
   }
 
@@ -619,12 +590,17 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(vertical: 12),
               elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
             icon: const Icon(Icons.person_add_rounded, size: 18),
             label: Text(
               'إنشاء عميل جديد',
-              style: AppTypography.cairo(fontSize: 12.5, fontWeight: FontWeight.w800),
+              style: AppTypography.cairo(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             onPressed: _showCreateUserModal,
           ),
@@ -639,12 +615,21 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
               backgroundColor: Colors.white,
               side: const BorderSide(color: AppColors.outline),
               padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
             ),
-            icon: const Icon(Icons.link_rounded, size: 18, color: AppColors.primaryBlue),
+            icon: const Icon(
+              Icons.link_rounded,
+              size: 18,
+              color: AppColors.primaryBlue,
+            ),
             label: Text(
               'ربط عميل قائم',
-              style: AppTypography.cairo(fontSize: 12.5, fontWeight: FontWeight.w800),
+              style: AppTypography.cairo(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
+              ),
             ),
             onPressed: _showLinkUserModal,
           ),
@@ -675,9 +660,17 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   controller: _searchController,
                   style: AppTypography.cairo(fontSize: 13),
                   decoration: InputDecoration(
-                    hintText: 'ابحث بالاسم، الآيدي (chx...)، الهاتف، أو البريد...',
-                    hintStyle: AppTypography.cairo(fontSize: 12, color: AppColors.textSecondary),
-                    prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 20),
+                    hintText:
+                        'ابحث بالاسم، الآيدي (chx...)، الهاتف، أو البريد...',
+                    hintStyle: AppTypography.cairo(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: AppColors.textSecondary,
+                      size: 20,
+                    ),
                     suffixIcon: _searchController.text.isNotEmpty
                         ? IconButton(
                             icon: const Icon(Icons.clear_rounded, size: 18),
@@ -688,7 +681,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                           )
                         : null,
                     border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
                   ),
                   onChanged: (val) {
                     provider.setSearchQuery(val);
@@ -700,11 +696,25 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
               // Filter Chips
               Row(
                 children: [
-                  _buildFilterChip('all', 'الكل (${provider.subUsers.length})', provider),
+                  _buildFilterChip(
+                    'all',
+                    'الكل (${provider.subUsers.length})',
+                    provider,
+                  ),
                   const SizedBox(width: 8),
-                  _buildFilterChip('active', 'نشط (${provider.stats.activeSubUsers})', provider, activeColor: AppColors.accentGreen),
+                  _buildFilterChip(
+                    'active',
+                    'نشط (${provider.stats.activeSubUsers})',
+                    provider,
+                    activeColor: AppColors.accentGreen,
+                  ),
                   const SizedBox(width: 8),
-                  _buildFilterChip('suspended', 'موقوف (احتيال) (${provider.stats.suspendedSubUsers})', provider, activeColor: AppColors.error),
+                  _buildFilterChip(
+                    'suspended',
+                    'موقوف (احتيال) (${provider.stats.suspendedSubUsers})',
+                    provider,
+                    activeColor: AppColors.error,
+                  ),
                 ],
               ),
             ],
@@ -714,41 +724,61 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
         // List View
         Expanded(
           child: provider.isLoading && provider.subUsers.isEmpty
-              ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
+              ? const Center(
+                  child: CircularProgressIndicator(
+                    color: AppColors.primaryBlue,
+                  ),
+                )
               : subUsers.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.person_search_rounded, size: 52, color: AppColors.textSecondary.withValues(alpha: 0.5)),
-                          const SizedBox(height: 12),
-                          Text(
-                            'لا يوجد عملاء مطابقين',
-                            style: AppTypography.cairo(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'استخدم زر "إنشاء عميل جديد" أو "ربط عميل قائم" لإضافة عملاء تابعين لك',
-                            style: AppTypography.cairo(fontSize: 11, color: AppColors.textSecondary),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.person_search_rounded,
+                        size: 52,
+                        color: AppColors.textSecondary.withValues(alpha: 0.5),
                       ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                      physics: const BouncingScrollPhysics(),
-                      itemCount: subUsers.length,
-                      itemBuilder: (context, index) {
-                        return _buildUserTicketCard(subUsers[index], provider);
-                      },
-                    ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'لا يوجد عملاء مطابقين',
+                        style: AppTypography.cairo(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'استخدم زر "إنشاء عميل جديد" أو "ربط عميل قائم" لإضافة عملاء تابعين لك',
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          color: AppColors.textSecondary,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                )
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: subUsers.length,
+                  itemBuilder: (context, index) {
+                    return _buildUserTicketCard(subUsers[index], provider);
+                  },
+                ),
         ),
       ],
     );
   }
 
-  Widget _buildFilterChip(String key, String label, AgentProvider provider, {Color? activeColor}) {
+  Widget _buildFilterChip(
+    String key,
+    String label,
+    AgentProvider provider, {
+    Color? activeColor,
+  }) {
     final isSelected = provider.activeFilter == key;
     final color = activeColor ?? AppColors.primaryBlue;
 
@@ -761,9 +791,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
         decoration: BoxDecoration(
           color: isSelected ? color : Colors.white,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? color : AppColors.outline,
-          ),
+          border: Border.all(color: isSelected ? color : AppColors.outline),
         ),
         child: Text(
           label,
@@ -787,12 +815,16 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isSuspended ? AppColors.error.withValues(alpha: 0.6) : AppColors.outline,
+          color: isSuspended
+              ? AppColors.error.withValues(alpha: 0.6)
+              : AppColors.outline,
           width: isSuspended ? 1.4 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: isSuspended ? AppColors.error.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.03),
+            color: isSuspended
+                ? AppColors.error.withValues(alpha: 0.08)
+                : Colors.black.withValues(alpha: 0.03),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -815,13 +847,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       width: 44,
                       height: 44,
                       decoration: BoxDecoration(
-                        color: isSuspended ? const Color(0xFFFEE2E2) : const Color(0xFFE0F2FE),
+                        color: isSuspended
+                            ? const Color(0xFFFEE2E2)
+                            : const Color(0xFFE0F2FE),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Center(
                         child: Icon(
-                          isSuspended ? Icons.person_off_rounded : Icons.person_rounded,
-                          color: isSuspended ? AppColors.error : AppColors.primaryBlue,
+                          isSuspended
+                              ? Icons.person_off_rounded
+                              : Icons.person_rounded,
+                          color: isSuspended
+                              ? AppColors.error
+                              : AppColors.primaryBlue,
                           size: 24,
                         ),
                       ),
@@ -854,21 +892,33 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                             children: [
                               InkWell(
                                 onTap: () {
-                                  Clipboard.setData(ClipboardData(text: client.displayId));
+                                  Clipboard.setData(
+                                    ClipboardData(text: client.displayId),
+                                  );
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
-                                      content: Text('تم نسخ الآيدي: ${client.displayId}', style: AppTypography.cairo(color: Colors.white)),
+                                      content: Text(
+                                        'تم نسخ الآيدي: ${client.displayId}',
+                                        style: AppTypography.cairo(
+                                          color: Colors.white,
+                                        ),
+                                      ),
                                       duration: const Duration(seconds: 1),
                                     ),
                                   );
                                 },
                                 borderRadius: BorderRadius.circular(4),
                                 child: Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1.5,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: AppColors.surfaceDim,
                                     borderRadius: BorderRadius.circular(5),
-                                    border: Border.all(color: AppColors.outline),
+                                    border: Border.all(
+                                      color: AppColors.outline,
+                                    ),
                                   ),
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -882,12 +932,17 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                                         ),
                                       ),
                                       const SizedBox(width: 4),
-                                      const Icon(Icons.copy_rounded, size: 10, color: AppColors.textSecondary),
+                                      const Icon(
+                                        Icons.copy_rounded,
+                                        size: 10,
+                                        color: AppColors.textSecondary,
+                                      ),
                                     ],
                                   ),
                                 ),
                               ),
-                              if (client.phone != null && client.phone!.isNotEmpty) ...[
+                              if (client.phone != null &&
+                                  client.phone!.isNotEmpty) ...[
                                 const SizedBox(width: 8),
                                 Text(
                                   client.phone!,
@@ -909,14 +964,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       children: [
                         Text(
                           'رصيد العميل',
-                          style: AppTypography.cairo(fontSize: 10, color: AppColors.textSecondary),
+                          style: AppTypography.cairo(
+                            fontSize: 10,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                         Text(
                           '\$${client.balance.toStringAsFixed(2)}',
                           style: AppTypography.plusJakartaSans(
                             fontSize: 15,
                             fontWeight: FontWeight.w900,
-                            color: isSuspended ? AppColors.error : AppColors.accentGreen,
+                            color: isSuspended
+                                ? AppColors.error
+                                : AppColors.accentGreen,
                           ),
                         ),
                       ],
@@ -929,16 +989,25 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   const SizedBox(height: 10),
                   Container(
                     width: double.infinity,
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: const Color(0xFFFEF2F2),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.error.withValues(alpha: 0.4)),
+                      border: Border.all(
+                        color: AppColors.error.withValues(alpha: 0.4),
+                      ),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.warning_amber_rounded, color: AppColors.error, size: 18),
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: AppColors.error,
+                          size: 18,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(
@@ -952,7 +1021,8 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                                   color: AppColors.error,
                                 ),
                               ),
-                              if (client.agentDeactivationReason != null && client.agentDeactivationReason!.isNotEmpty)
+                              if (client.agentDeactivationReason != null &&
+                                  client.agentDeactivationReason!.isNotEmpty)
                                 Text(
                                   'السبب: ${client.agentDeactivationReason}',
                                   style: AppTypography.cairo(
@@ -984,16 +1054,25 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                 Expanded(
                   child: ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: isSuspended ? AppColors.surfaceDim : AppColors.accentGreen,
-                      foregroundColor: isSuspended ? AppColors.textSecondary : Colors.white,
+                      backgroundColor: isSuspended
+                          ? AppColors.surfaceDim
+                          : AppColors.accentGreen,
+                      foregroundColor: isSuspended
+                          ? AppColors.textSecondary
+                          : Colors.white,
                       elevation: 0,
                       padding: const EdgeInsets.symmetric(vertical: 9),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                     icon: const Icon(Icons.bolt_rounded, size: 16),
                     label: Text(
                       'تحويل رصيد',
-                      style: AppTypography.cairo(fontSize: 12, fontWeight: FontWeight.w900),
+                      style: AppTypography.cairo(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     onPressed: () => _showTransferModal(client),
                   ),
@@ -1008,16 +1087,28 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       backgroundColor: const Color(0xFFFEE2E2),
                       foregroundColor: AppColors.error,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(color: AppColors.error.withValues(alpha: 0.3)),
+                        side: BorderSide(
+                          color: AppColors.error.withValues(alpha: 0.3),
+                        ),
                       ),
                     ),
-                    icon: const Icon(Icons.block_rounded, size: 16, color: AppColors.error),
+                    icon: const Icon(
+                      Icons.block_rounded,
+                      size: 16,
+                      color: AppColors.error,
+                    ),
                     label: Text(
                       'إيقاف (نصب)',
-                      style: AppTypography.cairo(fontSize: 11.5, fontWeight: FontWeight.w900),
+                      style: AppTypography.cairo(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     onPressed: () => _showScamFreezeModal(client),
                   )
@@ -1028,16 +1119,28 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       backgroundColor: const Color(0xFFD1FAE5),
                       foregroundColor: AppColors.accentGreen,
                       elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 9,
+                      ),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(color: AppColors.accentGreen.withValues(alpha: 0.3)),
+                        side: BorderSide(
+                          color: AppColors.accentGreen.withValues(alpha: 0.3),
+                        ),
                       ),
                     ),
-                    icon: const Icon(Icons.lock_open_rounded, size: 16, color: AppColors.accentGreen),
+                    icon: const Icon(
+                      Icons.lock_open_rounded,
+                      size: 16,
+                      color: AppColors.accentGreen,
+                    ),
                     label: Text(
                       'إلغاء التجميد والتفعيل',
-                      style: AppTypography.cairo(fontSize: 11.5, fontWeight: FontWeight.w900),
+                      style: AppTypography.cairo(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     onPressed: () => _showReactivateModal(client),
                   ),
@@ -1115,16 +1218,27 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.receipt_long_rounded, size: 48, color: AppColors.textSecondary.withValues(alpha: 0.5)),
+            Icon(
+              Icons.receipt_long_rounded,
+              size: 48,
+              color: AppColors.textSecondary.withValues(alpha: 0.5),
+            ),
             const SizedBox(height: 12),
             Text(
               'لا يوجد سجل تحويلات حتى الآن',
-              style: AppTypography.cairo(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary),
+              style: AppTypography.cairo(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               'جميع عمليات تحويل الرصيد لعملائك ستظهر هنا بتفاصيلها',
-              style: AppTypography.cairo(fontSize: 11, color: AppColors.textSecondary),
+              style: AppTypography.cairo(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -1158,7 +1272,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   color: const Color(0xFFFEF3C7),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.arrow_outward_rounded, color: AppColors.ticketAmber, size: 22),
+                child: const Icon(
+                  Icons.arrow_outward_rounded,
+                  color: AppColors.ticketAmber,
+                  size: 22,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1166,7 +1284,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      t.recipientName.isNotEmpty ? t.recipientName : 'عميل تابع',
+                      t.recipientName.isNotEmpty
+                          ? t.recipientName
+                          : 'عميل تابع',
                       style: AppTypography.cairo(
                         fontSize: 13,
                         fontWeight: FontWeight.w800,
@@ -1179,15 +1299,27 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                         if (t.recipientUserId.isNotEmpty) ...[
                           Text(
                             t.recipientUserId,
-                            style: AppTypography.technicalCode(fontSize: 9.5, color: AppColors.textSecondary),
+                            style: AppTypography.technicalCode(
+                              fontSize: 9.5,
+                              color: AppColors.textSecondary,
+                            ),
                           ),
                           const SizedBox(width: 6),
-                          const Text('•', style: TextStyle(color: AppColors.textSecondary, fontSize: 10)),
+                          const Text(
+                            '•',
+                            style: TextStyle(
+                              color: AppColors.textSecondary,
+                              fontSize: 10,
+                            ),
+                          ),
                           const SizedBox(width: 6),
                         ],
                         Text(
                           formattedDate,
-                          style: AppTypography.cairo(fontSize: 9.5, color: AppColors.textSecondary),
+                          style: AppTypography.cairo(
+                            fontSize: 9.5,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                       ],
                     ),
@@ -1195,7 +1327,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       const SizedBox(height: 3),
                       Text(
                         'ملاحظة: ${t.note}',
-                        style: AppTypography.cairo(fontSize: 10, color: AppColors.primaryBlue),
+                        style: AppTypography.cairo(
+                          fontSize: 10,
+                          color: AppColors.primaryBlue,
+                        ),
                       ),
                     ],
                   ],
@@ -1214,7 +1349,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   ),
                   Text(
                     'تم التحويل بنجاح',
-                    style: AppTypography.cairo(fontSize: 9, color: AppColors.accentGreen, fontWeight: FontWeight.w700),
+                    style: AppTypography.cairo(
+                      fontSize: 9,
+                      color: AppColors.accentGreen,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ],
               ),
@@ -1281,7 +1420,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                           color: const Color(0xFFD1FAE5),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.bolt_rounded, color: AppColors.accentGreen, size: 24),
+                        child: const Icon(
+                          Icons.bolt_rounded,
+                          color: AppColors.accentGreen,
+                          size: 24,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1290,11 +1433,17 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                           children: [
                             Text(
                               'تحويل رصيد فوري للعميل',
-                              style: AppTypography.cairo(fontSize: 16, fontWeight: FontWeight.w900),
+                              style: AppTypography.cairo(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                             Text(
                               'المستلم: ${client.name} (${client.displayId})',
-                              style: AppTypography.cairo(fontSize: 11, color: AppColors.textSecondary),
+                              style: AppTypography.cairo(
+                                fontSize: 11,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -1316,20 +1465,44 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       children: [
                         Column(
                           children: [
-                            Text('رصيدك المتاح', style: AppTypography.cairo(fontSize: 10, color: AppColors.textSecondary)),
+                            Text(
+                              'رصيدك المتاح',
+                              style: AppTypography.cairo(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                             Text(
                               '\$${agentBalance.toStringAsFixed(2)}',
-                              style: AppTypography.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.primaryBlue),
+                              style: AppTypography.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.primaryBlue,
+                              ),
                             ),
                           ],
                         ),
-                        const Icon(Icons.arrow_forward_rounded, color: AppColors.textSecondary, size: 16),
+                        const Icon(
+                          Icons.arrow_forward_rounded,
+                          color: AppColors.textSecondary,
+                          size: 16,
+                        ),
                         Column(
                           children: [
-                            Text('رصيد العميل الحالي', style: AppTypography.cairo(fontSize: 10, color: AppColors.textSecondary)),
+                            Text(
+                              'رصيد العميل الحالي',
+                              style: AppTypography.cairo(
+                                fontSize: 10,
+                                color: AppColors.textSecondary,
+                              ),
+                            ),
                             Text(
                               '\$${client.balance.toStringAsFixed(2)}',
-                              style: AppTypography.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w900, color: AppColors.accentGreen),
+                              style: AppTypography.plusJakartaSans(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.accentGreen,
+                              ),
                             ),
                           ],
                         ),
@@ -1343,7 +1516,13 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     spacing: 8,
                     children: [5, 10, 25, 50, 100].map((amt) {
                       return ChoiceChip(
-                        label: Text('\$$amt', style: AppTypography.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 12)),
+                        label: Text(
+                          '\$$amt',
+                          style: AppTypography.plusJakartaSans(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
                         selected: currentInput == amt.toDouble(),
                         onSelected: (selected) {
                           setModalState(() {
@@ -1352,7 +1531,11 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                           });
                         },
                         selectedColor: AppColors.primaryBlue,
-                        labelStyle: TextStyle(color: currentInput == amt.toDouble() ? Colors.white : AppColors.darkNav),
+                        labelStyle: TextStyle(
+                          color: currentInput == amt.toDouble()
+                              ? Colors.white
+                              : AppColors.darkNav,
+                        ),
                       );
                     }).toList(),
                   ),
@@ -1361,15 +1544,23 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   // Amount Input Field
                   TextField(
                     controller: amountController,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    style: AppTypography.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w900),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    style: AppTypography.plusJakartaSans(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
                     decoration: InputDecoration(
                       labelText: 'المبلغ المراد تحويله (USDT)',
                       labelStyle: AppTypography.cairo(fontSize: 12),
                       prefixIcon: const Icon(Icons.attach_money_rounded),
                       filled: true,
                       fillColor: AppColors.surfaceDim,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.outline)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.outline),
+                      ),
                     ),
                     onChanged: (val) {
                       setModalState(() {
@@ -1389,7 +1580,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       prefixIcon: const Icon(Icons.note_alt_rounded),
                       filled: true,
                       fillColor: AppColors.surfaceDim,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.outline)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.outline),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -1400,21 +1594,34 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       backgroundColor: AppColors.accentGreen,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
                     onPressed: () async {
                       final amount = double.tryParse(amountController.text);
                       if (amount == null || amount <= 0) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('الرجاء إدخال مبلغ صحيح أكبر من صفر', style: AppTypography.cairo(color: Colors.white))),
+                          SnackBar(
+                            content: Text(
+                              'الرجاء إدخال مبلغ صحيح أكبر من صفر',
+                              style: AppTypography.cairo(color: Colors.white),
+                            ),
+                          ),
                         );
                         return;
                       }
 
                       if (amount > agentBalance) {
                         ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('رصيدك غير كافٍ لإتمام التحويل (\$${agentBalance.toStringAsFixed(2)})', style: AppTypography.cairo(color: Colors.white)), backgroundColor: AppColors.error),
+                          SnackBar(
+                            content: Text(
+                              'رصيدك غير كافٍ لإتمام التحويل (\$${agentBalance.toStringAsFixed(2)})',
+                              style: AppTypography.cairo(color: Colors.white),
+                            ),
+                            backgroundColor: AppColors.error,
+                          ),
                         );
                         return;
                       }
@@ -1430,15 +1637,23 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(res['message'] ?? '', style: AppTypography.cairo(color: Colors.white)),
-                            backgroundColor: res['success'] == true ? AppColors.accentGreen : AppColors.error,
+                            content: Text(
+                              res['message'] ?? '',
+                              style: AppTypography.cairo(color: Colors.white),
+                            ),
+                            backgroundColor: res['success'] == true
+                                ? AppColors.accentGreen
+                                : AppColors.error,
                           ),
                         );
                       }
                     },
                     child: Text(
                       'تأكيد تحويل \$${currentInput.toStringAsFixed(2)} فوراً',
-                      style: AppTypography.cairo(fontSize: 14, fontWeight: FontWeight.w900),
+                      style: AppTypography.cairo(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
                 ],
@@ -1452,7 +1667,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
 
   // 2. Scam Freeze Modal (إيقاف وتجميد الحساب في حال النصب)
   void _showScamFreezeModal(AgentUserModel client) {
-    final reasonController = TextEditingController(text: 'احتيال ونصب مالي وعدم سداد المستحقات');
+    final reasonController = TextEditingController(
+      text: 'احتيال ونصب مالي وعدم سداد المستحقات',
+    );
     final agentProvider = Provider.of<AgentProvider>(context, listen: false);
 
     showModalBottomSheet(
@@ -1498,9 +1715,15 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                         decoration: BoxDecoration(
                           color: const Color(0xFFFEF2F2),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.error.withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: AppColors.error.withValues(alpha: 0.3),
+                          ),
                         ),
-                        child: const Icon(Icons.gpp_bad_rounded, color: AppColors.error, size: 28),
+                        child: const Icon(
+                          Icons.gpp_bad_rounded,
+                          color: AppColors.error,
+                          size: 28,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
@@ -1517,7 +1740,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                             ),
                             Text(
                               'العميل: ${client.name} (${client.displayId})',
-                              style: AppTypography.cairo(fontSize: 11.5, color: AppColors.textSecondary),
+                              style: AppTypography.cairo(
+                                fontSize: 11.5,
+                                color: AppColors.textSecondary,
+                              ),
                             ),
                           ],
                         ),
@@ -1532,14 +1758,20 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     decoration: BoxDecoration(
                       color: const Color(0xFFFFFBEB),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.ticketAmber.withValues(alpha: 0.5)),
+                      border: Border.all(
+                        color: AppColors.ticketAmber.withValues(alpha: 0.5),
+                      ),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            const Icon(Icons.shield_outlined, color: AppColors.secondaryBright, size: 16),
+                            const Icon(
+                              Icons.shield_outlined,
+                              color: AppColors.secondaryBright,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Text(
                               'تستخدم هذه الميزة في حال العميل نصب على الوكيل:',
@@ -1568,38 +1800,46 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   // Preset Reasons Chips
                   Text(
                     'اختر أو اكتب سبب الإيقاف:',
-                    style: AppTypography.cairo(fontSize: 11.5, fontWeight: FontWeight.w800),
+                    style: AppTypography.cairo(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
                     runSpacing: 6,
-                    children: [
-                      'احتيال ونصب مالي وعدم سداد المستحقات',
-                      'عدم سداد قيمة شحنة رصيد معلقة',
-                      'مطالبة مالية متنازع عليها مع الوكيل',
-                      'مخالفة اتفاقية التعامل التجاري',
-                    ].map((reason) {
-                      final isSelected = reasonController.text == reason;
-                      return ChoiceChip(
-                        label: Text(
-                          reason,
-                          style: AppTypography.cairo(
-                            fontSize: 10.5,
-                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                            color: isSelected ? Colors.white : AppColors.textPrimary,
-                          ),
-                        ),
-                        selected: isSelected,
-                        selectedColor: AppColors.error,
-                        backgroundColor: AppColors.surfaceDim,
-                        onSelected: (selected) {
-                          setModalState(() {
-                            reasonController.text = reason;
-                          });
-                        },
-                      );
-                    }).toList(),
+                    children:
+                        [
+                          'احتيال ونصب مالي وعدم سداد المستحقات',
+                          'عدم سداد قيمة شحنة رصيد معلقة',
+                          'مطالبة مالية متنازع عليها مع الوكيل',
+                          'مخالفة اتفاقية التعامل التجاري',
+                        ].map((reason) {
+                          final isSelected = reasonController.text == reason;
+                          return ChoiceChip(
+                            label: Text(
+                              reason,
+                              style: AppTypography.cairo(
+                                fontSize: 10.5,
+                                fontWeight: isSelected
+                                    ? FontWeight.w800
+                                    : FontWeight.w600,
+                                color: isSelected
+                                    ? Colors.white
+                                    : AppColors.textPrimary,
+                              ),
+                            ),
+                            selected: isSelected,
+                            selectedColor: AppColors.error,
+                            backgroundColor: AppColors.surfaceDim,
+                            onSelected: (selected) {
+                              setModalState(() {
+                                reasonController.text = reason;
+                              });
+                            },
+                          );
+                        }).toList(),
                   ),
                   const SizedBox(height: 10),
 
@@ -1610,10 +1850,16 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     style: AppTypography.cairo(fontSize: 12),
                     decoration: InputDecoration(
                       hintText: 'اكتب تفاصيل إضافية عن سبب التجميد...',
-                      hintStyle: AppTypography.cairo(fontSize: 11, color: AppColors.textSecondary),
+                      hintStyle: AppTypography.cairo(
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
                       filled: true,
                       fillColor: AppColors.surfaceDim,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.outline)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.outline),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 18),
@@ -1624,13 +1870,18 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       backgroundColor: AppColors.error,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                       elevation: 0,
                     ),
                     icon: const Icon(Icons.block_rounded, size: 18),
                     label: Text(
                       'تجميد حساب العميل فوراً ⛔',
-                      style: AppTypography.cairo(fontSize: 13.5, fontWeight: FontWeight.w900),
+                      style: AppTypography.cairo(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                     onPressed: () async {
                       Navigator.of(ctx).pop();
@@ -1643,8 +1894,13 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                       if (mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text(res['message'] ?? '', style: AppTypography.cairo(color: Colors.white)),
-                            backgroundColor: res['success'] == true ? AppColors.error : AppColors.textPrimary,
+                            content: Text(
+                              res['message'] ?? '',
+                              style: AppTypography.cairo(color: Colors.white),
+                            ),
+                            backgroundColor: res['success'] == true
+                                ? AppColors.error
+                                : AppColors.textPrimary,
                           ),
                         );
                       }
@@ -1673,9 +1929,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
         ),
         title: Row(
           children: [
-            const Icon(Icons.lock_open_rounded, color: AppColors.accentGreen, size: 22),
+            const Icon(
+              Icons.lock_open_rounded,
+              color: AppColors.accentGreen,
+              size: 22,
+            ),
             const SizedBox(width: 10),
-            Text('إلغاء التجميد وإعادة التفعيل', style: AppTypography.cairo(fontWeight: FontWeight.w900, fontSize: 15)),
+            Text(
+              'إلغاء التجميد وإعادة التفعيل',
+              style: AppTypography.cairo(
+                fontWeight: FontWeight.w900,
+                fontSize: 15,
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -1684,25 +1950,36 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
           children: [
             Text(
               'هل أنت متأكد من تسوية الخلاف وإلغاء تجميد حساب العميل "${client.name}"؟',
-              style: AppTypography.cairo(fontSize: 13, color: AppColors.textPrimary),
+              style: AppTypography.cairo(
+                fontSize: 13,
+                color: AppColors.textPrimary,
+              ),
             ),
             const SizedBox(height: 8),
             Text(
               'سيتمكن العميل مجدداً من تسجيل الدخول إلى حسابه واستخدام رصيده لتنفيذ طلبات الشحن.',
-              style: AppTypography.cairo(fontSize: 11, color: AppColors.textSecondary),
+              style: AppTypography.cairo(
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('إلغاء', style: AppTypography.cairo(color: AppColors.textSecondary)),
+            child: Text(
+              'إلغاء',
+              style: AppTypography.cairo(color: AppColors.textSecondary),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.accentGreen,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 0,
             ),
             onPressed: () async {
@@ -1715,13 +1992,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(res['message'] ?? '', style: AppTypography.cairo(color: Colors.white)),
+                    content: Text(
+                      res['message'] ?? '',
+                      style: AppTypography.cairo(color: Colors.white),
+                    ),
                     backgroundColor: AppColors.accentGreen,
                   ),
                 );
               }
             },
-            child: Text('إعادة التفعيل الآن', style: AppTypography.cairo(fontWeight: FontWeight.w800)),
+            child: Text(
+              'إعادة التفعيل الآن',
+              style: AppTypography.cairo(fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),
@@ -1763,7 +2046,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                   child: Container(
                     width: 40,
                     height: 4,
-                    decoration: BoxDecoration(color: AppColors.outline, borderRadius: BorderRadius.circular(2)),
+                    decoration: BoxDecoration(
+                      color: AppColors.outline,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -1775,14 +2061,30 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                         color: const Color(0xFFE0F2FE),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.primaryBlue, size: 24),
+                      child: const Icon(
+                        Icons.person_add_alt_1_rounded,
+                        color: AppColors.primaryBlue,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(width: 10),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('تسجيل مستخدم تابع للوكيل', style: AppTypography.cairo(fontSize: 16, fontWeight: FontWeight.w900)),
-                        Text('سيتم ربطه بحسابك وتوليد آيدي خاص به فوراً', style: AppTypography.cairo(fontSize: 11, color: AppColors.textSecondary)),
+                        Text(
+                          'تسجيل مستخدم تابع للوكيل',
+                          style: AppTypography.cairo(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        Text(
+                          'سيتم ربطه بحسابك وتوليد آيدي خاص به فوراً',
+                          style: AppTypography.cairo(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
                       ],
                     ),
                   ],
@@ -1796,7 +2098,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     prefixIcon: const Icon(Icons.badge_rounded),
                     filled: true,
                     fillColor: AppColors.surfaceDim,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -1809,7 +2113,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     prefixIcon: const Icon(Icons.email_rounded),
                     filled: true,
                     fillColor: AppColors.surfaceDim,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -1822,7 +2128,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     prefixIcon: const Icon(Icons.lock_rounded),
                     filled: true,
                     fillColor: AppColors.surfaceDim,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -1835,20 +2143,26 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     prefixIcon: const Icon(Icons.phone_rounded),
                     filled: true,
                     fillColor: AppColors.surfaceDim,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 10),
 
                 TextField(
                   controller: initBalCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
                   decoration: InputDecoration(
                     labelText: 'رصيد ابتدائي يُخصم من محفظتك (اختياري)',
                     prefixIcon: const Icon(Icons.attach_money_rounded),
                     filled: true,
                     fillColor: AppColors.surfaceDim,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -1858,12 +2172,21 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     backgroundColor: AppColors.primaryBlue,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   onPressed: () async {
-                    if (nameCtrl.text.trim().isEmpty || emailCtrl.text.trim().isEmpty || passCtrl.text.trim().isEmpty) {
+                    if (nameCtrl.text.trim().isEmpty ||
+                        emailCtrl.text.trim().isEmpty ||
+                        passCtrl.text.trim().isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('الرجاء تعبئة الاسم والبريد وكلمة المرور', style: AppTypography.cairo(color: Colors.white))),
+                        SnackBar(
+                          content: Text(
+                            'الرجاء تعبئة الاسم والبريد وكلمة المرور',
+                            style: AppTypography.cairo(color: Colors.white),
+                          ),
+                        ),
                       );
                       return;
                     }
@@ -1881,13 +2204,24 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                     if (mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(res['message'] ?? '', style: AppTypography.cairo(color: Colors.white)),
-                          backgroundColor: res['success'] == true ? AppColors.accentGreen : AppColors.error,
+                          content: Text(
+                            res['message'] ?? '',
+                            style: AppTypography.cairo(color: Colors.white),
+                          ),
+                          backgroundColor: res['success'] == true
+                              ? AppColors.accentGreen
+                              : AppColors.error,
                         ),
                       );
                     }
                   },
-                  child: Text('إنشاء الحساب وربطه بالوكيل', style: AppTypography.cairo(fontSize: 14, fontWeight: FontWeight.w900)),
+                  child: Text(
+                    'إنشاء الحساب وربطه بالوكيل',
+                    style: AppTypography.cairo(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1912,9 +2246,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
         ),
         title: Row(
           children: [
-            const Icon(Icons.link_rounded, color: AppColors.primaryBlue, size: 24),
+            const Icon(
+              Icons.link_rounded,
+              color: AppColors.primaryBlue,
+              size: 24,
+            ),
             const SizedBox(width: 10),
-            Text('ربط عميل قائم بحسابك', style: AppTypography.cairo(fontWeight: FontWeight.w900, fontSize: 16)),
+            Text(
+              'ربط عميل قائم بحسابك',
+              style: AppTypography.cairo(
+                fontWeight: FontWeight.w900,
+                fontSize: 16,
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -1923,7 +2267,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
           children: [
             Text(
               'أدخل آيدي العميل (مثل chx26101571944) أو بريده الإلكتروني لربطه ليصبح تحت إدارتك:',
-              style: AppTypography.cairo(fontSize: 12.5, color: AppColors.textSecondary),
+              style: AppTypography.cairo(
+                fontSize: 12.5,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -1933,7 +2280,9 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
                 prefixIcon: const Icon(Icons.person_pin_rounded),
                 filled: true,
                 fillColor: AppColors.surfaceDim,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
             ),
           ],
@@ -1941,13 +2290,18 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('إلغاء', style: AppTypography.cairo(color: AppColors.textSecondary)),
+            child: Text(
+              'إلغاء',
+              style: AppTypography.cairo(color: AppColors.textSecondary),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryBlue,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
               elevation: 0,
             ),
             onPressed: () async {
@@ -1960,13 +2314,21 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen> with Single
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
-                    content: Text(res['message'] ?? '', style: AppTypography.cairo(color: Colors.white)),
-                    backgroundColor: res['success'] == true ? AppColors.accentGreen : AppColors.error,
+                    content: Text(
+                      res['message'] ?? '',
+                      style: AppTypography.cairo(color: Colors.white),
+                    ),
+                    backgroundColor: res['success'] == true
+                        ? AppColors.accentGreen
+                        : AppColors.error,
                   ),
                 );
               }
             },
-            child: Text('ربط العميل', style: AppTypography.cairo(fontWeight: FontWeight.w800)),
+            child: Text(
+              'ربط العميل',
+              style: AppTypography.cairo(fontWeight: FontWeight.w800),
+            ),
           ),
         ],
       ),

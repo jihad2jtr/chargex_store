@@ -4,15 +4,18 @@ class ApiConstants {
   // Host IP for backend connection
   // استخدم '127.0.0.1' عند توصيل الهاتف بكابل USB مع (adb reverse tcp:3000 tcp:3000)
   // أو IP الكمبيوتر المحلي '192.168.1.198' عند الاتصال بالـ Wi-Fi (مع إيقاف VPN أو تفعيل Allow LAN)
-  // Public Cloud Server (Netlify)
-  static const String cloudUrl = 'http://46.28.65.97:3000/api';
+  // Public VPS Server
+  static const String cloudUrl = 'http://45.151.180.73:3000/api';
 
-  // Local fallback
+  // Local server (نفس جهاز التشغيل أو جهاز على نفس الشبكة)
   static const String serverHost = '192.168.1.198';
   static const String serverPort = '3000';
+  static const String localUrl = 'http://$serverHost:$serverPort/api';
 
-  // Use cloud URL by default
-  static String get baseUrl => cloudUrl;
+  // true = الخادم المحلي، false = خادم VPS السحابي
+  static const bool useLocalServer = true;
+
+  static String get baseUrl => useLocalServer ? localUrl : cloudUrl;
 
   // Endpoints
   static const String authLogin = '/auth/login';

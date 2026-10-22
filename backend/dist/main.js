@@ -4,6 +4,8 @@ exports.bootstrapServer = bootstrapServer;
 exports.default = handler;
 const core_1 = require("@nestjs/core");
 const common_1 = require("@nestjs/common");
+const express_1 = require("express");
+const path_1 = require("path");
 const app_module_1 = require("./app.module");
 let cachedServer;
 async function bootstrapServer() {
@@ -32,7 +34,12 @@ async function handler(req, res) {
 }
 async function bootstrap() {
     const logger = new common_1.Logger('JGOBootstrap');
-    const app = await core_1.NestFactory.create(app_module_1.AppModule);
+    const app = await core_1.NestFactory.create(app_module_1.AppModule, {
+        bodyParser: false,
+    });
+    app.use((0, express_1.json)({ limit: '10mb' }));
+    app.use((0, express_1.urlencoded)({ extended: true, limit: '10mb' }));
+    app.useStaticAssets((0, path_1.join)(process.cwd(), 'uploads'), { prefix: '/uploads/' });
     app.enableCors({
         origin: '*',
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',

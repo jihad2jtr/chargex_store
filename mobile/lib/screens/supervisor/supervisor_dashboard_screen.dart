@@ -10,12 +10,16 @@ import '../../providers/manual_services_provider.dart';
 import '../../widgets/status_pill.dart';
 import '../user/manual_order_details_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
+import '../../widgets/live_status_console.dart';
+import '../../widgets/floating_role_dashboard_shield.dart';
+import '../user/user_main_screen.dart';
 
 class SupervisorDashboardScreen extends StatefulWidget {
   const SupervisorDashboardScreen({super.key});
 
   @override
-  State<SupervisorDashboardScreen> createState() => _SupervisorDashboardScreenState();
+  State<SupervisorDashboardScreen> createState() =>
+      _SupervisorDashboardScreenState();
 }
 
 class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
@@ -32,7 +36,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     // Auto-refresh orders silently every 12 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 12), (_) {
       if (mounted) {
-        final provider = Provider.of<ManualServicesProvider>(context, listen: false);
+        final provider = Provider.of<ManualServicesProvider>(
+          context,
+          listen: false,
+        );
         provider.fetchSupervisorOrders(null, true);
       }
     });
@@ -45,19 +52,32 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   }
 
   Future<void> _loadOrders() async {
-    final provider = Provider.of<ManualServicesProvider>(context, listen: false);
+    final provider = Provider.of<ManualServicesProvider>(
+      context,
+      listen: false,
+    );
     await provider.fetchSupervisorOrders();
   }
 
   List<OrderModel> _filterOrders(List<OrderModel> orders) {
     if (_selectedFilter == 'new') {
-      return orders.where((o) => o.status == 'assigned' || o.status == 'pending').toList();
+      return orders
+          .where((o) => o.status == 'assigned' || o.status == 'pending')
+          .toList();
     } else if (_selectedFilter == 'in_progress') {
-      return orders.where((o) => o.status == 'in_progress' || o.status == 'accepted').toList();
+      return orders
+          .where((o) => o.status == 'in_progress' || o.status == 'accepted')
+          .toList();
     } else if (_selectedFilter == 'waiting_client') {
-      return orders.where((o) => o.status == 'delivered' || o.status == 'info_requested').toList();
+      return orders
+          .where((o) => o.status == 'delivered' || o.status == 'info_requested')
+          .toList();
     } else if (_selectedFilter == 'issues') {
-      return orders.where((o) => o.status == 'disputed' || o.status == 'revision_requested').toList();
+      return orders
+          .where(
+            (o) => o.status == 'disputed' || o.status == 'revision_requested',
+          )
+          .toList();
     } else if (_selectedFilter == 'completed') {
       return orders.where((o) => o.status == 'completed').toList();
     }
@@ -72,90 +92,137 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     final filteredOrders = _filterOrders(allOrders);
 
     // KPIs
-    final newCount = allOrders.where((o) => o.status == 'assigned' || o.status == 'pending').length;
-    final inProgressCount = allOrders.where((o) => o.status == 'in_progress' || o.status == 'accepted').length;
-    final waitingClientCount = allOrders.where((o) => o.status == 'delivered' || o.status == 'info_requested').length;
-    final issuesCount = allOrders.where((o) => o.status == 'disputed' || o.status == 'revision_requested').length;
-    final delayedCount = allOrders.where((o) => o.isDelayed && !o.isCompleted).length;
+    final newCount = allOrders
+        .where((o) => o.status == 'assigned' || o.status == 'pending')
+        .length;
+    final inProgressCount = allOrders
+        .where((o) => o.status == 'in_progress' || o.status == 'accepted')
+        .length;
+    final waitingClientCount = allOrders
+        .where((o) => o.status == 'delivered' || o.status == 'info_requested')
+        .length;
+    final issuesCount = allOrders
+        .where(
+          (o) => o.status == 'disputed' || o.status == 'revision_requested',
+        )
+        .length;
+    final delayedCount = allOrders
+        .where((o) => o.isDelayed && !o.isCompleted)
+        .length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadOrders,
-          color: AppColors.secondary,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const UnifiedTactileHeader(isDashboard: true),
-                const SizedBox(height: 12),
-                // Welcome Banner
-              _buildSupervisorBanner(auth, delayedCount),
-              const SizedBox(height: 16),
-
-              // KPI Stats Grid
-              _buildKpiGrid(newCount, inProgressCount, waitingClientCount, issuesCount, delayedCount),
-              const SizedBox(height: 20),
-
-              // Filter Chips
-              _buildFilterChips(),
-              const SizedBox(height: 16),
-
-              // Orders List Header
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'قائمة الطلبات (${filteredOrders.length})',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.onSurface,
-                    ),
-                  ),
-                  if (manualProvider.isLoading)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.secondary),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // List of Orders
-              if (manualProvider.isLoading && allOrders.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: CircularProgressIndicator(color: AppColors.secondary),
-                  ),
-                )
-              else if (filteredOrders.isEmpty)
-                _buildEmptyState()
-              else
-                ListView.separated(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: filteredOrders.length,
-                  separatorBuilder: (context, index) => const SizedBox(height: 14),
-                  itemBuilder: (context, index) {
-                    final order = filteredOrders[index];
-                    return _buildOrderCard(order);
-                  },
+      body: Stack(
+        children: [
+          SafeArea(
+            child: RefreshIndicator(
+              onRefresh: _loadOrders,
+              color: AppColors.secondary,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
                 ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const UnifiedTactileHeader(isDashboard: true),
+                    const SizedBox(height: 12),
+                    // Welcome Banner
+                    _buildSupervisorBanner(auth, delayedCount),
+                    const SizedBox(height: 16),
 
-              const SizedBox(height: 40),
-            ],
+                    // KPI Stats Grid
+                    _buildKpiGrid(
+                      newCount,
+                      inProgressCount,
+                      waitingClientCount,
+                      issuesCount,
+                      delayedCount,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Filter Chips
+                    _buildFilterChips(),
+                    const SizedBox(height: 16),
+
+                    // Orders List Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'قائمة الطلبات (${filteredOrders.length})',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.onSurface,
+                          ),
+                        ),
+                        if (manualProvider.isLoading)
+                          const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.secondary,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // List of Orders
+                    if (manualProvider.isLoading && allOrders.isEmpty)
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 40),
+                          child: CircularProgressIndicator(
+                            color: AppColors.secondary,
+                          ),
+                        ),
+                      )
+                    else if (filteredOrders.isEmpty)
+                      _buildEmptyState()
+                    else
+                      ListView.separated(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        itemCount: filteredOrders.length,
+                        separatorBuilder: (context, index) =>
+                            const SizedBox(height: 14),
+                        itemBuilder: (context, index) {
+                          final order = filteredOrders[index];
+                          return _buildOrderCard(order);
+                        },
+                      ),
+
+                    const SizedBox(height: 40),
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
+
+          // Floating Role Shield: يعيد إلى واجهة العميل
+          FloatingRoleDashboardShield(
+            onCustomTap: () => _returnToClientView(context),
+          ),
+        ],
       ),
-    ),
-  );
-}
+    );
+  }
+
+  /// زر الدرع: العودة إلى واجهة العميل
+  void _returnToClientView(BuildContext context) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const UserMainScreen()),
+      );
+    }
+  }
 
   Widget _buildSupervisorBanner(AuthProvider auth, int delayedCount) {
     return Container(
@@ -163,7 +230,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       decoration: BoxDecoration(
         color: AppColors.darkNav,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.35), width: 1.2),
+        border: Border.all(
+          color: AppColors.primaryBlue.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF0F172A).withValues(alpha: 0.15),
@@ -179,9 +249,15 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             decoration: BoxDecoration(
               color: const Color(0xFF1E293B),
               shape: BoxShape.circle,
-              border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.5)),
+              border: Border.all(
+                color: AppColors.primaryBlue.withValues(alpha: 0.5),
+              ),
             ),
-            child: const Icon(Icons.engineering_rounded, color: AppColors.ticketAmber, size: 26),
+            child: const Icon(
+              Icons.engineering_rounded,
+              color: AppColors.ticketAmber,
+              size: 26,
+            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -200,14 +276,20 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.accentGreen.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
                         'QUEUE ACTIVE',
-                        style: AppTypography.technicalCode(fontSize: 8.5, color: const Color(0xFF6EE7B7)),
+                        style: AppTypography.technicalCode(
+                          fontSize: 8.5,
+                          color: const Color(0xFF6EE7B7),
+                        ),
                       ),
                     ),
                   ],
@@ -218,9 +300,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       ? '⚠️ تنبيه: يوجد $delayedCount طلبات متأخرة بحاجة لتسليم سريع!'
                       : 'جميع الطلبات المسندة إليك تحت السيطرة وضمن الوقت المحدد.',
                   style: AppTypography.cairo(
-                    color: delayedCount > 0 ? AppColors.ticketAmber : const Color(0xFF94A3B8),
+                    color: delayedCount > 0
+                        ? AppColors.ticketAmber
+                        : const Color(0xFF94A3B8),
                     fontSize: 12,
-                    fontWeight: delayedCount > 0 ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: delayedCount > 0
+                        ? FontWeight.bold
+                        : FontWeight.normal,
                   ),
                 ),
               ],
@@ -231,130 +317,69 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
-  Widget _buildKpiGrid(int newCount, int inProgressCount, int waitingClient, int issues, int delayed) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                title: 'طلبات جديدة',
-                count: newCount,
-                icon: Icons.mark_email_unread_rounded,
-                color: const Color(0xFF0284C7),
-                bgColor: const Color(0xFFE0F2FE),
-                onTap: () => setState(() => _selectedFilter = 'new'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildKpiCard(
-                title: 'قيد التنفيذ',
-                count: inProgressCount,
-                icon: Icons.hourglass_top_rounded,
-                color: const Color(0xFFD97706),
-                bgColor: const Color(0xFFFEF3C7),
-                onTap: () => setState(() => _selectedFilter = 'in_progress'),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                title: 'بانتظار العميل',
-                count: waitingClient,
-                icon: Icons.pending_actions_rounded,
-                color: const Color(0xFF7C3AED),
-                bgColor: const Color(0xFFEDE9FE),
-                onTap: () => setState(() => _selectedFilter = 'waiting_client'),
-              ),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: _buildKpiCard(
-                title: 'اعتراضات / تعديل',
-                count: issues,
-                icon: Icons.report_problem_rounded,
-                color: AppColors.error,
-                bgColor: const Color(0xFFFEE2E2),
-                onTap: () => setState(() => _selectedFilter = 'issues'),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  Widget _buildKpiCard({
-    required String title,
-    required int count,
-    required IconData icon,
-    required Color color,
-    required Color bgColor,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outline),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: bgColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    count.toString(),
-                    style: AppTypography.plusJakartaSans(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w900,
-                      color: color,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                  Text(
-                    title,
-                    style: AppTypography.cairo(
-                      fontSize: 11,
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+  Widget _buildKpiGrid(
+    int newCount,
+    int inProgressCount,
+    int waitingClient,
+    int issues,
+    int delayed,
+  ) {
+    final metrics = [
+      LiveStatusMetric(
+        label: 'طلبات جديدة',
+        sub: 'بحاجة للمراجعة والتوزيع',
+        value: newCount.toString(),
+        icon: Icons.mark_email_unread_rounded,
+        accent: const Color(0xFF0284C7),
+        statusText: newCount > 0 ? 'جديد' : 'مستقر',
+        isAlert: newCount > 0,
+        rawValue: newCount,
+        onTap: () => setState(() => _selectedFilter = 'new'),
       ),
-    );
+      LiveStatusMetric(
+        label: 'قيد التنفيذ',
+        sub: 'جاري العمل عليها حالياً',
+        value: inProgressCount.toString(),
+        icon: Icons.hourglass_top_rounded,
+        accent: const Color(0xFFD97706),
+        statusText: 'نشط',
+        rawValue: inProgressCount,
+        onTap: () => setState(() => _selectedFilter = 'in_progress'),
+      ),
+      LiveStatusMetric(
+        label: 'بانتظار العميل',
+        sub: 'بانتظار رد العميل',
+        value: waitingClient.toString(),
+        icon: Icons.pending_actions_rounded,
+        accent: const Color(0xFF7C3AED),
+        statusText: 'معلّق',
+        rawValue: waitingClient,
+        onTap: () => setState(() => _selectedFilter = 'waiting_client'),
+      ),
+      LiveStatusMetric(
+        label: 'اعتراضات / تعديل',
+        sub: 'تحتاج معالجة عاجلة',
+        value: issues.toString(),
+        icon: Icons.report_problem_rounded,
+        accent: AppColors.error,
+        statusText: issues > 0 ? 'تنبيه' : 'مستقر',
+        isAlert: issues > 0,
+        rawValue: issues,
+        onTap: () => setState(() => _selectedFilter = 'issues'),
+      ),
+      LiveStatusMetric(
+        label: 'متأخرة (SLA)',
+        sub: 'تجاوزت الوقت المحدد',
+        value: delayed.toString(),
+        icon: Icons.timer_off_rounded,
+        accent: const Color(0xFFDC2626),
+        statusText: delayed > 0 ? 'متأخر' : 'في الوقت',
+        isAlert: delayed > 0,
+        rawValue: delayed,
+      ),
+    ];
+
+    return LiveStatusConsole(title: 'حالة طلبات الخدمات', metrics: metrics);
   }
 
   Widget _buildFilterChips() {
@@ -379,7 +404,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               borderRadius: BorderRadius.circular(12),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 7,
+                ),
                 decoration: BoxDecoration(
                   color: isSelected ? AppColors.darkNav : Colors.white,
                   borderRadius: BorderRadius.circular(12),
@@ -389,7 +417,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: const Color(0xFF0F172A).withValues(alpha: 0.18),
+                            color: const Color(
+                              0xFF0F172A,
+                            ).withValues(alpha: 0.18),
                             blurRadius: 6,
                             offset: const Offset(0, 2),
                           ),
@@ -420,12 +450,16 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDelayed ? AppColors.error.withValues(alpha: 0.5) : AppColors.outline,
+          color: isDelayed
+              ? AppColors.error.withValues(alpha: 0.5)
+              : AppColors.outline,
           width: isDelayed ? 1.5 : 1.0,
         ),
         boxShadow: [
           BoxShadow(
-            color: isDelayed ? AppColors.error.withValues(alpha: 0.06) : Colors.black.withValues(alpha: 0.03),
+            color: isDelayed
+                ? AppColors.error.withValues(alpha: 0.06)
+                : Colors.black.withValues(alpha: 0.03),
             blurRadius: 10,
             offset: const Offset(0, 3),
           ),
@@ -453,14 +487,21 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     if (order.isSensitive) ...[
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: const Color(0xFFEDE9FE),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.lock_rounded, size: 11, color: Color(0xFF7C3AED)),
+                            const Icon(
+                              Icons.lock_rounded,
+                              size: 11,
+                              color: Color(0xFF7C3AED),
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               'مشفر',
@@ -493,11 +534,18 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             const SizedBox(height: 6),
             Row(
               children: [
-                const Icon(Icons.person_outline_rounded, size: 14, color: AppColors.textSecondary),
+                const Icon(
+                  Icons.person_outline_rounded,
+                  size: 14,
+                  color: AppColors.textSecondary,
+                ),
                 const SizedBox(width: 4),
                 Text(
                   'العميل: ${order.customerName ?? order.userId}',
-                  style: AppTypography.cairo(fontSize: 11.5, color: AppColors.textSecondary),
+                  style: AppTypography.cairo(
+                    fontSize: 11.5,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const Spacer(),
                 Text(
@@ -511,7 +559,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               ],
             ),
             const Divider(height: 20, color: AppColors.outline),
-
 
             // SLA / Deadline Counter Box
             _buildDeadlineIndicator(order),
@@ -529,7 +576,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.warning_amber_rounded, size: 18, color: AppColors.error),
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      size: 18,
+                      color: AppColors.error,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -537,11 +588,18 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         children: [
                           const Text(
                             'اعتراض مفتوح من العميل:',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.error),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.error,
+                            ),
                           ),
                           Text(
                             order.disputeReason!,
-                            style: const TextStyle(fontSize: 12, color: AppColors.onSurface),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.onSurface,
+                            ),
                           ),
                         ],
                       ),
@@ -563,7 +621,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(Icons.edit_note_rounded, size: 18, color: Color(0xFFD97706)),
+                    const Icon(
+                      Icons.edit_note_rounded,
+                      size: 18,
+                      color: Color(0xFFD97706),
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -571,11 +633,18 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         children: [
                           const Text(
                             'العميل طلب تعديل:',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Color(0xFFD97706)),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFFD97706),
+                            ),
                           ),
                           Text(
                             order.revisionNotes!,
-                            style: const TextStyle(fontSize: 12, color: AppColors.onSurface),
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: AppColors.onSurface,
+                            ),
                           ),
                         ],
                       ),
@@ -605,11 +674,19 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         ),
         child: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, size: 16, color: AppColors.tertiary),
+            const Icon(
+              Icons.check_circle_rounded,
+              size: 16,
+              color: AppColors.tertiary,
+            ),
             const SizedBox(width: 6),
             const Text(
               'تم استلام وتأكيد الطلب من العميل وإغلاقه بنجاح.',
-              style: TextStyle(fontSize: 12, color: AppColors.tertiary, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.tertiary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ],
         ),
@@ -624,9 +701,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       final now = DateTime.now();
       final diff = deadline.difference(now);
       if (diff.isNegative) {
-        deadlineText = 'متأخر عن الوقت المحدد بـ ${diff.inMinutes.abs()} دقيقة!';
+        deadlineText =
+            'متأخر عن الوقت المحدد بـ ${diff.inMinutes.abs()} دقيقة!';
       } else if (diff.inHours > 0) {
-        deadlineText = 'الوقت المتبقي: ${diff.inHours} ساعة و ${diff.inMinutes % 60} دقيقة';
+        deadlineText =
+            'الوقت المتبقي: ${diff.inHours} ساعة و ${diff.inMinutes % 60} دقيقة';
       } else {
         deadlineText = 'الوقت المتبقي: ${diff.inMinutes} دقيقة فقط';
       }
@@ -634,7 +713,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       deadlineText = 'الوقت المتوقع للتنفيذ: ${order.estimatedMinutes} دقيقة';
     }
 
-    final bgColor = isDelayed ? const Color(0xFFFEE2E2) : const Color(0xFFF0FDF4);
+    final bgColor = isDelayed
+        ? const Color(0xFFFEE2E2)
+        : const Color(0xFFF0FDF4);
     final textColor = isDelayed ? AppColors.error : AppColors.tertiary;
     final iconColor = isDelayed ? AppColors.error : AppColors.tertiary;
 
@@ -665,7 +746,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           ),
           Text(
             DateFormat('hh:mm a').format(order.createdAt),
-            style: TextStyle(fontSize: 11, color: textColor.withValues(alpha: 0.8)),
+            style: TextStyle(
+              fontSize: 11,
+              color: textColor.withValues(alpha: 0.8),
+            ),
           ),
         ],
       ),
@@ -682,7 +766,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           onPressed: () {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => ManualOrderDetailsScreen(order: order)),
+              MaterialPageRoute(
+                builder: (_) => ManualOrderDetailsScreen(order: order),
+              ),
             ).then((_) => _loadOrders());
           },
           icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
@@ -691,7 +777,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             foregroundColor: AppColors.primary,
             side: const BorderSide(color: AppColors.primary),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
           ),
         ),
         const Spacer(),
@@ -705,7 +793,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               foregroundColor: AppColors.error,
               side: const BorderSide(color: AppColors.error),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('رفض'),
           ),
@@ -717,7 +807,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               backgroundColor: AppColors.tertiary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('قبول الطلب'),
           ),
@@ -731,10 +823,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               backgroundColor: AppColors.secondary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
-        ] else if (status == 'in_progress' || status == 'revision_requested') ...[
+        ] else if (status == 'in_progress' ||
+            status == 'revision_requested') ...[
           // Request Info
           OutlinedButton(
             onPressed: () => _showRequestInfoDialog(order),
@@ -742,7 +837,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               foregroundColor: const Color(0xFFD97706),
               side: const BorderSide(color: Color(0xFFD97706)),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
             child: const Text('طلب معلومات'),
           ),
@@ -756,7 +853,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               backgroundColor: AppColors.primary,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
           ),
         ] else if (status == 'info_requested') ...[
@@ -768,7 +867,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             ),
             child: const Text(
               'بانتظار رد العميل بالمعلومات',
-              style: TextStyle(fontSize: 12, color: Color(0xFFD97706), fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFFD97706),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ] else if (status == 'delivered') ...[
@@ -780,7 +883,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             ),
             child: const Text(
               'تم التسليم - بانتظار تأكيد العميل',
-              style: TextStyle(fontSize: 12, color: Color(0xFF7C3AED), fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 12,
+                color: Color(0xFF7C3AED),
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ],
@@ -791,12 +898,17 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   // --- ACTIONS ---
 
   void _acceptOrder(OrderModel order) async {
-    final provider = Provider.of<ManualServicesProvider>(context, listen: false);
+    final provider = Provider.of<ManualServicesProvider>(
+      context,
+      listen: false,
+    );
     final ok = await provider.supervisorAcceptOrder(order.id);
     if (!mounted) return;
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم قبول الطلب بنجاح! يمكنك الآن بدء التنفيذ')),
+        const SnackBar(
+          content: Text('تم قبول الطلب بنجاح! يمكنك الآن بدء التنفيذ'),
+        ),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -806,13 +918,16 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   }
 
   void _startOrder(OrderModel order) async {
-    final provider = Provider.of<ManualServicesProvider>(context, listen: false);
+    final provider = Provider.of<ManualServicesProvider>(
+      context,
+      listen: false,
+    );
     final ok = await provider.supervisorStartOrder(order.id);
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تم بدء تنفيذ الطلب بنجاح')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('تم بدء تنفيذ الطلب بنجاح')));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(provider.errorMessage ?? 'تعذر بدء التنفيذ')),
@@ -847,7 +962,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'مثال: ضغط عمل حالي / عدم توفر المتطلبات الفنية...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: AppColors.error),
@@ -875,16 +992,23 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                 return;
               }
               Navigator.pop(ctx);
-              final provider = Provider.of<ManualServicesProvider>(context, listen: false);
+              final provider = Provider.of<ManualServicesProvider>(
+                context,
+                listen: false,
+              );
               final ok = await provider.supervisorRejectOrder(order.id, reason);
               if (!mounted) return;
               if (ok) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم تسجيل رفض الطلب وإبلاغ الإدارة')),
+                  const SnackBar(
+                    content: Text('تم تسجيل رفض الطلب وإبلاغ الإدارة'),
+                  ),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(provider.errorMessage ?? 'فشل رفض الطلب')),
+                  SnackBar(
+                    content: Text(provider.errorMessage ?? 'فشل رفض الطلب'),
+                  ),
                 );
               }
             },
@@ -921,8 +1045,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               controller: noteCtrl,
               maxLines: 4,
               decoration: InputDecoration(
-                hintText: 'مثال: يرجى تزويدنا برقم الهاتف لتأكيد الحساب أو رمز التحقق...',
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                hintText:
+                    'مثال: يرجى تزويدنا برقم الهاتف لتأكيد الحساب أو رمز التحقق...',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],
@@ -941,16 +1068,23 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               final note = noteCtrl.text.trim();
               if (note.isEmpty) return;
               Navigator.pop(ctx);
-              final provider = Provider.of<ManualServicesProvider>(context, listen: false);
+              final provider = Provider.of<ManualServicesProvider>(
+                context,
+                listen: false,
+              );
               final ok = await provider.supervisorRequestInfo(order.id, note);
               if (!mounted) return;
               if (ok) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم إرسال طلب المعلومات للعميل بنجاح')),
+                  const SnackBar(
+                    content: Text('تم إرسال طلب المعلومات للعميل بنجاح'),
+                  ),
                 );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(provider.errorMessage ?? 'تعذر إرسال الطلب')),
+                  SnackBar(
+                    content: Text(provider.errorMessage ?? 'تعذر إرسال الطلب'),
+                  ),
                 );
               }
             },
@@ -972,7 +1106,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Row(
             children: [
               Icon(Icons.verified_rounded, color: AppColors.tertiary),
@@ -997,7 +1133,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     maxLines: 2,
                     decoration: InputDecoration(
                       hintText: 'تم إنشاء الحساب وضبط الإعدادات بنجاح...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -1015,7 +1153,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       children: [
                         const Row(
                           children: [
-                            Icon(Icons.security_rounded, size: 16, color: AppColors.primary),
+                            Icon(
+                              Icons.security_rounded,
+                              size: 16,
+                              color: AppColors.primary,
+                            ),
                             SizedBox(width: 6),
                             Text(
                               'البيانات السرية (تشفير AES-256 تلقائي)',
@@ -1030,7 +1172,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         const SizedBox(height: 4),
                         const Text(
                           'سيتم تشفير هذه البيانات فوراً ولن تظهر في الإشعارات، وتُحذف نهائياً بعد استلام العميل.',
-                          style: TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                         const SizedBox(height: 12),
                         TextField(
@@ -1038,7 +1183,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           decoration: InputDecoration(
                             labelText: 'البريد الإلكتروني / اسم المستخدم',
                             isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -1047,16 +1194,21 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           decoration: InputDecoration(
                             labelText: 'كلمة المرور',
                             isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
                         TextField(
                           controller: backupCtrl,
                           decoration: InputDecoration(
-                            labelText: 'البريد البديل / رمز الاسترداد (اختياري)',
+                            labelText:
+                                'البريد البديل / رمز الاسترداد (اختياري)',
                             isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -1065,7 +1217,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                           decoration: InputDecoration(
                             labelText: 'أي بيانات إضافية (اختياري)',
                             isDense: true,
-                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                           ),
                         ),
                       ],
@@ -1095,26 +1249,41 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                   credentials = {};
                   if (email.isNotEmpty) credentials['email'] = email;
                   if (pass.isNotEmpty) credentials['password'] = pass;
-                  if (backupCtrl.text.trim().isNotEmpty) credentials['recovery'] = backupCtrl.text.trim();
-                  if (extraCtrl.text.trim().isNotEmpty) credentials['notes'] = extraCtrl.text.trim();
+                  if (backupCtrl.text.trim().isNotEmpty)
+                    credentials['recovery'] = backupCtrl.text.trim();
+                  if (extraCtrl.text.trim().isNotEmpty)
+                    credentials['notes'] = extraCtrl.text.trim();
                 }
 
                 Navigator.pop(ctx);
-                final provider = Provider.of<ManualServicesProvider>(context, listen: false);
+                final provider = Provider.of<ManualServicesProvider>(
+                  context,
+                  listen: false,
+                );
                 final ok = await provider.supervisorDeliverOrder(
                   orderId: order.id,
-                  resultNotes: notes.isNotEmpty ? notes : 'تم إنجاز الخدمة بنجاح.',
+                  resultNotes: notes.isNotEmpty
+                      ? notes
+                      : 'تم إنجاز الخدمة بنجاح.',
                   credentials: credentials,
                 );
 
                 if (!mounted) return;
                 if (ok) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم تسليم الخدمة بنجاح إلى العميل وبانتظار تأكيده')),
+                    const SnackBar(
+                      content: Text(
+                        'تم تسليم الخدمة بنجاح إلى العميل وبانتظار تأكيده',
+                      ),
+                    ),
                   );
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(provider.errorMessage ?? 'تعذر تسليم الخدمة')),
+                    SnackBar(
+                      content: Text(
+                        provider.errorMessage ?? 'تعذر تسليم الخدمة',
+                      ),
+                    ),
                   );
                 }
               },
@@ -1139,7 +1308,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                 shape: BoxShape.circle,
                 border: Border.all(color: Colors.grey.shade200),
               ),
-              child: const Icon(Icons.inbox_rounded, size: 48, color: AppColors.textSecondary),
+              child: const Icon(
+                Icons.inbox_rounded,
+                size: 48,
+                color: AppColors.textSecondary,
+              ),
             ),
             const SizedBox(height: 16),
             const Text(

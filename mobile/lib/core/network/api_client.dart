@@ -67,7 +67,10 @@ class ApiClient {
 
   Future<dynamic> get(String path, {Map<String, dynamic>? queryParams}) async {
     try {
-      final response = await http.get(_buildUri(path, queryParams), headers: _buildHeaders());
+      final response = await http.get(
+        _buildUri(path, queryParams),
+        headers: _buildHeaders(),
+      );
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
@@ -86,6 +89,32 @@ class ApiClient {
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('تعذر إرسال الطلب: $e');
+    }
+  }
+
+  /// رفع ملف عبر multipart/form-data (مثل صور المعرض/الكاميرا)
+  Future<dynamic> postMultipart(
+    String path, {
+    required List<int> fileBytes,
+    required String fileName,
+    String fieldName = 'file',
+    Map<String, String>? fields,
+  }) async {
+    try {
+      final request = http.MultipartRequest('POST', _buildUri(path));
+      final headers = _buildHeaders();
+      headers.remove('Content-Type'); // يحدده multipart تلقائياً
+      request.headers.addAll(headers);
+      if (fields != null) request.fields.addAll(fields);
+      request.files.add(
+        http.MultipartFile.fromBytes(fieldName, fileBytes, filename: fileName),
+      );
+      final streamed = await request.send();
+      final response = await http.Response.fromStream(streamed);
+      return _processResponse(response);
+    } catch (e) {
+      if (e is ApiException) rethrow;
+      throw ApiException('تعذر رفع الملف: $e');
     }
   }
 

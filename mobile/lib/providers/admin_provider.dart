@@ -765,6 +765,26 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
+  /// رفع صورة الإعلان إلى الخادم وإرجاع رابطها العام
+  Future<String?> uploadBannerImage(List<int> bytes, String fileName) async {
+    try {
+      final res = await _api.postMultipart(
+        ApiConstants.uploadImage,
+        fileBytes: bytes,
+        fileName: fileName,
+      );
+      if (res is Map) {
+        final url = res['url'] ?? res['secure_url'];
+        if (url != null) return url.toString();
+      }
+      return null;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return null;
+    }
+  }
+
   // === Supervisors & Manual Services Management ===
   List<Map<String, dynamic>> _supervisors = [];
   List<Map<String, dynamic>> get supervisors => _supervisors;

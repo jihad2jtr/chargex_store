@@ -1,5 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { NestExpressApplication } from '@nestjs/platform-express';
+import { json, urlencoded } from 'express';
+import { join } from 'path';
 import { AppModule } from './app.module';
 
 let cachedServer: any;
@@ -40,7 +43,16 @@ export default async function handler(req: any, res: any) {
 // Standalone mode (Local development, Render, Docker)
 async function bootstrap() {
   const logger = new Logger('JGOBootstrap');
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule, {
+    bodyParser: false,
+  });
+
+  // رفع حد جسم الطلب لاستيعاب الصور المرفوعة
+  app.use(json({ limit: '10mb' }));
+  app.use(urlencoded({ extended: true, limit: '10mb' }));
+
+  // تقديم الصور المرفوعة كملفات ثابتة على /uploads
+  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
 
   // Enable CORS for Flutter Web, Mobile, and Desktop
   app.enableCors({

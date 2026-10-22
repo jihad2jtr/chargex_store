@@ -13,6 +13,10 @@ import 'orders_management_screen.dart';
 import 'banners_management_screen.dart';
 import 'manual_services_management_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
+import '../../widgets/digital_pass_card.dart';
+import '../../widgets/floating_role_dashboard_shield.dart';
+import '../../widgets/live_status_console.dart';
+import '../user/user_main_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -68,74 +72,110 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final auth = Provider.of<AuthProvider>(context);
     final admin = Provider.of<AdminProvider>(context);
 
-    final pendingOrdersCount = admin.adminOrders.where((o) => o.status == 'pending').length;
-    final pendingTopupsCount = admin.manualTopupRequests.where((r) => r.status == 'pending').length;
+    final pendingOrdersCount = admin.adminOrders
+        .where((o) => o.status == 'pending')
+        .length;
+    final pendingTopupsCount = admin.manualTopupRequests
+        .where((r) => r.status == 'pending')
+        .length;
     final totalPending = pendingOrdersCount + pendingTopupsCount;
 
-    final sections = _getSections(admin, pendingOrdersCount, pendingTopupsCount);
+    final sections = _getSections(
+      admin,
+      pendingOrdersCount,
+      pendingTopupsCount,
+    );
     final filteredSections = _selectedCategory == 'all'
         ? sections
         : sections.where((s) => s.category == _selectedCategory).toList();
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadData,
-          color: AppColors.primaryBlue,
-          backgroundColor: Colors.white,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const UnifiedTactileHeader(isDashboard: true),
-                const SizedBox(height: 12),
-                // Welcome Banner
-              _buildExecutiveHeader(auth.currentUser?.name, totalPending),
-              const SizedBox(height: 20),
-
-              // KPI Stats Grid
-              _buildKpiSection(pendingOrdersCount, pendingTopupsCount, admin),
-              const SizedBox(height: 28),
-
-              // Management Sections Header with Interactive Category Tabs
-              _buildManagementHeader(sections.length, totalPending),
-              const SizedBox(height: 14),
-
-              // Category Filter Tabs
-              _buildCategoryTabs(sections),
-              const SizedBox(height: 16),
-
-              // Management Sections Grid
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: filteredSections.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: MediaQuery.of(context).size.width >= 1200
-                      ? 4
-                      : MediaQuery.of(context).size.width >= 700
-                          ? 3
-                          : 2,
-                  crossAxisSpacing: 14,
-                  mainAxisSpacing: 14,
-                  childAspectRatio: 0.86,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              color: AppColors.primaryBlue,
+              backgroundColor: Colors.white,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
                 ),
-                itemBuilder: (context, index) {
-                  final item = filteredSections[index];
-                  return _buildManagementCard(item);
-                },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const UnifiedTactileHeader(isDashboard: true),
+                    const SizedBox(height: 12),
+                    // Welcome Banner
+                    _buildExecutiveHeader(auth.currentUser?.name, totalPending),
+                    const SizedBox(height: 20),
+
+                    // KPI Stats Grid
+                    _buildKpiSection(
+                      pendingOrdersCount,
+                      pendingTopupsCount,
+                      admin,
+                    ),
+                    const SizedBox(height: 28),
+
+                    // Management Sections Header with Interactive Category Tabs
+                    _buildManagementHeader(sections.length, totalPending),
+                    const SizedBox(height: 14),
+
+                    // Category Filter Tabs
+                    _buildCategoryTabs(sections),
+                    const SizedBox(height: 16),
+
+                    // Management Sections Grid
+                    GridView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: filteredSections.length,
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount:
+                            MediaQuery.of(context).size.width >= 1200
+                            ? 4
+                            : MediaQuery.of(context).size.width >= 700
+                            ? 3
+                            : 2,
+                        crossAxisSpacing: 14,
+                        mainAxisSpacing: 14,
+                        childAspectRatio: 1.2,
+                      ),
+                      itemBuilder: (context, index) {
+                        final item = filteredSections[index];
+                        return _buildManagementCard(item);
+                      },
+                    ),
+                    const SizedBox(height: 24),
+                  ],
+                ),
               ),
-              const SizedBox(height: 24),
-            ],
+            ),
           ),
-        ),
+
+          // Floating Role Shield: يعيد إلى واجهة العميل
+          FloatingRoleDashboardShield(
+            onCustomTap: () => _returnToClientView(context),
+          ),
+        ],
       ),
-    ),
-  );
-}
+    );
+  }
+
+  /// زر الدرع: العودة إلى واجهة العميل
+  void _returnToClientView(BuildContext context) {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const UserMainScreen()),
+      );
+    }
+  }
 
   // --- Executive Welcome Banner ---
   Widget _buildExecutiveHeader(String? adminName, int totalPending) {
@@ -144,7 +184,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       decoration: BoxDecoration(
         color: AppColors.darkNav,
         borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: AppColors.primaryBlue.withValues(alpha: 0.35), width: 1.2),
+        border: Border.all(
+          color: AppColors.primaryBlue.withValues(alpha: 0.35),
+          width: 1.2,
+        ),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF0F172A).withValues(alpha: 0.18),
@@ -174,9 +217,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 decoration: BoxDecoration(
                   color: const Color(0xFF1E293B),
                   shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.ticketAmber.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: AppColors.ticketAmber.withValues(alpha: 0.5),
+                  ),
                 ),
-                child: const Icon(Icons.shield_rounded, color: AppColors.ticketAmber, size: 26),
+                child: const Icon(
+                  Icons.shield_rounded,
+                  color: AppColors.ticketAmber,
+                  size: 26,
+                ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -199,11 +248,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         ),
                         const SizedBox(width: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2.5,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFF065F46),
                             borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.accentGreen.withValues(alpha: 0.6)),
+                            border: Border.all(
+                              color: AppColors.accentGreen.withValues(
+                                alpha: 0.6,
+                              ),
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -236,8 +292,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                           : 'النظام يعمل بكفاءة تامة وجميع خوادم الـ API متصلة',
                       style: AppTypography.cairo(
                         fontSize: 11.5,
-                        color: totalPending > 0 ? AppColors.ticketAmber : const Color(0xFF94A3B8),
-                        fontWeight: totalPending > 0 ? FontWeight.bold : FontWeight.normal,
+                        color: totalPending > 0
+                            ? AppColors.ticketAmber
+                            : const Color(0xFF94A3B8),
+                        fontWeight: totalPending > 0
+                            ? FontWeight.bold
+                            : FontWeight.normal,
                       ),
                     ),
                   ],
@@ -250,148 +310,60 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- KPI Stats Section ---
-  Widget _buildKpiSection(int pendingOrders, int pendingTopups, AdminProvider admin) {
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                title: 'الطلبات المعلقة',
-                value: pendingOrders.toString(),
-                subtitle: 'شحن بالآيدي',
-                icon: Icons.hourglass_top_rounded,
-                color: AppColors.ticketAmber,
-                badge: pendingOrders > 0 ? 'مراجعة' : null,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildKpiCard(
-                title: 'شحن رصيد معلق',
-                value: pendingTopups.toString(),
-                subtitle: 'إيداعات يدوية',
-                icon: Icons.account_balance_wallet_rounded,
-                color: AppColors.primaryBlue,
-                badge: pendingTopups > 0 ? 'جديد' : null,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: _buildKpiCard(
-                title: 'المزودين النشطين',
-                value: admin.providers.length.toString(),
-                subtitle: '${admin.providers.where((p) => p.status == 'online').length} متصل بالـ API',
-                icon: Icons.cloud_done_rounded,
-                color: AppColors.accentGreen,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _buildKpiCard(
-                title: 'المنتجات المنشورة',
-                value: admin.adminProducts.length.toString(),
-                subtitle: 'في ${admin.adminApps.length} تطبيق وخدمة',
-                icon: Icons.category_rounded,
-                color: const Color(0xFF6366F1),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  // --- Live Operation Status Console (KPIs) ---
+  Widget _buildKpiSection(
+    int pendingOrders,
+    int pendingTopups,
+    AdminProvider admin,
+  ) {
+    final onlineProviders = admin.providers
+        .where((p) => p.status == 'online')
+        .length;
+    final providersTotal = admin.providers.length;
 
-  Widget _buildKpiCard({
-    required String title,
-    required String value,
-    required String subtitle,
-    required IconData icon,
-    required Color color,
-    String? badge,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.outline),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 3),
-          ),
-        ],
+    final metrics = [
+      LiveStatusMetric(
+        label: 'الطلبات المعلقة',
+        sub: 'شحن بالآيدي بانتظار التأكيد',
+        value: pendingOrders.toString(),
+        icon: Icons.hourglass_top_rounded,
+        accent: AppColors.ticketAmber,
+        statusText: pendingOrders > 0 ? 'بانتظار المراجعة' : 'مستقر',
+        isAlert: pendingOrders > 0,
+        rawValue: pendingOrders,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icon, color: color, size: 19),
-              ),
-              if (badge != null)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: color.withValues(alpha: 0.35)),
-                  ),
-                  child: Text(
-                    badge,
-                    style: AppTypography.technicalCode(fontSize: 9.5, color: color),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            value,
-            style: AppTypography.plusJakartaSans(
-              fontSize: 23,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.5,
-              height: 1.1,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            title,
-            style: AppTypography.cairo(
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-            ),
-          ),
-          Text(
-            subtitle,
-            style: AppTypography.cairo(
-              fontSize: 10.5,
-              color: AppColors.textSecondary,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+      LiveStatusMetric(
+        label: 'الرصيد المعلق',
+        sub: 'إيداعات يدوية غير معتمدة',
+        value: pendingTopups.toString(),
+        icon: Icons.account_balance_wallet_rounded,
+        accent: AppColors.primaryBlue,
+        statusText: pendingTopups > 0 ? 'يتطلب اعتماد' : 'معتمد',
+        isAlert: pendingTopups > 0,
+        rawValue: pendingTopups,
       ),
-    );
-  }
+      LiveStatusMetric(
+        label: 'المزودين النشطين',
+        sub: '$onlineProviders من $providersTotal متصل بالـ API',
+        value: providersTotal.toString(),
+        icon: Icons.cloud_done_rounded,
+        accent: AppColors.accentGreen,
+        statusText: onlineProviders > 0 ? '$onlineProviders متصل' : 'غير متصل',
+        rawValue: onlineProviders,
+      ),
+      LiveStatusMetric(
+        label: 'المنتجات المنشورة',
+        sub: 'موزعة على ${admin.adminApps.length} تطبيق وخدمة',
+        value: admin.adminProducts.length.toString(),
+        icon: Icons.category_rounded,
+        accent: const Color(0xFF6366F1),
+        statusText: admin.adminProducts.isNotEmpty ? 'منشور' : 'فارغ',
+        rawValue: admin.adminProducts.length,
+      ),
+    ];
 
+    return LiveStatusConsole(metrics: metrics);
+  }
 
   // --- Management Sections Header ---
   Widget _buildManagementHeader(int totalSections, int totalPending) {
@@ -448,11 +420,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _buildFilterChip('all', 'جميع الأقسام (${sections.length})', Icons.dashboard_rounded),
+          _buildFilterChip(
+            'all',
+            'جميع الأقسام (${sections.length})',
+            Icons.dashboard_rounded,
+          ),
           const SizedBox(width: 8),
-          _buildFilterChip('catalog', 'الخدمات والكتالوج ($catalogCount)', Icons.auto_awesome_motion_rounded),
+          _buildFilterChip(
+            'catalog',
+            'الخدمات والكتالوج ($catalogCount)',
+            Icons.auto_awesome_motion_rounded,
+          ),
           const SizedBox(width: 8),
-          _buildFilterChip('finance', 'المالية والعمليات ($financeCount)', Icons.account_balance_rounded),
+          _buildFilterChip(
+            'finance',
+            'المالية والعمليات ($financeCount)',
+            Icons.account_balance_rounded,
+          ),
         ],
       ),
     );
@@ -492,7 +476,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             Icon(
               icon,
               size: 15,
-              color: isSelected ? AppColors.ticketAmber : AppColors.textSecondary,
+              color: isSelected
+                  ? AppColors.ticketAmber
+                  : AppColors.textSecondary,
             ),
             const SizedBox(width: 6),
             Text(
@@ -511,162 +497,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
   // --- Premium Management Card ---
   Widget _buildManagementCard(_AdminSectionItem item) {
-    final isRtl = Directionality.of(context) == TextDirection.rtl;
-
-    return InkWell(
+    return TicketDashboardCard(
+      title: item.title,
+      badgeText: item.statusText,
+      subtitle: item.subtitle,
+      icon: item.icon,
+      accentColor: item.color,
+      isAlert: item.isAlert,
+      actionLabel: 'دخول للقسم',
+      imageUrl: item.imageUrl,
       onTap: item.onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: item.isAlert
-                ? AppColors.error.withValues(alpha: 0.5)
-                : AppColors.outline,
-            width: item.isAlert ? 1.5 : 1.0,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
-          child: Stack(
-            children: [
-              // Top Accent Line
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 3,
-                child: Container(
-                  color: item.color,
-                ),
-              ),
-
-              // Card Content
-              Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Top Row: Icon + Smart Pill Badge
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(9),
-                          decoration: BoxDecoration(
-                            color: item.color.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Icon(item.icon, color: item.color, size: 21),
-                        ),
-                        // Smart Metric Badge
-                        Flexible(
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: (item.statusColor ?? item.color).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: (item.statusColor ?? item.color).withValues(alpha: 0.25),
-                              ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (item.isAlert) ...[
-                                  const Icon(Icons.warning_amber_rounded, size: 11, color: AppColors.error),
-                                  const SizedBox(width: 3),
-                                ],
-                                Flexible(
-                                  child: Text(
-                                    item.statusText,
-                                    style: AppTypography.cairo(
-                                      fontSize: 9.5,
-                                      fontWeight: FontWeight.w800,
-                                      color: item.statusColor ?? item.color,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-
-                    const Spacer(),
-
-                    // Section Title
-                    Text(
-                      item.title,
-                      style: AppTypography.cairo(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.textPrimary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-
-                    // Section Description
-                    Text(
-                      item.subtitle,
-                      style: AppTypography.cairo(
-                        fontSize: 10.5,
-                        color: AppColors.textSecondary,
-                        height: 1.25,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // Bottom Row: Action Link + Forward Arrow
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'دخول للقسم',
-                          style: AppTypography.cairo(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w800,
-                            color: item.color,
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: item.color.withValues(alpha: 0.1),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            isRtl ? Icons.chevron_left_rounded : Icons.chevron_right_rounded,
-                            size: 14,
-                            color: item.color,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 
@@ -677,9 +517,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     int pendingTopupsCount,
   ) {
     final totalPending = pendingOrdersCount + pendingTopupsCount;
-    final onlineProviders = admin.providers.where((p) => p.status == 'online').length;
+    final onlineProviders = admin.providers
+        .where((p) => p.status == 'online')
+        .length;
     final activeBanners = admin.adminBanners.where((b) => b.isActive).length;
-    final activeAccounts = admin.paymentAccounts.where((a) => a.isActive).length;
+    final activeAccounts = admin.paymentAccounts
+        .where((a) => a.isActive)
+        .length;
     final unusedCodes = admin.shippingCodes.where((c) => !c.isUsed).length;
 
     return [
@@ -690,10 +534,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         icon: Icons.grid_view_rounded,
         color: const Color(0xFF0EA5E9), // Cyan / Sky Blue
         category: 'catalog',
-        statusText: '${admin.adminApps.length} تطبيق • ${admin.adminProducts.length} باقة',
+        statusText:
+            '${admin.adminApps.length} تطبيق • ${admin.adminProducts.length} باقة',
+        imageUrl: 'assets/sections/apps_products.jpg',
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const AppsAndProductsManagementScreen()),
+            MaterialPageRoute(
+              builder: (_) => const AppsAndProductsManagementScreen(),
+            ),
           );
         },
       ),
@@ -707,9 +555,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         category: 'catalog',
         statusText: '${admin.providers.length} مزود ($onlineProviders متصل)',
         statusColor: onlineProviders > 0 ? AppColors.tertiary : null,
+        imageUrl: 'assets/sections/providers.jpg',
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ProvidersManagementScreen()),
+            MaterialPageRoute(
+              builder: (_) => const ProvidersManagementScreen(),
+            ),
           );
         },
       ),
@@ -722,6 +573,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         color: const Color(0xFFF59E0B), // Amber Gold
         category: 'catalog',
         statusText: '$activeBanners نشط / ${admin.adminBanners.length}',
+        imageUrl: 'assets/sections/banners.jpg',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
@@ -739,6 +591,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         isAlert: totalPending > 0,
         statusText: totalPending > 0 ? '$totalPending معلق' : 'مكتمل ✅',
         statusColor: totalPending > 0 ? AppColors.error : AppColors.tertiary,
+        imageUrl: 'assets/sections/orders.jpg',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const OrdersManagementScreen()),
@@ -755,6 +608,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         category: 'finance',
         statusText: '$activeAccounts مفعل',
         statusColor: AppColors.tertiary,
+        imageUrl: 'assets/sections/payments.jpg',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const PaymentAccountsScreen()),
@@ -770,6 +624,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         color: const Color(0xFF8B5CF6), // Purple
         category: 'finance',
         statusText: '$unusedCodes كود متاح',
+        imageUrl: 'assets/sections/shipping_codes.jpg',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const ShippingCodesScreen()),
@@ -786,9 +641,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         category: 'catalog',
         statusText: '${admin.supervisors.length} مشرف • متابعة SLA',
         statusColor: AppColors.secondary,
+        imageUrl: 'assets/sections/manual_services.jpg',
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ManualServicesManagementScreen()),
+            MaterialPageRoute(
+              builder: (_) => const ManualServicesManagementScreen(),
+            ),
           );
         },
       ),
@@ -805,6 +663,7 @@ class _AdminSectionItem {
   final String statusText;
   final Color? statusColor;
   final bool isAlert;
+  final String imageUrl;
   final VoidCallback onTap;
 
   const _AdminSectionItem({
@@ -816,7 +675,7 @@ class _AdminSectionItem {
     required this.statusText,
     this.statusColor,
     this.isAlert = false,
+    required this.imageUrl,
     required this.onTap,
   });
 }
-

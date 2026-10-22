@@ -1,4 +1,13 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UploadService } from './upload.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -7,14 +16,23 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 export class UploadController {
   constructor(private readonly uploadService: UploadService) {}
 
+  // يقبل ملفاً بصيغة multipart (الحقل: file) أو base64 أو رابطاً خارجياً
   @Post('image')
-  async uploadImage(@Body() body: { base64?: string; imageUrl?: string }) {
-    if (body.imageUrl) {
-      return { url: body.imageUrl, secure_url: body.imageUrl };
-    }
-    if (body.base64) {
-      return { url: body.base64, secure_url: body.base64 };
-    }
-    return { url: '', secure_url: '' };
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+    }),
+  )
+  async uploadImage(
+    @UploadedFile() file: any,
+    @Body() body: { base64?: string; imageUrl?: string },
+    @Req() req: any,
+  ) {
+    return this.uploadService.uploadImage(
+      file,
+      body?.base64,
+      body?.imageUrl,
+      req,
+    );
   }
 }

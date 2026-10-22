@@ -5,6 +5,7 @@ import '../../models/app_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_catalog_provider.dart';
+import '../../widgets/billboard_ad_carousel.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
@@ -87,6 +88,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
       child: RefreshIndicator(
         onRefresh: () async {
           await catalog.fetchApps();
+          await catalog.fetchBanners();
           await auth.refreshProfile();
           await catalog.fetchMyOrders();
         },
@@ -104,27 +106,39 @@ class _UserMainScreenState extends State<UserMainScreen> {
                 _buildExchangeRateBar(),
                 const SizedBox(height: 12),
                 if (categoryType == 'games' || categoryType == 'apps') ...[
-                  HeroTicketBanner(
-                    onTap: () {
-                      final pubg = catalog.apps.firstWhere(
-                        (a) =>
-                            a.name.toLowerCase().contains('pubg') ||
-                            a.name.contains('ببجي'),
-                        orElse: () => catalog.apps.isNotEmpty
-                            ? catalog.apps.first
-                            : AppItemModel(
-                                id: 'pubg-promo',
-                                name: 'ببجي موبايل',
-                                iconUrl: '',
-                              ),
-                      );
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => AppProductsScreen(app: pubg),
-                        ),
-                      );
-                    },
-                  ),
+                  if (catalog.banners.isNotEmpty)
+                    BillboardAdCarousel(
+                      banners: catalog.banners,
+                      onTopupTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const TopupScreen(),
+                          ),
+                        );
+                      },
+                    )
+                  else
+                    HeroTicketBanner(
+                      onTap: () {
+                        final pubg = catalog.apps.firstWhere(
+                          (a) =>
+                              a.name.toLowerCase().contains('pubg') ||
+                              a.name.contains('ببجي'),
+                          orElse: () => catalog.apps.isNotEmpty
+                              ? catalog.apps.first
+                              : AppItemModel(
+                                  id: 'pubg-promo',
+                                  name: 'ببجي موبايل',
+                                  iconUrl: '',
+                                ),
+                        );
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => AppProductsScreen(app: pubg),
+                          ),
+                        );
+                      },
+                    ),
                   const SizedBox(height: 14),
                 ],
                 _buildSectionHeader(
@@ -623,7 +637,11 @@ class _UserMainScreenState extends State<UserMainScreen> {
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.refresh_rounded, color: Color(0xFF0F172A), size: 20),
+                    icon: const Icon(
+                      Icons.refresh_rounded,
+                      color: Color(0xFF0F172A),
+                      size: 20,
+                    ),
                     tooltip: 'تحديث الطلبات',
                     constraints: const BoxConstraints(),
                     padding: EdgeInsets.zero,
@@ -739,14 +757,21 @@ class _UserMainScreenState extends State<UserMainScreen> {
                       break;
                     case 2: // طلباتي (Center floating button)
                       currentPillWidth = 36.0;
-                      startPos = 2 * tabWidth + (centerWidth - currentPillWidth) / 2;
+                      startPos =
+                          2 * tabWidth + (centerWidth - currentPillWidth) / 2;
                       pillOpacity = 0.0; // Dissolves into center button!
                       break;
                     case 3: // خدمات
-                      startPos = 2 * tabWidth + centerWidth + (tabWidth - pillWidth) / 2;
+                      startPos =
+                          2 * tabWidth +
+                          centerWidth +
+                          (tabWidth - pillWidth) / 2;
                       break;
                     case 4: // المحفظة (Left side in RTL)
-                      startPos = 3 * tabWidth + centerWidth + (tabWidth - pillWidth) / 2;
+                      startPos =
+                          3 * tabWidth +
+                          centerWidth +
+                          (tabWidth - pillWidth) / 2;
                       break;
                   }
 
@@ -767,17 +792,16 @@ class _UserMainScreenState extends State<UserMainScreen> {
                           child: Container(
                             decoration: BoxDecoration(
                               gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFFF59E0B),
-                                  Color(0xFFFBBF24),
-                                ],
+                                colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
                                 begin: Alignment.bottomLeft,
                                 end: Alignment.topRight,
                               ),
                               borderRadius: BorderRadius.circular(14),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFFF59E0B).withValues(alpha: 0.5),
+                                  color: const Color(
+                                    0xFFF59E0B,
+                                  ).withValues(alpha: 0.5),
                                   blurRadius: 10,
                                   offset: const Offset(0, 2),
                                 ),
@@ -842,7 +866,8 @@ class _UserMainScreenState extends State<UserMainScreen> {
                               index: 3,
                               label: "خدمات",
                               iconActive: Icons.miscellaneous_services_rounded,
-                              iconInactive: Icons.miscellaneous_services_outlined,
+                              iconInactive:
+                                  Icons.miscellaneous_services_outlined,
                             ),
                           ),
 
@@ -852,7 +877,8 @@ class _UserMainScreenState extends State<UserMainScreen> {
                               index: 4,
                               label: "المحفظة",
                               iconActive: Icons.account_balance_wallet_rounded,
-                              iconInactive: Icons.account_balance_wallet_outlined,
+                              iconInactive:
+                                  Icons.account_balance_wallet_outlined,
                             ),
                           ),
                         ],
@@ -896,10 +922,11 @@ class _UserMainScreenState extends State<UserMainScreen> {
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: (_currentIndex == 2
-                                  ? const Color(0xFFF59E0B)
-                                  : const Color(0xFF0284C7))
-                              .withValues(alpha: 0.55),
+                          color:
+                              (_currentIndex == 2
+                                      ? const Color(0xFFF59E0B)
+                                      : const Color(0xFF0284C7))
+                                  .withValues(alpha: 0.55),
                           blurRadius: 14,
                           offset: const Offset(0, 4),
                         ),

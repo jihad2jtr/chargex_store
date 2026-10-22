@@ -12,7 +12,8 @@ class BannersManagementScreen extends StatefulWidget {
   const BannersManagementScreen({super.key});
 
   @override
-  State<BannersManagementScreen> createState() => _BannersManagementScreenState();
+  State<BannersManagementScreen> createState() =>
+      _BannersManagementScreenState();
 }
 
 class _BannersManagementScreenState extends State<BannersManagementScreen> {
@@ -29,12 +30,19 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
   void _showAddOrEditBannerDialog({BannerModel? banner}) {
     final isEditing = banner != null;
     final titleController = TextEditingController(text: banner?.title ?? '');
-    final descriptionController = TextEditingController(text: banner?.description ?? '');
-    final imageUrlController = TextEditingController(text: banner?.imageUrl ?? '');
-    final sortOrderController = TextEditingController(text: (banner?.sortOrder ?? 0).toString());
+    final descriptionController = TextEditingController(
+      text: banner?.description ?? '',
+    );
+    final imageUrlController = TextEditingController(
+      text: banner?.imageUrl ?? '',
+    );
+    final sortOrderController = TextEditingController(
+      text: (banner?.sortOrder ?? 0).toString(),
+    );
 
     String actionType = banner?.actionType ?? 'topup';
     bool isActive = banner?.isActive ?? true;
+    bool isUploading = false;
     String previewImageUrl = banner?.imageUrl ?? '';
 
     showDialog(
@@ -45,23 +53,54 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
           builder: (dialogCtx, setDialogState) {
             Future<void> pickImage(ImageSource source) async {
               try {
+                final admin = Provider.of<AdminProvider>(
+                  context,
+                  listen: false,
+                );
                 final XFile? image = await _picker.pickImage(
                   source: source,
                   imageQuality: 80,
                   maxWidth: 1200,
                 );
 
-                if (image != null) {
-                  final bytes = await image.readAsBytes();
-                  final mimeType = image.name.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg';
-                  final base64Str = 'data:$mimeType;base64,${base64Encode(bytes)}';
+                if (image == null) return;
 
-                  setDialogState(() {
-                    previewImageUrl = base64Str;
-                    imageUrlController.text = base64Str;
-                  });
+                final bytes = await image.readAsBytes();
+                final mimeType = image.name.toLowerCase().endsWith('.png')
+                    ? 'image/png'
+                    : 'image/jpeg';
+
+                // معاينة فورية محلية أثناء رفع الصورة إلى الخادم
+                setDialogState(() {
+                  previewImageUrl =
+                      'data:$mimeType;base64,${base64Encode(bytes)}';
+                  isUploading = true;
+                });
+
+                final url = await admin.uploadBannerImage(bytes, image.name);
+
+                if (!dialogCtx.mounted) return;
+                setDialogState(() {
+                  isUploading = false;
+                  if (url != null) {
+                    imageUrlController.text = url;
+                    previewImageUrl = url;
+                  } else {
+                    imageUrlController.clear();
+                    previewImageUrl = '';
+                  }
+                });
+
+                if (url == null && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(admin.errorMessage ?? 'فشل رفع الصورة'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
                 }
               } catch (e) {
+                setDialogState(() => isUploading = false);
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -88,11 +127,17 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       children: [
                         const Text(
                           'اختر مصدر صورة الإعلان',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 16),
                         ListTile(
-                          leading: const Icon(Icons.photo_library_outlined, color: AppColors.primaryContainer),
+                          leading: const Icon(
+                            Icons.photo_library_outlined,
+                            color: AppColors.primaryContainer,
+                          ),
                           title: const Text('اختيار من معرض الصور'),
                           onTap: () {
                             Navigator.pop(sheetCtx);
@@ -100,7 +145,10 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                           },
                         ),
                         ListTile(
-                          leading: const Icon(Icons.camera_alt_outlined, color: AppColors.secondary),
+                          leading: const Icon(
+                            Icons.camera_alt_outlined,
+                            color: AppColors.secondary,
+                          ),
                           title: const Text('التقاط صورة بالكاميرا'),
                           onTap: () {
                             Navigator.pop(sheetCtx);
@@ -116,7 +164,9 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
 
             return AlertDialog(
               backgroundColor: AppColors.surfaceContainer,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
               title: Row(
                 children: [
                   Icon(
@@ -126,7 +176,10 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                   const SizedBox(width: 8),
                   Text(
                     isEditing ? 'تعديل الإعلان' : 'إضافة إعلان جديد',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
                   ),
                 ],
               ),
@@ -140,7 +193,11 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       // Live Preview Box (Cropped to Billboard Card Size 2:1)
                       const Text(
                         'معاينة كرت الإعلان (مقصوص تلقائياً):',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.onSurfaceVariant),
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       ClipRRect(
@@ -164,9 +221,19 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(Icons.image_outlined, size: 40, color: AppColors.onSurfaceVariant),
+                                      Icon(
+                                        Icons.image_outlined,
+                                        size: 40,
+                                        color: AppColors.onSurfaceVariant,
+                                      ),
                                       SizedBox(height: 6),
-                                      Text('لم يتم اختيار صورة بعد', style: TextStyle(color: AppColors.onSurfaceVariant, fontSize: 12)),
+                                      Text(
+                                        'لم يتم اختيار صورة بعد',
+                                        style: TextStyle(
+                                          color: AppColors.onSurfaceVariant,
+                                          fontSize: 12,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -187,6 +254,20 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                                 ),
                               ),
 
+                              // مؤشر الرفع
+                              if (isUploading)
+                                Positioned.fill(
+                                  child: Container(
+                                    color: Colors.black.withValues(alpha: 0.35),
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        color: Colors.white,
+                                        strokeWidth: 2.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+
                               // Preview Text Overlay
                               Padding(
                                 padding: const EdgeInsets.all(12),
@@ -195,7 +276,9 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                                   mainAxisAlignment: MainAxisAlignment.end,
                                   children: [
                                     Text(
-                                      titleController.text.isNotEmpty ? titleController.text : 'عنوان الإعلان التجريبي',
+                                      titleController.text.isNotEmpty
+                                          ? titleController.text
+                                          : 'عنوان الإعلان التجريبي',
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
@@ -213,7 +296,9 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         fontSize: 11,
-                                        color: Colors.white.withValues(alpha: 0.85),
+                                        color: Colors.white.withValues(
+                                          alpha: 0.85,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -230,12 +315,21 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: showImageSourcePicker,
+                              onPressed: isUploading
+                                  ? null
+                                  : showImageSourcePicker,
                               icon: const Icon(Icons.add_a_photo, size: 16),
-                              label: const Text('اختيار / التقاط صورة', style: TextStyle(fontSize: 12)),
+                              label: const Text(
+                                'اختيار / التقاط صورة',
+                                style: TextStyle(fontSize: 12),
+                              ),
                               style: OutlinedButton.styleFrom(
-                                side: const BorderSide(color: AppColors.primaryContainer),
-                                padding: const EdgeInsets.symmetric(vertical: 10),
+                                side: const BorderSide(
+                                  color: AppColors.primaryContainer,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 10,
+                                ),
                               ),
                             ),
                           ),
@@ -243,7 +337,10 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                             const SizedBox(width: 8),
                             IconButton(
                               tooltip: 'مسح الصورة',
-                              icon: const Icon(Icons.clear, color: AppColors.error),
+                              icon: const Icon(
+                                Icons.clear,
+                                color: AppColors.error,
+                              ),
                               onPressed: () {
                                 setDialogState(() {
                                   previewImageUrl = '';
@@ -259,6 +356,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       // Direct URL input (alternative option)
                       TextField(
                         controller: imageUrlController,
+                        enabled: !isUploading,
                         textDirection: TextDirection.ltr,
                         decoration: InputDecoration(
                           labelText: 'أو رابط الصورة المباشر (URL)',
@@ -269,7 +367,8 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                             icon: const Icon(Icons.check, size: 18),
                             onPressed: () {
                               setDialogState(() {
-                                previewImageUrl = imageUrlController.text.trim();
+                                previewImageUrl = imageUrlController.text
+                                    .trim();
                               });
                             },
                           ),
@@ -300,7 +399,8 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                         maxLines: 2,
                         decoration: const InputDecoration(
                           labelText: 'النص الوصفي للإعلان *',
-                          hintText: 'اكتب نصاً وصفياً يوضح تفاصيل الإعلان أو العرض...',
+                          hintText:
+                              'اكتب نصاً وصفياً يوضح تفاصيل الإعلان أو العرض...',
                           prefixIcon: Icon(Icons.description_outlined),
                         ),
                         onChanged: (_) => setDialogState(() {}),
@@ -315,8 +415,14 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                           prefixIcon: Icon(Icons.touch_app),
                         ),
                         items: const [
-                          DropdownMenuItem(value: 'topup', child: Text('فتح صفحة شحن المحفظة')),
-                          DropdownMenuItem(value: 'none', child: Text('بدون إجراء (عرض فقط)')),
+                          DropdownMenuItem(
+                            value: 'topup',
+                            child: Text('فتح صفحة شحن المحفظة'),
+                          ),
+                          DropdownMenuItem(
+                            value: 'none',
+                            child: Text('بدون إجراء (عرض فقط)'),
+                          ),
                         ],
                         onChanged: (val) {
                           if (val != null) {
@@ -340,8 +446,17 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       // Active Switch
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('تفعيل الإعلان فوراً', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
-                        subtitle: const Text('الإعلانات المفعلة تظهر مباشرة للمستخدمين في لوحة الإعلانات', style: TextStyle(fontSize: 11)),
+                        title: const Text(
+                          'تفعيل الإعلان فوراً',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'الإعلانات المفعلة تظهر مباشرة للمستخدمين في لوحة الإعلانات',
+                          style: TextStyle(fontSize: 11),
+                        ),
                         value: isActive,
                         onChanged: (val) {
                           setDialogState(() => isActive = val);
@@ -358,69 +473,93 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                   child: const Text('إلغاء'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: () async {
-                    final title = titleController.text.trim();
-                    final description = descriptionController.text.trim();
-                    final imageUrl = previewImageUrl.trim();
-                    final sortOrder = int.tryParse(sortOrderController.text.trim()) ?? 0;
+                  onPressed: isUploading
+                      ? null
+                      : () async {
+                          final title = titleController.text.trim();
+                          final description = descriptionController.text.trim();
+                          final imageUrl = previewImageUrl.trim();
+                          final sortOrder =
+                              int.tryParse(sortOrderController.text.trim()) ??
+                              0;
 
-                    if (title.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('يرجى إدخال عنوان الإعلان'), backgroundColor: AppColors.error),
-                      );
-                      return;
-                    }
+                          if (title.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('يرجى إدخال عنوان الإعلان'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
 
-                    if (imageUrl.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('يرجى اختيار صورة للإعلان أو إدخال رابطها'), backgroundColor: AppColors.error),
-                      );
-                      return;
-                    }
+                          if (imageUrl.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'يرجى اختيار صورة للإعلان أو إدخال رابطها',
+                                ),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
 
-                    final admin = Provider.of<AdminProvider>(context, listen: false);
-                    final catalog = Provider.of<AppCatalogProvider>(context, listen: false);
+                          final admin = Provider.of<AdminProvider>(
+                            context,
+                            listen: false,
+                          );
+                          final catalog = Provider.of<AppCatalogProvider>(
+                            context,
+                            listen: false,
+                          );
 
-                    final data = {
-                      'title': title,
-                      'description': description,
-                      'imageUrl': imageUrl,
-                      'actionType': actionType,
-                      'sortOrder': sortOrder,
-                      'isActive': isActive,
-                    };
+                          final data = {
+                            'title': title,
+                            'description': description,
+                            'imageUrl': imageUrl,
+                            'actionType': actionType,
+                            'sortOrder': sortOrder,
+                            'isActive': isActive,
+                          };
 
-                    bool success;
-                    if (isEditing) {
-                      success = await admin.updateBanner(banner.id, data);
-                    } else {
-                      success = await admin.createBanner(data);
-                    }
+                          bool success;
+                          if (isEditing) {
+                            success = await admin.updateBanner(banner.id, data);
+                          } else {
+                            success = await admin.createBanner(data);
+                          }
 
-                    if (dialogCtx.mounted) {
-                      Navigator.of(dialogCtx).pop();
-                    }
+                          if (dialogCtx.mounted) {
+                            Navigator.of(dialogCtx).pop();
+                          }
 
-                    if (mounted) {
-                      if (success) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(isEditing ? 'تم تحديث الإعلان بنجاح' : 'تمت إضافة الإعلان بنجاح'),
-                            backgroundColor: AppColors.success,
-                          ),
-                        );
-                        // Refresh client catalog banners too
-                        catalog.fetchBanners();
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(admin.errorMessage ?? 'فشلت العملية'),
-                            backgroundColor: AppColors.error,
-                          ),
-                        );
-                      }
-                    }
-                  },
+                          if (mounted) {
+                            if (success) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    isEditing
+                                        ? 'تم تحديث الإعلان بنجاح'
+                                        : 'تمت إضافة الإعلان بنجاح',
+                                  ),
+                                  backgroundColor: AppColors.success,
+                                ),
+                              );
+                              // Refresh client catalog banners too
+                              catalog.fetchBanners();
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    admin.errorMessage ?? 'فشلت العملية',
+                                  ),
+                                  backgroundColor: AppColors.error,
+                                ),
+                              );
+                            }
+                          }
+                        },
                   icon: const Icon(Icons.check, size: 18),
                   label: Text(isEditing ? 'حفظ التعديلات' : 'إضافة الإعلان'),
                 ),
@@ -439,7 +578,9 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
         final bytes = base64Decode(base64Content);
         return Image.memory(bytes, fit: BoxFit.cover);
       } catch (_) {
-        return const Center(child: Icon(Icons.broken_image, color: AppColors.error));
+        return const Center(
+          child: Icon(Icons.broken_image, color: AppColors.error),
+        );
       }
     } else {
       return Image.network(
@@ -465,7 +606,9 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
             Text('حذف الإعلان', style: TextStyle(fontWeight: FontWeight.bold)),
           ],
         ),
-        content: Text('هل أنت متأكد من حذف الإعلان "${banner.title}"؟ لن يتم عرضه بعد ذلك في لوحة الإعلانات.'),
+        content: Text(
+          'هل أنت متأكد من حذف الإعلان "${banner.title}"؟ لن يتم عرضه بعد ذلك في لوحة الإعلانات.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
@@ -476,23 +619,35 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
             onPressed: () async {
               Navigator.pop(ctx);
               final admin = Provider.of<AdminProvider>(context, listen: false);
-              final catalog = Provider.of<AppCatalogProvider>(context, listen: false);
+              final catalog = Provider.of<AppCatalogProvider>(
+                context,
+                listen: false,
+              );
 
               final success = await admin.deleteBanner(banner.id);
               if (mounted) {
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('تم حذف الإعلان بنجاح'), backgroundColor: AppColors.success),
+                    const SnackBar(
+                      content: Text('تم حذف الإعلان بنجاح'),
+                      backgroundColor: AppColors.success,
+                    ),
                   );
                   catalog.fetchBanners();
                 } else {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(admin.errorMessage ?? 'فشل الحذف'), backgroundColor: AppColors.error),
+                    SnackBar(
+                      content: Text(admin.errorMessage ?? 'فشل الحذف'),
+                      backgroundColor: AppColors.error,
+                    ),
                   );
                 }
               }
             },
-            child: const Text('حذف نهائي', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'حذف نهائي',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -513,7 +668,11 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
         centerTitle: false,
         title: Text(
           'إدارة لوحة الإعلانات',
-          style: AppTypography.cairo(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.slate900),
+          style: AppTypography.cairo(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+          ),
         ),
         actions: [
           IconButton(
@@ -527,13 +686,18 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showAddOrEditBannerDialog(),
         icon: const Icon(Icons.add_photo_alternate_outlined, size: 20),
-        label: Text('إضافة إعلان', style: AppTypography.cairo(fontSize: 13, fontWeight: FontWeight.w700)),
+        label: Text(
+          'إضافة إعلان',
+          style: AppTypography.cairo(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
         backgroundColor: AppColors.slate900,
         foregroundColor: Colors.white,
         elevation: 2,
       ),
       body: admin.isLoading && banners.isEmpty
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryBlue),
+            )
           : RefreshIndicator(
               onRefresh: () => admin.fetchAdminBanners(),
               color: AppColors.primaryBlue,
@@ -567,7 +731,11 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                                     color: Colors.white.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: const Icon(Icons.campaign_outlined, color: AppColors.ticketAmber, size: 20),
+                                  child: const Icon(
+                                    Icons.campaign_outlined,
+                                    color: AppColors.ticketAmber,
+                                    size: 20,
+                                  ),
                                 ),
                                 const SizedBox(width: 10),
                                 Column(
@@ -575,31 +743,56 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                                   children: [
                                     Text(
                                       'لوحة الإعلانات الترويجية',
-                                      style: AppTypography.cairo(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                                      style: AppTypography.cairo(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                     Text(
                                       'BILLBOARD & PROMO PASSES',
-                                      style: AppTypography.technicalCode(fontSize: 10, color: Colors.white60),
+                                      style: AppTypography.technicalCode(
+                                        fontSize: 10,
+                                        color: Colors.white60,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.emerald.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: AppColors.emerald.withValues(alpha: 0.5)),
+                                border: Border.all(
+                                  color: AppColors.emerald.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.emerald, shape: BoxShape.circle)),
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.emerald,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
                                   Text(
                                     '$activeCount نشط',
-                                    style: AppTypography.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.emerald),
+                                    style: AppTypography.cairo(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.emerald,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -607,16 +800,42 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+                        Container(
+                          height: 1,
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
                         const SizedBox(height: 14),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
                           children: [
-                            _buildStatItem('إجمالي الإعلانات', banners.length.toString(), Icons.view_carousel_outlined, Colors.white),
-                            Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.1)),
-                            _buildStatItem('المعروضة بالرئيسية', activeCount.toString(), Icons.check_circle_outline, AppColors.emerald),
-                            Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.1)),
-                            _buildStatItem('التبديل التلقائي', '5s', Icons.timer_outlined, AppColors.ticketAmber),
+                            _buildStatItem(
+                              'إجمالي الإعلانات',
+                              banners.length.toString(),
+                              Icons.view_carousel_outlined,
+                              Colors.white,
+                            ),
+                            Container(
+                              width: 1,
+                              height: 36,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                            _buildStatItem(
+                              'المعروضة بالرئيسية',
+                              activeCount.toString(),
+                              Icons.check_circle_outline,
+                              AppColors.emerald,
+                            ),
+                            Container(
+                              width: 1,
+                              height: 36,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
+                            _buildStatItem(
+                              'التبديل التلقائي',
+                              '5s',
+                              Icons.timer_outlined,
+                              AppColors.ticketAmber,
+                            ),
                           ],
                         ),
                       ],
@@ -630,11 +849,18 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                     children: [
                       Text(
                         'الإعلانات المسجلة (${banners.length})',
-                        style: AppTypography.cairo(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.slate900),
+                        style: AppTypography.cairo(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.slate900,
+                        ),
                       ),
                       Text(
                         'مرتبة حسب الأولوية',
-                        style: AppTypography.cairo(fontSize: 12, color: AppColors.slate600),
+                        style: AppTypography.cairo(
+                          fontSize: 12,
+                          color: AppColors.slate600,
+                        ),
                       ),
                     ],
                   ),
@@ -652,27 +878,46 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.campaign_outlined, size: 56, color: AppColors.slate600.withValues(alpha: 0.4)),
+                          Icon(
+                            Icons.campaign_outlined,
+                            size: 56,
+                            color: AppColors.slate600.withValues(alpha: 0.4),
+                          ),
                           const SizedBox(height: 16),
                           Text(
                             'لا توجد إعلانات حالياً في لوحة الإعلانات',
-                            style: AppTypography.cairo(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.slate900),
+                            style: AppTypography.cairo(
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.slate900,
+                            ),
                           ),
                           const SizedBox(height: 6),
                           Text(
                             'عند عدم وجود إعلانات، يتم عرض بطاقة شحن المحفظة الافتراضية في الواجهة الرئيسية.',
                             textAlign: TextAlign.center,
-                            style: AppTypography.cairo(fontSize: 12, color: AppColors.slate600),
+                            style: AppTypography.cairo(
+                              fontSize: 12,
+                              color: AppColors.slate600,
+                            ),
                           ),
                           const SizedBox(height: 20),
                           ElevatedButton.icon(
                             onPressed: () => _showAddOrEditBannerDialog(),
                             icon: const Icon(Icons.add, size: 16),
-                            label: Text('إضافة أول إعلان الآن', style: AppTypography.cairo(fontSize: 13, fontWeight: FontWeight.w700)),
+                            label: Text(
+                              'إضافة أول إعلان الآن',
+                              style: AppTypography.cairo(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.primaryBlue,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                             ),
                           ),
                         ],
@@ -686,7 +931,12 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
     );
   }
 
-  Widget _buildStatItem(String label, String value, IconData icon, Color color) {
+  Widget _buildStatItem(
+    String label,
+    String value,
+    IconData icon,
+    Color color,
+  ) {
     return Column(
       children: [
         Row(
@@ -694,11 +944,21 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
           children: [
             Icon(icon, size: 15, color: color),
             const SizedBox(width: 5),
-            Text(value, style: AppTypography.plusJakartaSans(fontSize: 17, fontWeight: FontWeight.w800, color: color)),
+            Text(
+              value,
+              style: AppTypography.plusJakartaSans(
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 3),
-        Text(label, style: AppTypography.cairo(fontSize: 10, color: Colors.white60)),
+        Text(
+          label,
+          style: AppTypography.cairo(fontSize: 10, color: Colors.white60),
+        ),
       ],
     );
   }
@@ -710,7 +970,9 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: banner.isActive ? AppColors.primaryBlue.withValues(alpha: 0.3) : AppColors.outline,
+          color: banner.isActive
+              ? AppColors.primaryBlue.withValues(alpha: 0.3)
+              : AppColors.outline,
         ),
         boxShadow: [
           BoxShadow(
@@ -759,33 +1021,57 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
-                            color: banner.isActive ? AppColors.emerald.withValues(alpha: 0.9) : Colors.black54,
+                            color: banner.isActive
+                                ? AppColors.emerald.withValues(alpha: 0.9)
+                                : Colors.black54,
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(banner.isActive ? Icons.check_circle : Icons.pause_circle_outline, size: 12, color: Colors.white),
+                              Icon(
+                                banner.isActive
+                                    ? Icons.check_circle
+                                    : Icons.pause_circle_outline,
+                                size: 12,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 4),
                               Text(
                                 banner.isActive ? 'نشط في اللوحة' : 'معطّل',
-                                style: AppTypography.cairo(fontSize: 10, color: Colors.white, fontWeight: FontWeight.bold),
+                                style: AppTypography.cairo(
+                                  fontSize: 10,
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black54,
                             borderRadius: BorderRadius.circular(6),
                             border: Border.all(color: Colors.white24),
                           ),
                           child: Text(
-                            banner.actionType == 'topup' ? 'إجراء: شحن المحفظة' : 'بدون إجراء',
-                            style: AppTypography.cairo(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w600),
+                            banner.actionType == 'topup'
+                                ? 'إجراء: شحن المحفظة'
+                                : 'بدون إجراء',
+                            style: AppTypography.cairo(
+                              fontSize: 10,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],
@@ -836,7 +1122,10 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
               children: [
                 // Sort Order Badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.paper,
                     borderRadius: BorderRadius.circular(6),
@@ -844,7 +1133,11 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                   ),
                   child: Text(
                     'الترتيب: ${banner.sortOrder}',
-                    style: AppTypography.plusJakartaSans(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.slate600),
+                    style: AppTypography.plusJakartaSans(
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.slate600,
+                    ),
                   ),
                 ),
                 const Spacer(),
@@ -858,7 +1151,9 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       style: AppTypography.cairo(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
-                        color: banner.isActive ? AppColors.emerald : AppColors.slate600,
+                        color: banner.isActive
+                            ? AppColors.emerald
+                            : AppColors.slate600,
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -866,8 +1161,14 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       value: banner.isActive,
                       activeThumbColor: AppColors.emerald,
                       onChanged: (val) async {
-                        final admin = Provider.of<AdminProvider>(context, listen: false);
-                        final catalog = Provider.of<AppCatalogProvider>(context, listen: false);
+                        final admin = Provider.of<AdminProvider>(
+                          context,
+                          listen: false,
+                        );
+                        final catalog = Provider.of<AppCatalogProvider>(
+                          context,
+                          listen: false,
+                        );
                         await admin.toggleBannerActive(banner.id);
                         catalog.fetchBanners();
                       },
@@ -879,14 +1180,22 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                 // Edit button
                 IconButton(
                   tooltip: 'تعديل',
-                  icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.slate600),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    size: 18,
+                    color: AppColors.slate600,
+                  ),
                   onPressed: () => _showAddOrEditBannerDialog(banner: banner),
                 ),
 
                 // Delete button
                 IconButton(
                   tooltip: 'حذف',
-                  icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.rose),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: AppColors.rose,
+                  ),
                   onPressed: () => _confirmDeleteBanner(banner),
                 ),
               ],

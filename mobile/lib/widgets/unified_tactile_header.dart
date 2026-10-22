@@ -11,7 +11,6 @@ import '../providers/auth_provider.dart';
 import '../screens/auth/login_screen.dart';
 import '../screens/user/profile_screen.dart';
 import '../screens/user/topup_screen.dart';
-import '../screens/user/user_main_screen.dart';
 import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/supervisor/supervisor_dashboard_screen.dart';
 import '../screens/agent/agent_dashboard_screen.dart';
@@ -32,50 +31,40 @@ class UnifiedTactileHeader extends StatelessWidget {
 
   void _navigateToRoleDashboard(BuildContext context, UserModel? currentUser) {
     if (currentUser == null) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
       return;
     }
     if (currentUser.isAdmin) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
     } else if (currentUser.isSupervisor) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const SupervisorDashboardScreen()),
       );
     } else if (currentUser.isAgent) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const AgentDashboardScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AgentDashboardScreen()));
     } else {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const ProfileScreen()),
-      );
-    }
-  }
-
-  void _navigateToClientView(BuildContext context) {
-    if (Navigator.of(context).canPop()) {
-      Navigator.of(context).pop();
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const UserMainScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
     }
   }
 
   void _openTopupScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const TopupScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TopupScreen()));
   }
 
   void _openProfileScreen(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const ProfileScreen()));
   }
 
   void _showLogoutDialog(BuildContext context) {
@@ -146,7 +135,8 @@ class UnifiedTactileHeader extends StatelessWidget {
 
   void _showQrUidDialog(BuildContext context, UserModel? currentUser) {
     final uid = currentUser?.displayId ?? currentUser?.id ?? '8940-CX';
-    final clientName = (currentUser?.name != null && currentUser!.name.trim().isNotEmpty)
+    final clientName =
+        (currentUser?.name != null && currentUser!.name.trim().isNotEmpty)
         ? currentUser.name.trim()
         : 'عميل JGO';
 
@@ -250,7 +240,9 @@ class UnifiedTactileHeader extends StatelessWidget {
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                              color: const Color(
+                                0xFF0284C7,
+                              ).withValues(alpha: 0.35),
                               blurRadius: 8,
                               offset: const Offset(0, 2),
                             ),
@@ -293,10 +285,14 @@ class UnifiedTactileHeader extends StatelessWidget {
                                     vertical: 1.5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                                    color: const Color(
+                                      0xFF10B981,
+                                    ).withValues(alpha: 0.15),
                                     borderRadius: BorderRadius.circular(6),
                                     border: Border.all(
-                                      color: const Color(0xFF10B981).withValues(alpha: 0.4),
+                                      color: const Color(
+                                        0xFF10B981,
+                                      ).withValues(alpha: 0.4),
                                     ),
                                   ),
                                   child: Row(
@@ -312,10 +308,10 @@ class UnifiedTactileHeader extends StatelessWidget {
                                         currentUser?.isAgent == true
                                             ? 'وكيل معتمد'
                                             : currentUser?.isAdmin == true
-                                                ? 'مدير النظام'
-                                                : currentUser?.isSupervisor == true
-                                                    ? 'مشرف مسؤول'
-                                                    : 'عميل موثق',
+                                            ? 'مدير النظام'
+                                            : currentUser?.isSupervisor == true
+                                            ? 'مشرف مسؤول'
+                                            : 'عميل موثق',
                                         style: AppTypography.cairo(
                                           color: const Color(0xFF34D399),
                                           fontSize: 10,
@@ -381,7 +377,8 @@ class UnifiedTactileHeader extends StatelessWidget {
                               builder: (context, constraints) {
                                 return Flex(
                                   direction: Axis.horizontal,
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: List.generate(
                                     (constraints.constrainWidth() / 8).floor(),
                                     (_) => const SizedBox(
@@ -544,13 +541,14 @@ class UnifiedTactileHeader extends StatelessWidget {
                     ),
                   ),
                   onPressed: () async {
-                    final shareText = '''
+                    final shareText =
+                        '''
 بطاقة حساب JGO:
 👤 الاسم: $clientName
 🆔 آيدي الحساب (UID): $uid
 ⚡ يمكن استخدام هذا الآيدي للتحويل المالي المباشر أو شحن الرصيد الفوري عبر التطبيق.
 '''
-                        .trim();
+                            .trim();
                     final box = context.findRenderObject() as RenderBox?;
                     final origin = box != null
                         ? box.localToGlobal(Offset.zero) & box.size
@@ -605,11 +603,7 @@ class UnifiedTactileHeader extends StatelessWidget {
   ) {
     switch (value) {
       case 'dashboard':
-        if (isDashboard) {
-          _navigateToClientView(context);
-        } else {
-          _navigateToRoleDashboard(context, currentUser);
-        }
+        _navigateToRoleDashboard(context, currentUser);
         break;
       case 'account':
         _openProfileScreen(context);
@@ -665,7 +659,8 @@ class UnifiedTactileHeader extends StatelessWidget {
     final balanceVal = currentUser?.balance ?? 1248.50;
     final balanceStr = balanceVal.toStringAsFixed(2);
 
-    final String clientName = (currentUser?.name != null && currentUser!.name.trim().isNotEmpty)
+    final String clientName =
+        (currentUser?.name != null && currentUser!.name.trim().isNotEmpty)
         ? currentUser.name.trim()
         : 'عميل JGO';
     final String clientId = currentUser?.displayId ?? '8940-CX';
@@ -681,7 +676,8 @@ class UnifiedTactileHeader extends StatelessWidget {
       roleBadgeBg = const Color(0xFFFAF5FF);
       roleBadgeTextCol = const Color(0xFF7E22CE);
       roleBadgeBorder = const Color(0xFFD8B4FE);
-    } else if (currentUser?.isSupervisor == true || currentUser?.role.toLowerCase() == 'provider') {
+    } else if (currentUser?.isSupervisor == true ||
+        currentUser?.role.toLowerCase() == 'provider') {
       roleBadgeText = "مقدم خدمة";
       roleBadgeBg = const Color(0xFFF0F9FF);
       roleBadgeTextCol = const Color(0xFF0369A1);
@@ -724,13 +720,9 @@ class UnifiedTactileHeader extends StatelessWidget {
               children: [
                 // Minimalist Emblem
                 InkWell(
-                  onTap: () {
-                    if (isDashboard) {
-                      _navigateToClientView(context);
-                    } else {
-                      _navigateToRoleDashboard(context, currentUser);
-                    }
-                  },
+                  onTap: isDashboard
+                      ? null
+                      : () => _navigateToRoleDashboard(context, currentUser),
                   borderRadius: BorderRadius.circular(10),
                   child: Container(
                     width: 36,
@@ -739,7 +731,9 @@ class UnifiedTactileHeader extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFF18223).withValues(alpha: 0.25),
+                          color: const Color(
+                            0xFFF18223,
+                          ).withValues(alpha: 0.25),
                           blurRadius: 6,
                           offset: const Offset(0, 2),
                         ),
@@ -873,56 +867,6 @@ class UnifiedTactileHeader extends StatelessWidget {
               ),
               const SizedBox(width: 5),
 
-              // Tool B: The Unified Control / Client Switch Button (يظهر في لوحة التحكم فقط للعودة لواجهة العميل)
-              if (isDashboard) ...[
-                Tooltip(
-                  message: 'واجهة العميل // CLIENT VIEW',
-                  child: InkWell(
-                    onTap: () => _navigateToClientView(context),
-                    borderRadius: BorderRadius.circular(9),
-                    child: Container(
-                      height: 36,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFF0F172A),
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: const Color(0xFFF59E0B),
-                          width: 1.0,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
-                            blurRadius: 4,
-                            offset: const Offset(0, 1),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.storefront_rounded,
-                            size: 15,
-                            color: Color(0xFFFBBF24),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            'واجهة العميل',
-                            style: AppTypography.cairo(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 5),
-              ],
-
               // Tool C: QR / Barcode UID Pass Button
               Tooltip(
                 message: 'باركود الحساب والمشاركة',
@@ -956,23 +900,21 @@ class UnifiedTactileHeader extends StatelessWidget {
                   borderRadius: BorderRadius.circular(16),
                   side: const BorderSide(color: Color(0xFFE2E8F0)),
                 ),
-                onSelected: (value) => _handleMenuAction(context, value, currentUser),
+                onSelected: (value) =>
+                    _handleMenuAction(context, value, currentUser),
                 itemBuilder: (context) {
-                  final bool isPrivileged = currentUser != null &&
+                  final bool isPrivileged =
+                      currentUser != null &&
                       (currentUser.isAdmin ||
                           currentUser.isSupervisor ||
                           currentUser.isAgent);
                   return [
-                    if (isDashboard || isPrivileged) ...[
+                    if (isPrivileged && !isDashboard) ...[
                       _buildPopupItem(
                         value: 'dashboard',
-                        icon: isDashboard
-                            ? Icons.storefront_rounded
-                            : Icons.dashboard_rounded,
+                        icon: Icons.dashboard_rounded,
                         iconColor: const Color(0xFFF59E0B),
-                        title: isDashboard
-                            ? 'واجهة العميل // CLIENT VIEW'
-                            : 'لوحة التحكم // DASHBOARD',
+                        title: 'لوحة التحكم // DASHBOARD',
                         textColor: const Color(0xFF0F172A),
                       ),
                       const PopupMenuDivider(),
@@ -983,35 +925,35 @@ class UnifiedTactileHeader extends StatelessWidget {
                       iconColor: const Color(0xFF0F172A),
                       title: 'حسابي',
                     ),
-                  _buildPopupItem(
-                    value: 'topup',
-                    icon: Icons.account_balance_wallet_outlined,
-                    iconColor: const Color(0xFF10B981),
-                    title: 'شحن رصيد',
-                  ),
-                  _buildPopupItem(
-                    value: 'margin',
-                    icon: Icons.percent_rounded,
-                    iconColor: const Color(0xFFF59E0B),
-                    title: 'تحديد نسبة الربح',
-                  ),
-                  _buildPopupItem(
-                    value: 'update',
-                    icon: Icons.system_update_outlined,
-                    iconColor: const Color(0xFF0284C7),
-                    title: 'التحقق من التحديثات',
-                  ),
-                  const PopupMenuDivider(),
-                  _buildPopupItem(
-                    value: 'logout',
-                    icon: Icons.logout_rounded,
-                    iconColor: const Color(0xFFEF4444),
-                    title: 'تسجيل خروج',
-                    textColor: const Color(0xFFEF4444),
-                  ),
-                ];
-              },
-              child: Container(
+                    _buildPopupItem(
+                      value: 'topup',
+                      icon: Icons.account_balance_wallet_outlined,
+                      iconColor: const Color(0xFF10B981),
+                      title: 'شحن رصيد',
+                    ),
+                    _buildPopupItem(
+                      value: 'margin',
+                      icon: Icons.percent_rounded,
+                      iconColor: const Color(0xFFF59E0B),
+                      title: 'تحديد نسبة الربح',
+                    ),
+                    _buildPopupItem(
+                      value: 'update',
+                      icon: Icons.system_update_outlined,
+                      iconColor: const Color(0xFF0284C7),
+                      title: 'التحقق من التحديثات',
+                    ),
+                    const PopupMenuDivider(),
+                    _buildPopupItem(
+                      value: 'logout',
+                      icon: Icons.logout_rounded,
+                      iconColor: const Color(0xFFEF4444),
+                      title: 'تسجيل خروج',
+                      textColor: const Color(0xFFEF4444),
+                    ),
+                  ];
+                },
+                child: Container(
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(

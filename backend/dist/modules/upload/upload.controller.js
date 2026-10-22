@@ -14,28 +14,28 @@ var __param = (this && this.__param) || function (paramIndex, decorator) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.UploadController = void 0;
 const common_1 = require("@nestjs/common");
+const platform_express_1 = require("@nestjs/platform-express");
 const upload_service_1 = require("./upload.service");
 const jwt_auth_guard_1 = require("../../common/guards/jwt-auth.guard");
 let UploadController = class UploadController {
     constructor(uploadService) {
         this.uploadService = uploadService;
     }
-    async uploadImage(body) {
-        if (body.imageUrl) {
-            return { url: body.imageUrl, secure_url: body.imageUrl };
-        }
-        if (body.base64) {
-            return { url: body.base64, secure_url: body.base64 };
-        }
-        return { url: '', secure_url: '' };
+    async uploadImage(file, body, req) {
+        return this.uploadService.uploadImage(file, body?.base64, body?.imageUrl, req);
     }
 };
 exports.UploadController = UploadController;
 __decorate([
     (0, common_1.Post)('image'),
-    __param(0, (0, common_1.Body)()),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('file', {
+        limits: { fileSize: 10 * 1024 * 1024 },
+    })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __param(1, (0, common_1.Body)()),
+    __param(2, (0, common_1.Req)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object, Object]),
     __metadata("design:returntype", Promise)
 ], UploadController.prototype, "uploadImage", null);
 exports.UploadController = UploadController = __decorate([
