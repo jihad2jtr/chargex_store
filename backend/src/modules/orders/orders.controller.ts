@@ -18,12 +18,14 @@ export class OrdersController {
   @Post()
   async createOrder(
     @CurrentUser() user: UserDocument,
-    @Body() body: { productId: string; accountInput?: Record<string, any> },
+    @Body() body: { productId: string; accountInput?: Record<string, any>; requestId?: string },
   ) {
     return this.ordersService.createOrder({
       userId: user._id.toString(),
       productId: body.productId,
       accountInput: body.accountInput,
+      // معادلة إعادة المحاولة بعد انقطاع الاستجابة (idempotency)
+      requestId: body.requestId,
     });
   }
 

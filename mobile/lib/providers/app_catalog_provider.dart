@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter/foundation.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
@@ -145,11 +147,29 @@ class AppCatalogProvider extends ChangeNotifier {
     _errorMessage = null;
     notifyListeners();
 
+    // مفتاح إرسال فريد ثابت لكل منتج: يبقى بعد إعادة تشغيل التطبيق فتعيد المحاولة نفس
+    // المعرّف بدل إنشاء طلب مزدوج، ولا يُمسح إلا عند ردّ قاطع من الخادم (idempotency)
+    final reqKey = 'pending_req_$productId';
+    var requestId = await CacheService.instance.getOrLoad(reqKey) as String?;
+    if (requestId == null || requestId.isEmpty) {
+      requestId =
+          'PUR-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(0xFFFFFF)}';
+      await CacheService.instance.set(reqKey, requestId);
+    }
+
     try {
+      // مهلة أطول من المعتاد: الشراء قد يستهلك مهلة المزود الكاملة في الخادم
       final res = await _api.post(
         ApiConstants.orders,
-        body: {'productId': productId, 'accountInput': accountInput ?? {}},
+        body: {
+          'productId': productId,
+          'accountInput': accountInput ?? {},
+          'requestId': requestId,
+        },
+        timeout: const Duration(seconds: 90),
       );
+      // نجح الطلب بصفة قاطعة: ابدأ معرّفاً جديداً للمحاولة القادمة
+      await CacheService.instance.remove(reqKey);
       await fetchMyOrders();
       _isOrdering = false;
       notifyListeners();
@@ -158,8 +178,12 @@ class AppCatalogProvider extends ChangeNotifier {
       // A missing status code means the server never answered (slow provider or a
       // gateway timeout) — the order may still be running server-side
       final isNoResponse = e is ApiException && e.statusCode == null;
+      if (!isNoResponse) {
+        // ردّ قاطع بفشل تجاري: لا خطر تكرار، أمهّد معرّفاً جديداً للمحاولة التالية
+        await CacheService.instance.remove(reqKey);
+      }
       _errorMessage = isNoResponse
-          ? 'انتهت مهلة الاتصال بالخادم. إذا تم خصم أي مبلغ فسيُعاد تلقائياً — يرجى مراجعة طلباتك بعد قليل.'
+          ? 'انقطع الاتصال أثناء تنفيذ الطلب؛ طلبك محفوظ وقيد التحقق التلقائي — افتح «طلباتي» لمتابعة حالته، ولا تُرسله مرتين. إذا فشل التنفيذ سيُعاد المبلغ تلقائياً.'
           : e.toString();
       _isOrdering = false;
       notifyListeners();

@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show HttpClient;
 import 'package:http/http.dart' as http;
+import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/api_constants.dart';
 
@@ -9,6 +12,29 @@ class ApiClient {
   ApiClient._internal();
 
   String? _token;
+
+  // مهلات صريحة: بدونها يعلّق طلب http إلى الأبد عند انقطاع الشبكة أو بطء الخادم (H1)
+  static const Duration _defaultTimeout = Duration(seconds: 30);
+  static const Duration _postTimeout = Duration(seconds: 45);
+
+  // عميل واحد دائم بدل http.post المباشرة (تُنشئ وتُغلق اتصالاً لكل طلب)
+  late final IOClient _client = IOClient(HttpClient());
+
+  Future<http.Response> _send(
+    String method,
+    Uri uri, {
+    Map<String, String>? headers,
+    Object? body,
+    required Duration timeout,
+  }) {
+    final request = http.Request(method, uri);
+    if (headers != null) request.headers.addAll(headers);
+    if (body != null) request.body = body is String ? body : jsonEncode(body);
+    return _client
+        .send(request)
+        .then(http.Response.fromStream)
+        .timeout(timeout);
+  }
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -67,27 +93,40 @@ class ApiClient {
 
   Future<dynamic> get(String path, {Map<String, dynamic>? queryParams}) async {
     try {
-      final response = await http.get(
+      final response = await _send(
+        'GET',
         _buildUri(path, queryParams),
         headers: _buildHeaders(),
+        timeout: _defaultTimeout,
       );
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        throw ApiException('انتهت مهلة الاتصال بالخادم، يرجى المحاولة مجدداً');
+      }
       throw ApiException('تعذر الاتصال بالخادم، تأكد من اتصال الإنترنت: $e');
     }
   }
 
-  Future<dynamic> post(String path, {dynamic body}) async {
+  Future<dynamic> post(String path, {dynamic body, Duration? timeout}) async {
     try {
-      final response = await http.post(
+      final response = await _send(
+        'POST',
         _buildUri(path),
         headers: _buildHeaders(),
         body: body != null ? jsonEncode(body) : null,
+        timeout: timeout ?? _postTimeout,
       );
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        // بلا رمز حالة: الخادم لم يرد — المعالجة الأعلى تقرر إن كان ذلك آمناً
+        throw ApiException(
+          'انتهت مهلة الاتصال بالخادم؛ قد تكون العملية نُفّذة فعلياً، تحقق من السجل قبل إعادة المحاولة',
+        );
+      }
       throw ApiException('تعذر إرسال الطلب: $e');
     }
   }
@@ -109,53 +148,73 @@ class ApiClient {
       request.files.add(
         http.MultipartFile.fromBytes(fieldName, fileBytes, filename: fileName),
       );
-      final streamed = await request.send();
-      final response = await http.Response.fromStream(streamed);
+      final streamed = await request.send().timeout(_defaultTimeout);
+      final response = await http.Response.fromStream(
+        streamed,
+      ).timeout(_defaultTimeout);
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        throw ApiException('انتهت مهلة رفع الملف، يرجى المحاولة مجدداً');
+      }
       throw ApiException('تعذر رفع الملف: $e');
     }
   }
 
   Future<dynamic> put(String path, {dynamic body}) async {
     try {
-      final response = await http.put(
+      final response = await _send(
+        'PUT',
         _buildUri(path),
         headers: _buildHeaders(),
         body: body != null ? jsonEncode(body) : null,
+        timeout: _defaultTimeout,
       );
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        throw ApiException('انتهت مهلة الاتصال بالخادم، يرجى المحاولة مجدداً');
+      }
       throw ApiException('تعذر تحديث البيانات: $e');
     }
   }
 
   Future<dynamic> patch(String path, {dynamic body}) async {
     try {
-      final response = await http.patch(
+      final response = await _send(
+        'PATCH',
         _buildUri(path),
         headers: _buildHeaders(),
         body: body != null ? jsonEncode(body) : null,
+        timeout: _defaultTimeout,
       );
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        throw ApiException('انتهت مهلة الاتصال بالخادم، يرجى المحاولة مجدداً');
+      }
       throw ApiException('تعذر إكمال العملية: $e');
     }
   }
 
   Future<dynamic> delete(String path, {dynamic body}) async {
     try {
-      final response = await http.delete(
+      final response = await _send(
+        'DELETE',
         _buildUri(path),
         headers: _buildHeaders(),
         body: body != null ? jsonEncode(body) : null,
+        timeout: _defaultTimeout,
       );
       return _processResponse(response);
     } catch (e) {
       if (e is ApiException) rethrow;
+      if (e is TimeoutException) {
+        throw ApiException('انتهت مهلة الاتصال بالخادم، يرجى المحاولة مجدداً');
+      }
       throw ApiException('تعذر حذف العنصر: $e');
     }
   }

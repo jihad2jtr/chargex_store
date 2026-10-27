@@ -804,6 +804,9 @@ export class ProvidersService {
     balanceAfter?: number;
     message: string;
     raw?: any;
+    // انقطاع المهلة لا يعني فشلاً مؤكداً: الطلب قد يكون نُفّذ لدى المزود،
+    // والمستهلك (OrdersService) يُبقيه قيد المصالحة بدل الاسترجاع الأعمى
+    isTimeout?: boolean;
   }> {
     const provider = await this.findOne(providerId);
 
@@ -875,6 +878,7 @@ export class ProvidersService {
           success: false,
           message: errMsg,
           raw: error.response?.data,
+          isTimeout: this.isTimeoutError(error),
         };
       }
     } else if (this.isFoxReload(provider)) {
@@ -954,6 +958,7 @@ export class ProvidersService {
           success: false,
           message: errMsg,
           raw: error.response?.data,
+          isTimeout: this.isTimeoutError(error),
         };
       }
     }

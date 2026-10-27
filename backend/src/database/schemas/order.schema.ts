@@ -81,6 +81,10 @@ export class Order {
   @Prop({ required: true, unique: true, index: true })
   orderNumber: string;
 
+  // معرّف إرسال العميل لمعادلة إعادة المحاولة بعد انقطاع الاستجابة (idempotency)
+  @Prop({ trim: true, unique: true, sparse: true })
+  requestId?: string;
+
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
