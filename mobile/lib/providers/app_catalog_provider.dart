@@ -150,8 +150,9 @@ class AppCatalogProvider extends ChangeNotifier {
     // مفتاح إرسال فريد ثابت لكل منتج: يبقى بعد إعادة تشغيل التطبيق فتعيد المحاولة نفس
     // المعرّف بدل إنشاء طلب مزدوج، ولا يُمسح إلا عند ردّ قاطع من الخادم (idempotency)
     final reqKey = 'pending_req_$productId';
-    var requestId = await CacheService.instance.getOrLoad(reqKey) as String?;
-    if (requestId == null || requestId.isEmpty) {
+    final stored = await CacheService.instance.getOrLoad(reqKey);
+    var requestId = stored is String && stored.isNotEmpty ? stored : null;
+    if (requestId == null) {
       requestId =
           'PUR-${DateTime.now().microsecondsSinceEpoch}-${Random().nextInt(0xFFFFFF)}';
       await CacheService.instance.set(reqKey, requestId);

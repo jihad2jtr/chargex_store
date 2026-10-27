@@ -15,9 +15,6 @@ import { CryptoUtil } from '../../common/utils/crypto.util';
 // إشارة داخلية تُستعمل فقط للتحكّم بالسيطرة داخل المعاملة؛ تُترجَم إلى BadRequest خارجها
 class InsufficientBalanceSignal extends Error {}
 
-// إشارة داخلية: البنية الحالية لا تدعم المعاملات (mongod مستقل محلي) → fallback تتابعي
-class TransactionUnsupportedSignal extends Error {}
-
 @Injectable()
 export class OrdersService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(OrdersService.name);
@@ -474,7 +471,6 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const order = commit.order;
     // Derived from the authoritative post-debit document, never from a stale read
     const balanceAfter = Number(commit.debited.balance.toFixed(2));
-    const balanceBefore = Number((balanceAfter + price).toFixed(2));
 
     let assignedSupervisorId: Types.ObjectId | undefined = undefined;
     let assignedSupervisorUser: UserDocument | null = null;
