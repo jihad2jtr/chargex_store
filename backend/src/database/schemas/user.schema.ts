@@ -1,6 +1,7 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
 import { Role } from '../../common/interfaces/role.enum';
+import { generateUserId, userIdFilter } from '../../common/utils/user-id.util';
 
 export type UserDocument = User & Document;
 
@@ -12,7 +13,13 @@ export class User {
   @Prop({ required: true, trim: true })
   name: string;
 
-  @Prop({ required: true, unique: true, lowercase: true, trim: true, index: true })
+  @Prop({
+    required: true,
+    unique: true,
+    lowercase: true,
+    trim: true,
+    index: true,
+  })
   email: string;
 
   @Prop({ required: true })
@@ -26,6 +33,10 @@ export class User {
 
   @Prop({ trim: true })
   phone?: string;
+
+  // رابط الصورة الشخصية (من /upload/image) — فارغة يعني بلا صورة
+  @Prop({ trim: true })
+  avatar?: string;
 
   @Prop()
   refreshToken?: string;
@@ -54,19 +65,9 @@ export const UserSchema = SchemaFactory.createForClass(User);
 UserSchema.pre('save', async function () {
   if (!this.userId) {
     const model = this.constructor as any;
-    let unique = false;
-    while (!unique) {
-      const now = new Date();
-      const yy = String(now.getFullYear()).slice(-2);
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const rand = Math.floor(10000 + Math.random() * 90000);
-      const candidateId = `chx${yy}${mm}${dd}${rand}`;
-      const existing = await model.findOne({ userId: candidateId });
-      if (!existing) {
-        this.userId = candidateId;
-        unique = true;
-      }
-    }
+    // الآيدي المتولدة دائماً بأحرف كبيرة: JGO + yyMMdd + 5 أرقام
+    this.userId = await generateUserId(async (candidateId) =>
+      Boolean(await model.findOne(userIdFilter(candidateId))),
+    );
   }
 });

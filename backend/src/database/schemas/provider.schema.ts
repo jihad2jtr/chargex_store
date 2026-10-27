@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document } from 'mongoose';
+import { ProfitMarginType } from './product.schema';
 
 export type ProviderDocument = Provider & Document;
 
@@ -11,6 +12,7 @@ export enum ProviderStatus {
 
 export enum ProviderType {
   BAY2GAME = 'bay2game',
+  FOXRELOAD = 'foxreload',
   CUSTOM = 'custom',
 }
 
@@ -48,6 +50,12 @@ export class Provider {
 
   @Prop({ default: 'USD' })
   currency?: string;
+
+  @Prop({ type: String, enum: ProfitMarginType, default: ProfitMarginType.PERCENTAGE })
+  profitMarginType: ProfitMarginType; // نوع هامش الربح المطبّق على كل منتجات هذا المزود
+
+  @Prop({ type: Number, default: 10.0 })
+  profitMarginValue: number; // قيمة هامش الربح (نسبة مئوية أو مبلغ ثابت) لكل المزود
 
   @Prop({ default: true })
   isActive: boolean;

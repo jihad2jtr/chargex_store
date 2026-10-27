@@ -58,9 +58,10 @@ const user_schema_1 = require("../../database/schemas/user.schema");
 const wallet_transaction_schema_1 = require("../../database/schemas/wallet-transaction.schema");
 const notifications_service_1 = require("../notifications/notifications.service");
 const providers_service_1 = require("../providers/providers.service");
+const users_service_1 = require("../users/users.service");
 const crypto_util_1 = require("../../common/utils/crypto.util");
 let OrdersService = OrdersService_1 = class OrdersService {
-    constructor(orderModel, productModel, appModel, userModel, transactionModel, notificationsService, providersService) {
+    constructor(orderModel, productModel, appModel, userModel, transactionModel, notificationsService, providersService, usersService) {
         this.orderModel = orderModel;
         this.productModel = productModel;
         this.appModel = appModel;
@@ -68,6 +69,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
         this.transactionModel = transactionModel;
         this.notificationsService = notificationsService;
         this.providersService = providersService;
+        this.usersService = usersService;
         this.logger = new common_1.Logger(OrdersService_1.name);
     }
     generateOrderNumber() {
@@ -79,7 +81,9 @@ let OrdersService = OrdersService_1 = class OrdersService {
         const user = await this.userModel.findById(params.userId);
         if (!user)
             throw new common_1.NotFoundException('المستخدم غير موجود');
-        const product = await this.productModel.findById(params.productId);
+        const product = await this.productModel
+            .findById(params.productId)
+            .populate('serviceTemplateId');
         if (!product || !product.isActive) {
             throw new common_1.BadRequestException('المنتج غير متاح حالياً');
         }
@@ -87,27 +91,53 @@ let OrdersService = OrdersService_1 = class OrdersService {
         if (!app || !app.isActive) {
             throw new common_1.BadRequestException('هذه الخدمة معطلة حالياً');
         }
+        const template = product.serviceTemplateId;
+        const templateFields = template?.fields || [];
+        const effectiveRequiredFields = templateFields.length > 0
+            ? templateFields.filter((f) => f.required).map((f) => f.label)
+            : product.requiredFields || [];
+        const effectiveSensitiveFields = Array.from(new Set([
+            ...(product.sensitiveFields || []),
+            ...templateFields
+                .filter((f) => f.isSensitive || f.type === 'password')
+                .map((f) => f.label),
+        ]));
+        const rawInput = params.accountInput || {};
+        if (product.type !== product_schema_1.ProductType.CODES) {
+            const missingFields = effectiveRequiredFields.filter((label) => rawInput[label] === undefined ||
+                rawInput[label] === null ||
+                String(rawInput[label]).trim() === '');
+            if (missingFields.length > 0) {
+                throw new common_1.BadRequestException(`يرجى إكمال الحقول المطلوبة: ${missingFields.join('، ')}`);
+            }
+        }
         const price = product.salePrice;
         if (user.balance < price) {
             throw new common_1.BadRequestException(`رصيدك غير كافٍ. المبلغ المطلوب: $${price.toFixed(2)}، رصيدك الحالي: $${user.balance.toFixed(2)}`);
         }
+        if (product.type === product_schema_1.ProductType.DIRECT_API && product.providerId) {
+            await this.providersService.ensureReadyForOrder(product.providerId.toString(), product.costPrice || 0);
+        }
+        if (product.type === product_schema_1.ProductType.CODES && (!product.inventoryCodes || product.inventoryCodes.length === 0)) {
+            throw new common_1.BadRequestException('عذراً، هذا المنتج غير متوفر في المخزون حالياً');
+        }
+        const debited = await this.userModel.findOneAndUpdate({ _id: user._id, balance: { $gte: price } }, { $inc: { balance: -price } }, { new: true });
+        if (!debited) {
+            throw new common_1.BadRequestException(`رصيدك غير كافٍ. المبلغ المطلوب: $${price.toFixed(2)}، رصيدك الحالي: $${user.balance.toFixed(2)}`);
+        }
+        const balanceAfter = Number(debited.balance.toFixed(2));
+        const balanceBefore = Number((balanceAfter + price).toFixed(2));
         let deliveredCode = undefined;
         let initialStatus = order_schema_1.OrderStatus.PENDING;
         const estimatedMinutes = product.estimatedMinutes || 120;
         const deadlineAt = new Date(Date.now() + estimatedMinutes * 60 * 1000);
         const timeline = [];
-        const balanceBefore = user.balance;
-        const balanceAfter = Number((balanceBefore - price).toFixed(2));
-        user.balance = balanceAfter;
-        await user.save();
         const orderNumber = this.generateOrderNumber();
         const profit = Number((price - product.costPrice).toFixed(2));
         const sanitizedInput = { ...(params.accountInput || {}) };
-        if (product.isSensitive && product.sensitiveFields && product.sensitiveFields.length > 0) {
-            for (const field of product.sensitiveFields) {
-                if (sanitizedInput[field]) {
-                    sanitizedInput[field] = crypto_util_1.CryptoUtil.encrypt(sanitizedInput[field]);
-                }
+        for (const field of effectiveSensitiveFields) {
+            if (sanitizedInput[field]) {
+                sanitizedInput[field] = crypto_util_1.CryptoUtil.encrypt(String(sanitizedInput[field]));
             }
         }
         timeline.push({
@@ -119,18 +149,61 @@ let OrdersService = OrdersService_1 = class OrdersService {
             performerRole: 'customer',
             timestamp: new Date(),
         });
+        const order = new this.orderModel({
+            orderNumber,
+            userId: user._id,
+            appId: app._id,
+            productId: product._id,
+            providerId: product.providerId,
+            type: product.type,
+            amount: price,
+            cost: product.costPrice,
+            profit,
+            status: order_schema_1.OrderStatus.PENDING,
+            accountInput: sanitizedInput,
+            estimatedMinutes,
+            deadlineAt,
+            isSensitive: effectiveSensitiveFields.length > 0 || product.isSensitive || false,
+            sensitiveFields: effectiveSensitiveFields,
+            timeline,
+            chatMessages: [],
+        });
+        await order.save();
+        try {
+            await this.transactionModel.create({
+                userId: user._id,
+                type: wallet_transaction_schema_1.TransactionType.PURCHASE,
+                amount: -price,
+                balanceBefore,
+                balanceAfter,
+                description: `شراء ${product.name} (${app.name})`,
+                referenceType: 'Order',
+                referenceId: order._id.toString(),
+                status: wallet_transaction_schema_1.TransactionStatus.COMPLETED,
+            });
+        }
+        catch (ledgerErr) {
+            this.logger.error(`Could not record purchase transaction for ${orderNumber}: ${ledgerErr.message}`);
+            order.status = order_schema_1.OrderStatus.REFUNDED;
+            order.rejectionReason = 'تعذر تسجيل الحركة المالية، تم إرجاع المبلغ';
+            await order.save();
+            await this.userModel.findByIdAndUpdate(user._id, { $inc: { balance: price } });
+            throw new common_1.BadRequestException('تعذر إتمام العملية، لم يتم خصم أي مبلغ. يرجى المحاولة لاحقاً');
+        }
         let assignedSupervisorId = undefined;
         let assignedSupervisorUser = null;
         if (product.type === product_schema_1.ProductType.CODES) {
-            if (!product.inventoryCodes || product.inventoryCodes.length === 0) {
-                user.balance = balanceBefore;
-                await user.save();
-                throw new common_1.BadRequestException('عذراً، هذا المنتج غير متوفر في المخزون حالياً');
+            const code = product.inventoryCodes?.shift();
+            if (!code) {
+                return this.failPaidOrder(order, {
+                    amount: price,
+                    reason: 'عذراً، هذا المنتج غير متوفر في المخزون حالياً',
+                });
             }
-            deliveredCode = product.inventoryCodes.shift();
             await product.save();
+            deliveredCode = code;
             initialStatus = order_schema_1.OrderStatus.COMPLETED;
-            timeline.push({
+            order.timeline.push({
                 action: 'delivered',
                 title: 'تم تسليم الكود تلقائياً',
                 description: 'تم تسليم كود البطاقة للعميل مباشرة من المخزون',
@@ -157,24 +230,59 @@ let OrdersService = OrdersService_1 = class OrdersService {
                     rawInput['zoneId'] ||
                     (Object.values(rawInput).length > 1 ? Object.values(rawInput)[1] : undefined);
                 if (!gameUserId) {
-                    user.balance = balanceBefore;
-                    await user.save();
-                    throw new common_1.BadRequestException('يرجى إدخال معرف اللاعب (Player ID) المطلوب للشحن');
+                    return this.failPaidOrder(order, {
+                        amount: price,
+                        reason: 'يرجى إدخال معرف اللاعب (Player ID) المطلوب للشحن',
+                    });
                 }
-                const providerResult = await this.providersService.executeOrder(product.providerId.toString(), {
-                    productCode: product.providerProductCode || '',
-                    gameUserId: String(gameUserId),
-                    gameZoneId: gameZoneId ? String(gameZoneId) : undefined,
-                    reference: orderNumber,
-                });
+                let providerResult;
+                try {
+                    providerResult = await this.providersService.executeOrder(product.providerId.toString(), {
+                        productCode: product.providerProductCode || '',
+                        gameUserId: String(gameUserId),
+                        gameZoneId: gameZoneId ? String(gameZoneId) : undefined,
+                        reference: orderNumber,
+                    });
+                }
+                catch (err) {
+                    providerResult = {
+                        success: false,
+                        message: err?.message || 'تعذر الاتصال بمزوّد الخدمة',
+                    };
+                }
                 if (!providerResult.success) {
-                    user.balance = balanceBefore;
-                    await user.save();
                     this.logger.error(`Provider direct execution failed for ${orderNumber}: ${providerResult.message}`);
-                    throw new common_1.BadRequestException(`تعذر إتمام الشحن عبر المزود: ${providerResult.message}`);
+                    await this.providersService.markProviderFailure(product.providerId.toString(), providerResult.message);
+                    try {
+                        await this.notificationsService.createNotification({
+                            forRole: 'admin',
+                            title: 'فشل تنفيذ طلب لدى المزوّد',
+                            body: `تعذّر تنفيذ الطلب #${orderNumber} (${product.name}) عبر المزوّد: ${providerResult.message}. تم إرجاع المبلغ للعميل تلقائياً.`,
+                            type: 'provider_failure',
+                            data: {
+                                orderId: order._id.toString(),
+                                orderNumber,
+                                productId: product._id.toString(),
+                                providerId: product.providerId.toString(),
+                            },
+                        });
+                    }
+                    catch (notifyErr) {
+                        this.logger.warn(`Could not notify admins about provider failure: ${notifyErr.message}`);
+                    }
+                    return this.failPaidOrder(order, {
+                        amount: price,
+                        reason: `تعذر إتمام الشحن عبر المزود: ${providerResult.message}`,
+                        providerRaw: providerResult.raw,
+                    });
                 }
+                if (providerResult.raw?.items?.[0]?.externalData?.length) {
+                    deliveredCode = providerResult.raw.items[0].externalData.join(', ');
+                }
+                order.providerReference = providerResult.transactionId || orderNumber;
+                order.providerResponse = providerResult.raw;
                 initialStatus = order_schema_1.OrderStatus.COMPLETED;
-                timeline.push({
+                order.timeline.push({
                     action: 'delivered',
                     title: 'تم تنفيذ الشحن عبر المزود الآلي بنجاح',
                     description: `تم إرسال الطلب وتنفيذه بنجاح عبر مزود الخدمة (المرجع: ${providerResult.transactionId || orderNumber})`,
@@ -185,7 +293,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             }
             else {
                 initialStatus = order_schema_1.OrderStatus.COMPLETED;
-                timeline.push({
+                order.timeline.push({
                     action: 'delivered',
                     title: 'تم تنفيذ الشحن عبر المزود الآلي',
                     description: 'تم إرسال الشحن وتنفيذه بنجاح عبر مزود الخدمة',
@@ -200,7 +308,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
                 assignedSupervisorId = product.assignedSupervisorId;
                 assignedSupervisorUser = await this.userModel.findById(assignedSupervisorId);
                 initialStatus = order_schema_1.OrderStatus.ASSIGNED;
-                timeline.push({
+                order.timeline.push({
                     action: 'assigned',
                     title: `تم إسناد الطلب للمشرف (${assignedSupervisorUser?.name || 'المشرف المسؤول'})`,
                     description: `تم إسناد الطلب تلقائياً، والوقت المتوقع للتنفيذ: ${estimatedMinutes} دقيقة`,
@@ -211,7 +319,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             }
             else {
                 initialStatus = order_schema_1.OrderStatus.PENDING;
-                timeline.push({
+                order.timeline.push({
                     action: 'pending_assignment',
                     title: 'بانتظار إسناد المشرف',
                     description: 'الطلب بانتظار قيام الإدارة بتعيين مشرف للتنفيذ',
@@ -221,41 +329,12 @@ let OrdersService = OrdersService_1 = class OrdersService {
                 });
             }
         }
-        const order = new this.orderModel({
-            orderNumber,
-            userId: user._id,
-            appId: app._id,
-            productId: product._id,
-            providerId: product.providerId,
-            type: product.type,
-            amount: price,
-            cost: product.costPrice,
-            profit,
-            status: initialStatus,
-            accountInput: sanitizedInput,
-            deliveredCode,
-            completedAt: initialStatus === order_schema_1.OrderStatus.COMPLETED ? new Date() : undefined,
-            assignedSupervisorId,
-            estimatedMinutes,
-            deadlineAt,
-            isSensitive: product.isSensitive || false,
-            sensitiveFields: product.sensitiveFields || [],
-            timeline,
-            chatMessages: [],
-        });
+        order.status = initialStatus;
+        order.deliveredCode = deliveredCode;
+        order.assignedSupervisorId = assignedSupervisorId;
+        order.rejectionReason = undefined;
+        order.completedAt = initialStatus === order_schema_1.OrderStatus.COMPLETED ? new Date() : undefined;
         await order.save();
-        const transaction = new this.transactionModel({
-            userId: user._id,
-            type: wallet_transaction_schema_1.TransactionType.PURCHASE,
-            amount: -price,
-            balanceBefore,
-            balanceAfter,
-            description: `شراء ${product.name} (${app.name})`,
-            referenceType: 'Order',
-            referenceId: order._id.toString(),
-            status: wallet_transaction_schema_1.TransactionStatus.COMPLETED,
-        });
-        await transaction.save();
         if (assignedSupervisorId && assignedSupervisorUser) {
             await this.notificationsService.createNotification({
                 userId: assignedSupervisorId.toString(),
@@ -296,8 +375,237 @@ let OrdersService = OrdersService_1 = class OrdersService {
                     ? 'تم استلام طلبك وجاري تحويله للمشرف المختص لبدء التنفيذ'
                     : 'تم إرسال طلب الشحن بنجاح وهو قيد المراجعة',
             order: await this.getOrderById(order._id.toString()),
-            newBalance: user.balance,
+            newBalance: balanceAfter,
             deliveredCode,
+        };
+    }
+    async failPaidOrder(order, params) {
+        const refunded = await this.userModel.findByIdAndUpdate(order.userId, { $inc: { balance: params.amount } }, { new: true });
+        const balanceAfter = Number((refunded?.balance ?? params.amount).toFixed(2));
+        const balanceBefore = Number((balanceAfter - params.amount).toFixed(2));
+        order.status = order_schema_1.OrderStatus.REFUNDED;
+        order.rejectionReason = params.reason;
+        order.providerReference = order.providerReference || order.orderNumber;
+        if (params.providerRaw !== undefined) {
+            order.providerResponse = params.providerRaw;
+        }
+        order.timeline.push({
+            action: 'auto_refunded',
+            title: 'تعذّر تنفيذ الطلب وتم إرجاع المبلغ تلقائياً',
+            description: params.reason,
+            performerName: 'النظام الآلي',
+            performerRole: 'system',
+            timestamp: new Date(),
+        });
+        await order.save();
+        await this.transactionModel.create({
+            userId: order.userId,
+            type: wallet_transaction_schema_1.TransactionType.REFUND,
+            amount: params.amount,
+            balanceBefore,
+            balanceAfter,
+            description: `إرجاع تلقائي لطلب متعذر #${order.orderNumber}`,
+            referenceType: 'Order',
+            referenceId: order._id.toString(),
+            status: wallet_transaction_schema_1.TransactionStatus.COMPLETED,
+        });
+        throw new common_1.BadRequestException(`${params.reason} (رقم الطلب: ${order.orderNumber})`);
+    }
+    async autoRefundOrder(order, reason, title) {
+        const refundedUser = await this.userModel.findByIdAndUpdate(order.userId, { $inc: { balance: order.amount } }, { new: true });
+        const balanceAfter = Number((refundedUser?.balance ?? order.amount).toFixed(2));
+        order.status = order_schema_1.OrderStatus.REFUNDED;
+        order.rejectionReason = reason;
+        order.timeline.push({
+            action: 'auto_refunded',
+            title,
+            description: reason,
+            performerName: 'المصالحة الآلية',
+            performerRole: 'system',
+            timestamp: new Date(),
+        });
+        await order.save();
+        await this.transactionModel.create({
+            userId: order.userId,
+            type: wallet_transaction_schema_1.TransactionType.REFUND,
+            amount: order.amount,
+            balanceBefore: Number((balanceAfter - order.amount).toFixed(2)),
+            balanceAfter,
+            description: `إرجاع تلقائي (مصالحة) لطلب #${order.orderNumber}`,
+            referenceType: 'Order',
+            referenceId: order._id.toString(),
+            status: wallet_transaction_schema_1.TransactionStatus.COMPLETED,
+        });
+        await this.notificationsService.createNotification({
+            userId: order.userId.toString(),
+            title: 'تم إرجاع مبلغ طلبك إلى المحفظة',
+            body: `تعذّر تنفيذ الطلب #${order.orderNumber} لدى مزود الخدمة، وتم إرجاع $${order.amount.toFixed(2)} إلى محفظتك.`,
+            type: 'order_refunded',
+            data: { orderId: order._id.toString(), amount: order.amount, reason },
+        });
+    }
+    async reconcileProviderOrders(limit = 20) {
+        const orders = await this.orderModel
+            .find({
+            type: product_schema_1.ProductType.DIRECT_API,
+            providerId: { $ne: null },
+            providerReference: { $exists: true, $ne: null },
+            providerSettledAt: { $exists: false },
+            status: order_schema_1.OrderStatus.COMPLETED,
+            $or: [{ deliveredCode: { $exists: false } }, { deliveredCode: null }, { deliveredCode: '' }],
+        })
+            .sort({ createdAt: -1 })
+            .limit(limit);
+        let settled = 0;
+        let refunded = 0;
+        let pending = 0;
+        for (const order of orders) {
+            const providerId = order.providerId?.toString();
+            if (!providerId || !order.providerReference)
+                continue;
+            let inspection;
+            try {
+                inspection = await this.providersService.inspectOrderStatus(providerId, order.providerReference);
+            }
+            catch (err) {
+                this.logger.warn(`Reconciliation failed for order ${order.orderNumber}: ${err.message}`);
+                continue;
+            }
+            if (inspection.state === 'delivered') {
+                order.deliveredCode = inspection.codes?.length ? inspection.codes.join(', ') : order.deliveredCode;
+                order.providerSettledAt = new Date();
+                order.timeline.push({
+                    action: 'provider_settled',
+                    title: 'تم تأكيد تنفيذ الطلب لدى المزوّد',
+                    description: inspection.message || 'أكد المزوّد تنفيذ الطلب',
+                    performerName: 'المصالحة الآلية',
+                    performerRole: 'system',
+                    timestamp: new Date(),
+                });
+                await order.save();
+                settled++;
+                continue;
+            }
+            if (inspection.state === 'failed') {
+                const reason = `أبلغ المزوّد عن فشل تنفيذ الطلب: ${inspection.message || 'سبب غير محدد'}`;
+                order.providerResponse = inspection.raw;
+                order.providerSettledAt = new Date();
+                await this.autoRefundOrder(order, reason, 'تم استرجاع المبلغ تلقائياً بعد فشل المزوّد');
+                refunded++;
+                continue;
+            }
+            pending++;
+        }
+        let flagged = 0;
+        const refundedOrders = await this.orderModel
+            .find({
+            type: product_schema_1.ProductType.DIRECT_API,
+            providerId: { $ne: null },
+            providerReference: { $exists: true, $ne: null },
+            providerSettledAt: { $exists: false },
+            status: order_schema_1.OrderStatus.REFUNDED,
+            createdAt: { $lte: new Date(Date.now() - 5 * 60 * 1000) },
+        })
+            .sort({ createdAt: -1 })
+            .limit(limit);
+        for (const order of refundedOrders) {
+            const providerId = order.providerId?.toString();
+            if (!providerId || !order.providerReference)
+                continue;
+            try {
+                const inspection = await this.providersService.inspectOrderStatus(providerId, order.providerReference);
+                if (inspection.state !== 'delivered')
+                    continue;
+                order.providerSettledAt = new Date();
+                order.timeline.push({
+                    action: 'provider_mismatch',
+                    title: 'تنبيه: المزوّد يعتبر الطلب منفذاً بعد استرجاعه',
+                    description: inspection.message || 'تأكد المزوّد من تنفيذ الطلب رغم إرجاع المبلغ للعميل',
+                    performerName: 'المصالحة الآلية',
+                    performerRole: 'system',
+                    timestamp: new Date(),
+                });
+                await order.save();
+                flagged++;
+                await this.notificationsService.createNotification({
+                    forRole: 'admin',
+                    title: 'تنبيه مالي: طلب مسترجع لكن المزوّد نفّذه',
+                    body: `الطلب #${order.orderNumber} تم إرجاع مبلغه للعميل، لكن المزوّد يؤكد تنفيذه. يرجى المراجعة اليدوية.`,
+                    type: 'provider_mismatch',
+                    data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
+                });
+            }
+            catch (err) {
+                this.logger.warn(`Reverse reconciliation failed for order ${order.orderNumber}: ${err.message}`);
+            }
+        }
+        let recovered = 0;
+        const orphanedOrders = await this.orderModel
+            .find({
+            type: product_schema_1.ProductType.DIRECT_API,
+            providerId: { $ne: null },
+            providerSettledAt: { $exists: false },
+            status: order_schema_1.OrderStatus.PENDING,
+            createdAt: { $lte: new Date(Date.now() - 3 * 60 * 1000) },
+        })
+            .sort({ createdAt: -1 })
+            .limit(limit);
+        for (const order of orphanedOrders) {
+            const providerId = order.providerId?.toString();
+            const reference = order.providerReference || order.orderNumber;
+            if (!providerId || !reference)
+                continue;
+            let inspection;
+            try {
+                inspection = await this.providersService.inspectOrderStatus(providerId, reference);
+            }
+            catch (err) {
+                this.logger.warn(`Orphan reconciliation failed for order ${order.orderNumber}: ${err.message}`);
+                continue;
+            }
+            if (inspection.state === 'delivered') {
+                order.status = order_schema_1.OrderStatus.COMPLETED;
+                order.deliveredCode = inspection.codes?.length ? inspection.codes.join(', ') : order.deliveredCode;
+                order.providerReference = reference;
+                order.providerResponse = inspection.raw;
+                order.providerSettledAt = new Date();
+                order.completedAt = new Date();
+                order.timeline.push({
+                    action: 'provider_settled',
+                    title: 'تم تأكيد تنفيذ الطلب لدى المزوّد',
+                    description: inspection.message || 'أكد المزوّد تنفيذ الطلب',
+                    performerName: 'المصالحة الآلية',
+                    performerRole: 'system',
+                    timestamp: new Date(),
+                });
+                await order.save();
+                recovered++;
+                await this.notificationsService.createNotification({
+                    userId: order.userId.toString(),
+                    title: 'تم تنفيذ طلبك بنجاح',
+                    body: `تم تأكيد تنفيذ الطلب #${order.orderNumber} لدى مزود الخدمة.`,
+                    type: 'order_status',
+                    data: { orderId: order._id.toString(), deliveredCode: order.deliveredCode },
+                });
+                continue;
+            }
+            if (inspection.state === 'failed') {
+                order.providerResponse = inspection.raw;
+                order.providerSettledAt = new Date();
+                await this.autoRefundOrder(order, `أبلغ المزوّد عن فشل تنفيذ الطلب: ${inspection.message || 'سبب غير محدد'}`, 'تم استرجاع المبلغ تلقائياً بعد فشل المزوّد');
+                refunded++;
+                continue;
+            }
+            pending++;
+        }
+        return {
+            checked: orders.length + refundedOrders.length + orphanedOrders.length,
+            settled,
+            refunded,
+            pending,
+            flagged,
+            recovered,
+            message: `تمت مراجعة ${orders.length + refundedOrders.length + orphanedOrders.length} طلباً: ${settled} مؤكد، ${recovered} مُستعاد، ${refunded} مسترجع، ${pending} قيد الانتظار، ${flagged} بحاجة مراجعة يدوية`,
         };
     }
     async getMyOrders(userId) {
@@ -313,7 +621,11 @@ let OrdersService = OrdersService_1 = class OrdersService {
             .findById(id)
             .populate('userId', 'name email phone balance userId')
             .populate('appId', 'name iconUrl')
-            .populate('productId', 'name type costPrice salePrice isSensitive instructions')
+            .populate({
+            path: 'productId',
+            select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
+            populate: { path: 'serviceTemplateId', select: 'name fields' },
+        })
             .populate('assignedSupervisorId', 'name email phone role userId');
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
@@ -328,7 +640,11 @@ let OrdersService = OrdersService_1 = class OrdersService {
             .find(query)
             .populate('userId', 'name email phone userId')
             .populate('appId', 'name iconUrl')
-            .populate('productId', 'name type costPrice salePrice isSensitive instructions')
+            .populate({
+            path: 'productId',
+            select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
+            populate: { path: 'serviceTemplateId', select: 'name fields' },
+        })
             .sort({ createdAt: -1 });
         const now = new Date();
         return orders.map((o) => {
@@ -360,20 +676,21 @@ let OrdersService = OrdersService_1 = class OrdersService {
         }
         const orders = await this.orderModel
             .find(query)
+            .select('-chatMessages -timeline')
             .populate('userId', 'name email phone balance userId')
             .populate('appId', 'name iconUrl')
             .populate('productId', 'name type costPrice salePrice isSensitive')
             .populate('assignedSupervisorId', 'name email phone role userId')
-            .sort({ createdAt: -1 });
+            .sort({ createdAt: -1 })
+            .lean();
         const now = new Date();
         return orders.map((o) => {
-            const obj = o.toObject();
-            const isDelayed = o.deadlineAt &&
-                now > o.deadlineAt &&
+            const isDelayed = !!o.deadlineAt &&
+                now > new Date(o.deadlineAt) &&
                 o.status !== order_schema_1.OrderStatus.COMPLETED &&
                 o.status !== order_schema_1.OrderStatus.REFUNDED;
             return {
-                ...obj,
+                ...o,
                 isDelayed,
             };
         });
@@ -433,6 +750,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             timestamp: new Date(),
         });
         await order.save();
+        await this.usersService.reconcileSupervisorRole(supervisor._id);
         await this.notificationsService.createNotification({
             forRole: 'admin',
             title: 'تنبيه: رفض طلب يدوي من المشرف ⚠️',
@@ -683,8 +1001,8 @@ let OrdersService = OrdersService_1 = class OrdersService {
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
         const newSupervisor = await this.userModel.findById(newSupervisorId);
-        if (!newSupervisor || (newSupervisor.role !== 'supervisor' && newSupervisor.role !== 'admin')) {
-            throw new common_1.BadRequestException('المشرف المختار غير صالح');
+        if (!newSupervisor || newSupervisor.isActive === false) {
+            throw new common_1.BadRequestException('المستخدم المختار غير صالح');
         }
         const previousSupervisorId = order.assignedSupervisorId;
         order.assignedSupervisorId = newSupervisor._id;
@@ -702,6 +1020,10 @@ let OrdersService = OrdersService_1 = class OrdersService {
             timestamp: new Date(),
         });
         await order.save();
+        if (previousSupervisorId && previousSupervisorId.toString() !== newSupervisor._id.toString()) {
+            await this.usersService.reconcileSupervisorRole(previousSupervisorId);
+        }
+        await this.usersService.reconcileSupervisorRole(newSupervisor._id);
         await this.notificationsService.createNotification({
             userId: newSupervisor._id.toString(),
             forRole: 'supervisor',
@@ -847,6 +1169,34 @@ let OrdersService = OrdersService_1 = class OrdersService {
             credentials: decrypted,
         };
     }
+    async getOrderDecryptedInput(orderId, user) {
+        const order = await this.orderModel.findById(orderId);
+        if (!order)
+            throw new common_1.NotFoundException('الطلب غير موجود');
+        const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+        const isAdmin = user.role === 'admin';
+        if (!isSupervisor && !isAdmin) {
+            throw new common_1.ForbiddenException('غير مصرح لك باستعراض بيانات هذا الطلب');
+        }
+        const sensitiveFields = order.sensitiveFields || [];
+        const input = order.accountInput || {};
+        const decryptedInput = {};
+        for (const [key, value] of Object.entries(input)) {
+            if (sensitiveFields.includes(key) && typeof value === 'string' && value.includes(':')) {
+                decryptedInput[key] = crypto_util_1.CryptoUtil.decrypt(value) ?? value;
+            }
+            else {
+                decryptedInput[key] = value;
+            }
+        }
+        return {
+            orderId: order._id.toString(),
+            orderNumber: order.orderNumber,
+            isSensitive: order.isSensitive || false,
+            sensitiveFields,
+            accountInput: decryptedInput,
+        };
+    }
     async acceptManualOrder(id, notes) {
         const order = await this.getOrderById(id);
         order.status = order_schema_1.OrderStatus.COMPLETED;
@@ -877,6 +1227,7 @@ exports.OrdersService = OrdersService = OrdersService_1 = __decorate([
         mongoose_2.Model,
         mongoose_2.Model,
         notifications_service_1.NotificationsService,
-        providers_service_1.ProvidersService])
+        providers_service_1.ProvidersService,
+        users_service_1.UsersService])
 ], OrdersService);
 //# sourceMappingURL=orders.service.js.map

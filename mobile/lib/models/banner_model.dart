@@ -30,8 +30,12 @@ class BannerModel {
       actionType: json['actionType'] ?? 'topup',
       actionValue: json['actionValue']?.toString(),
       isActive: json['isActive'] ?? true,
-      sortOrder: (json['sortOrder'] is num) ? (json['sortOrder'] as num).toInt() : 0,
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+      sortOrder: (json['sortOrder'] is num)
+          ? (json['sortOrder'] as num).toInt()
+          : 0,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
     );
   }
 

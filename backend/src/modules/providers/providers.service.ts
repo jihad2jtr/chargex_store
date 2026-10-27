@@ -8,6 +8,10 @@ import { Product, ProductDocument, ProfitMarginType, ProductType } from '../../d
 
 @Injectable()
 export class ProvidersService {
+  // Timeouts stay well below the serverless function limit so a slow provider
+  // always reaches our own error handling instead of being killed by the platform
+  private static readonly ORDER_TIMEOUT_MS = 12_000;
+  private static readonly STATUS_TIMEOUT_MS = 8_000;
   private readonly logger = new Logger(ProvidersService.name);
 
   // No default filter — sync ALL categories from provider unless specific gameCodes are given
@@ -18,12 +22,49 @@ export class ProvidersService {
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
   ) {}
 
+  private isTimeoutError(err: any): boolean {
+    if (!err) return false;
+    const code = err.code || '';
+    return (
+      code === 'ECONNABORTED' ||
+      code === 'ETIMEDOUT' ||
+      code === 'ERR_CANCELED' ||
+      /timeout/i.test(err.message || '')
+    );
+  }
+
   private isBay2Game(provider: ProviderDocument): boolean {
     return (
       provider.providerType === ProviderType.BAY2GAME ||
       provider.baseUrl?.toLowerCase().includes('bay2game') ||
       provider.name?.toLowerCase().includes('bay2game')
     );
+  }
+
+  private isFoxReload(provider: ProviderDocument): boolean {
+    return (
+      provider.providerType === ProviderType.FOXRELOAD ||
+      provider.baseUrl?.toLowerCase().includes('foxreload') ||
+      provider.name?.toLowerCase().includes('foxreload')
+    );
+  }
+
+  private getFoxReloadBaseUrl(provider: ProviderDocument): string {
+    const raw = (provider.baseUrl || '').trim().replace(/\/+$/, '');
+    if (!raw || (raw.includes('foxreload.com') && !raw.includes('public-api.foxreload.com'))) {
+      return 'https://public-api.foxreload.com';
+    }
+    return raw;
+  }
+
+  private getFoxReloadHeaders(provider: ProviderDocument) {
+    return {
+      'X-API-Key': provider.apiKey,
+      'X-Currency': 'usd',
+      'X-Language': 'en',
+      'Content-Type': 'application/json',
+      ...(provider.headers || {}),
+    };
   }
 
   async findAll() {
@@ -49,9 +90,20 @@ export class ProvidersService {
       createDto.baseUrl?.toLowerCase().includes('bay2game') ||
       createDto.name?.toLowerCase().includes('bay2game');
 
+    const isFox =
+      createDto.providerType === ProviderType.FOXRELOAD ||
+      createDto.baseUrl?.toLowerCase().includes('foxreload') ||
+      createDto.name?.toLowerCase().includes('foxreload');
+
+    const resolvedType = isBay
+      ? ProviderType.BAY2GAME
+      : isFox
+      ? ProviderType.FOXRELOAD
+      : (createDto.providerType || ProviderType.CUSTOM);
+
     const provider = new this.providerModel({
       ...createDto,
-      providerType: isBay ? ProviderType.BAY2GAME : (createDto.providerType || ProviderType.CUSTOM),
+      providerType: resolvedType,
       status: ProviderStatus.OFFLINE,
       isActive: true,
     });
@@ -70,7 +122,55 @@ export class ProvidersService {
   async update(id: string, updateDto: any) {
     const provider = await this.providerModel.findByIdAndUpdate(id, updateDto, { new: true });
     if (!provider) throw new NotFoundException('المزود غير موجود');
+
+    // هامش الربح على مستوى المزود: أي تعديل يُعاد حساب أسعار بيع كل منتجاته
+    const marginChanged =
+      updateDto.profitMarginType !== undefined || updateDto.profitMarginValue !== undefined;
+    if (marginChanged) {
+      await this.recalculateProviderPrices(id);
+    }
+
     return provider;
+  }
+
+  /** حساب سعر البيع من سعر التكلفة حسب هامش ربح المزود */
+  private computeSalePrice(
+    costPrice: number,
+    marginType: ProfitMarginType,
+    marginValue: number,
+  ): number {
+    const cost = Number(costPrice) || 0;
+    const margin = Number(marginValue) || 0;
+    const price =
+      marginType === ProfitMarginType.FIXED ? cost + margin : cost * (1 + margin / 100);
+    return Math.round(price * 100) / 100;
+  }
+
+  /** إعادة حساب أسعار البيع لكل منتجات المزود وفق هامشه الحالي */
+  async recalculateProviderPrices(providerId: string) {
+    const provider = await this.findOne(providerId);
+    const marginType = provider.profitMarginType ?? ProfitMarginType.PERCENTAGE;
+    const marginValue = provider.profitMarginValue ?? 0;
+
+    const products = await this.productModel.find({
+      providerId: new Types.ObjectId(providerId),
+    });
+
+    for (const product of products) {
+      const newSalePrice = this.computeSalePrice(
+        product.costPrice,
+        marginType,
+        marginValue,
+      );
+      if (newSalePrice !== product.salePrice) {
+        product.profitMarginType = marginType;
+        product.profitMarginValue = marginValue;
+        product.salePrice = newSalePrice;
+        await product.save();
+      }
+    }
+
+    return { message: 'تم تحديث أسعار منتجات المزود وفق هامش الربح الجديد', updated: products.length };
   }
 
   async remove(id: string) {
@@ -90,7 +190,7 @@ export class ProvidersService {
         const url = `${provider.baseUrl.replace(/\/+$/, '')}/profile`;
         const response = await axios.get(url, {
           params: { api_key: provider.apiKey },
-          timeout: 10000,
+          timeout: ProvidersService.STATUS_TIMEOUT_MS,
         });
 
         if (response.data && (response.data.status === 'success' || response.data.status === 'SUCCESS')) {
@@ -100,6 +200,32 @@ export class ProvidersService {
         } else {
           provider.status = ProviderStatus.ERROR;
           provider.lastError = response.data?.message || 'فشل التحقق من حساب المزود';
+        }
+      } else if (this.isFoxReload(provider)) {
+        const baseUrl = this.getFoxReloadBaseUrl(provider);
+        const headers = this.getFoxReloadHeaders(provider);
+
+        // 1. Verify access & account (account + balances are fetched in parallel)
+        const [meRes, balRes] = await Promise.all([
+          axios.get(`${baseUrl}/api/access/me`, { headers, timeout: ProvidersService.STATUS_TIMEOUT_MS }),
+          axios
+            .get(`${baseUrl}/api/access/me/balances/`, { headers, timeout: ProvidersService.STATUS_TIMEOUT_MS })
+            .catch(() => null),
+        ]);
+
+        if (meRes.data && meRes.data.isActive !== false) {
+          // 2. Balances
+          let currentBalance = 0;
+          if (balRes && Array.isArray(balRes.data) && balRes.data.length > 0) {
+            const usdBal = balRes.data.find((b: any) => (b.currency || '').toLowerCase() === 'usd') || balRes.data[0];
+            currentBalance = parseFloat(usdBal.amount ?? usdBal.balance ?? '0') || 0;
+          }
+          provider.balance = currentBalance;
+          provider.status = ProviderStatus.ONLINE;
+          provider.lastError = undefined;
+        } else {
+          provider.status = ProviderStatus.ERROR;
+          provider.lastError = 'حساب المزود غير نشط أو مفتاح API غير صالح';
         }
       } else {
         // Generic provider healthcheck fallback
@@ -129,6 +255,121 @@ export class ProvidersService {
     return provider;
   }
 
+  // --- Guardrails consumed by the order pipeline ---
+
+  // Maximum age of a stored provider status before it is refreshed on demand
+  private static readonly STATUS_TTL_MS = 10 * 60 * 1000;
+
+  // Fail fast — before any money is deducted — when a provider cannot serve the order
+  async ensureReadyForOrder(providerId: string, requiredCost = 0): Promise<ProviderDocument> {
+    let provider: ProviderDocument;
+    try {
+      provider = await this.findOne(providerId);
+    } catch {
+      // A deleted/unreachable provider record must never surface as a scary error to the buyer
+      throw new BadRequestException('خدمة هذا المنتج غير متاحة حالياً، ولم يتم خصم أي مبلغ من رصيدك');
+    }
+
+    if (provider.isActive === false) {
+      throw new BadRequestException('خدمة هذا المنتج غير متاحة حالياً، ولم يتم خصم أي مبلغ من رصيدك');
+    }
+
+    const lastCheck = provider.lastCheckAt ? new Date(provider.lastCheckAt).getTime() : 0;
+    if (!lastCheck || Date.now() - lastCheck > ProvidersService.STATUS_TTL_MS) {
+      try {
+        provider = await this.checkStatus(providerId);
+      } catch (err: any) {
+        this.logger.warn(`Readiness check for provider ${provider.name} failed: ${err.message}`);
+      }
+    }
+
+    if (provider.status !== ProviderStatus.ONLINE) {
+      throw new BadRequestException(
+        'مزوّد الخدمة غير متاح حالياً، ولم يتم خصم أي مبلغ من رصيدك. يرجى المحاولة لاحقاً',
+      );
+    }
+
+    const balance = typeof provider.balance === 'number' ? provider.balance : 0;
+    if (requiredCost > 0 && balance < requiredCost) {
+      throw new BadRequestException(
+        'رصيد مزوّد الخدمة غير كافٍ لتنفيذ هذا الطلب حالياً، ولم يتم خصم أي مبلغ من رصيدك. يرجى المحاولة لاحقاً أو اختيار خدمة أخرى',
+      );
+    }
+
+    return provider;
+  }
+
+  // Persist the provider-side failure reason and refresh its status/balance in the background
+  async markProviderFailure(providerId: string, message: string) {
+    try {
+      await this.providerModel.updateOne({ _id: providerId }, { $set: { lastError: message } });
+    } catch (err: any) {
+      this.logger.warn(`Could not persist provider failure: ${err.message}`);
+    }
+
+    this.checkStatus(providerId).catch((err: any) =>
+      this.logger.warn(`Background provider status refresh failed: ${err.message}`),
+    );
+  }
+
+  // Normalized view over any provider's order status (used for reconciliation)
+  async inspectOrderStatus(
+    providerId: string,
+    reference: string,
+  ): Promise<{
+    state: 'delivered' | 'failed' | 'pending' | 'unknown';
+    codes?: string[];
+    message?: string;
+    raw?: any;
+  }> {
+    const provider = await this.findOne(providerId);
+    const raw = await this.checkOrderStatus(providerId, reference);
+
+    // A transport/HTTP problem is NOT a provider-declared failure
+    if (raw?.isTransportError) {
+      return { state: 'unknown', message: raw?.message, raw };
+    }
+
+    const rawStatus = String(raw?.status ?? raw?.state ?? '').toLowerCase();
+
+    if (this.isBay2Game(provider)) {
+      const codes = [raw?.code, raw?.delivered_code, raw?.serial]
+        .filter((c: any) => typeof c === 'string' && c.trim().length > 0)
+        .map((c: string) => c.trim());
+
+      if (['success', 'completed', 'delivered', 'done'].includes(rawStatus)) {
+        return { state: 'delivered', codes, message: raw?.message, raw };
+      }
+      if (['failed', 'error', 'cancelled', 'canceled', 'refunded', 'rejected'].includes(rawStatus)) {
+        return { state: 'failed', message: raw?.message || 'أبلغ المزوّد عن فشل الطلب', raw };
+      }
+      if (['pending', 'processing', 'in_progress', 'waiting'].includes(rawStatus)) {
+        return { state: 'pending', raw };
+      }
+      return { state: 'unknown', raw };
+    }
+
+    if (this.isFoxReload(provider)) {
+      const item = raw?.items?.[0];
+      const fulfillment = String(item?.fulfillmentStatus ?? '').toLowerCase();
+      const codes = Array.isArray(item?.externalData) ? item.externalData.map(String) : [];
+
+      if (rawStatus === 'cancelled' || fulfillment === 'failed') {
+        return {
+          state: 'failed',
+          message: raw?.cancelReason || item?.error || 'أبلغ المزوّد عن فشل الطلب',
+          raw,
+        };
+      }
+      if (fulfillment === 'fulfilled' || rawStatus === 'completed') {
+        return { state: 'delivered', codes, message: 'تم تنفيذ الطلب لدى المزوّد', raw };
+      }
+      return { state: raw ? 'pending' : 'unknown', raw };
+    }
+
+    return { state: 'unknown', raw };
+  }
+
   // Retrieve available game categories from provider
   async getProviderCategories(providerId: string) {
     const provider = await this.findOne(providerId);
@@ -147,6 +388,53 @@ export class ProvidersService {
       } catch (err: any) {
         this.logger.error(`Error fetching Bay2Game categories: ${err.message}`);
         throw new BadRequestException('تعذر جلب فئات الألعاب من المزود: ' + (err.response?.data?.message || err.message));
+      }
+    } else if (this.isFoxReload(provider)) {
+      try {
+        const baseUrl = this.getFoxReloadBaseUrl(provider);
+        const headers = this.getFoxReloadHeaders(provider);
+
+        // Core sections in FoxReload catalog
+        const rootSections = [
+          '019e9ca5-0403-70b3-90d5-e9641f64b76b', // In-Game Top-Ups
+          '019ea790-779d-7fd3-9ed7-976a410ab182', // Game Currency (Codes)
+          '4740cefd-c9eb-4291-93dc-fad5cb24c855', // App Stores
+          'c53e27b8-a213-47b9-b05d-1b2472c95483', // Gift Cards
+          '019ea76e-b2f0-7de2-833c-9ec599ab7233', // Subscriptions & Digital Services
+        ];
+
+        const sectionResponses = await Promise.all(
+          rootSections.map((secId) =>
+            axios
+              .get(`${baseUrl}/api/categories/`, {
+                headers,
+                params: { parentId: secId, limit: 100 },
+                timeout: 15000,
+              })
+              .catch(() => ({ data: { items: [] } })),
+          ),
+        );
+
+        let allGames: any[] = [];
+        for (const resp of sectionResponses) {
+          const items = resp.data?.items || [];
+          allGames = allGames.concat(items);
+        }
+
+        // Filter games that have stock
+        const inStockGames = allGames.filter((g: any) => (g.inStockCount || 0) > 0);
+
+        return inStockGames.map((g: any) => ({
+          game_code: g.id,
+          name: g.name,
+          image_url: g.imagePath || g.thumbnailPath,
+          in_stock_count: g.inStockCount,
+          game_fields: ['userid', 'serverid'],
+          hasProducts: g.hasProducts,
+        }));
+      } catch (err: any) {
+        this.logger.error(`Error fetching FoxReload categories: ${err.message}`);
+        throw new BadRequestException('تعذر جلب فئات الألعاب من المزود: ' + (err.response?.data?.detail || err.message));
       }
     }
 
@@ -232,6 +520,136 @@ export class ProvidersService {
         this.logger.error(`Error in syncProviderProducts: ${err.message}`);
         throw new BadRequestException('فشل في مزامنة المنتجات من المزود: ' + (err.response?.data?.message || err.message));
       }
+    } else if (this.isFoxReload(provider)) {
+      try {
+        const baseUrl = this.getFoxReloadBaseUrl(provider);
+        const headers = this.getFoxReloadHeaders(provider);
+
+        // Fetch categories to get the game objects
+        const catList = await this.getProviderCategories(providerId);
+
+        let targetGames: any[] = [];
+        if (gameCodes && gameCodes.length > 0) {
+          targetGames = catList.filter((c: any) => gameCodes.includes(c.game_code));
+        } else {
+          // Clean up old wrongly categorized products
+          await this.providerProductModel.deleteMany({
+            providerId: provider._id,
+            category: { $in: ['FoxReload', 'Fox - WW', 'Fox - CIS', 'Fox - MENA', 'Fox - EU', 'Fox - NA', 'عام'] },
+          });
+
+          // Sort games to prioritize popular titles
+          const popularKeywords = [
+            'pubg', 'free fire', 'duty', 'brawl', 'roblox', 'fc', 'fifa', 'itunes', 'google',
+            'steam', 'playstation', 'xbox', 'razer', 'telegram', 'discord', '8 ball pool', 'blood strike'
+          ];
+
+          const popularGames = catList.filter((g: any) =>
+            popularKeywords.some((kw) => (g.name || '').toLowerCase().includes(kw)),
+          );
+          const otherGames = catList.filter((g: any) =>
+            !popularKeywords.some((kw) => (g.name || '').toLowerCase().includes(kw)),
+          );
+
+          // Take all popular games + first 35 others (~50 games total)
+          targetGames = [...popularGames, ...otherGames.slice(0, 35)];
+        }
+
+        for (const game of targetGames) {
+          try {
+            let productsToSync: { item: any; subName?: string }[] = [];
+
+            if (game.hasProducts) {
+              const prodRes = await axios.get(`${baseUrl}/api/products/`, {
+                headers,
+                params: { categoryId: game.game_code, limit: 100 },
+                timeout: 15000,
+              });
+              const items = prodRes.data?.items || [];
+              for (const it of items) {
+                productsToSync.push({ item: it });
+              }
+            } else {
+              // Fetch subcategories (regions or packages)
+              const subRes = await axios.get(`${baseUrl}/api/categories/`, {
+                headers,
+                params: { parentId: game.game_code, limit: 100 },
+                timeout: 10000,
+              });
+              const subItems = subRes.data?.items || [];
+              for (const sub of subItems) {
+                if (sub.hasProducts) {
+                  const subProdRes = await axios.get(`${baseUrl}/api/products/`, {
+                    headers,
+                    params: { categoryId: sub.id, limit: 100 },
+                    timeout: 15000,
+                  });
+                  const items = subProdRes.data?.items || [];
+                  for (const it of items) {
+                    productsToSync.push({ item: it, subName: sub.name });
+                  }
+                }
+              }
+            }
+
+            for (const { item, subName } of productsToSync) {
+              const productCode = item.id;
+              let productName = item.name;
+              if (
+                subName &&
+                subName.toLowerCase() !== 'global' &&
+                !productName.toLowerCase().includes(subName.toLowerCase())
+              ) {
+                productName = `${item.name} (${subName})`;
+              }
+              const costPrice = parseFloat(item.price) || 0;
+              const inStock = (item.quantity ?? 0) > 0 || item.deliveryType === 'direct_topup';
+
+              await this.providerProductModel.findOneAndUpdate(
+                {
+                  providerId: provider._id,
+                  providerProductCode: productCode,
+                },
+                {
+                  providerId: provider._id,
+                  providerProductCode: productCode,
+                  name: productName,
+                  category: game.name, // The actual Game / App Name!
+                  costPrice,
+                  currency: 'USD',
+                  inStock,
+                  rawDetails: {
+                    game_code: game.game_code,
+                    game_name: game.name,
+                    sub_name: subName,
+                    deliveryType: item.deliveryType,
+                    isService: item.isService,
+                    requiredNoteFields: item.requiredNoteFields || [],
+                    game_fields: item.isService ? ['Player ID'] : [],
+                    attributes: item.attributes,
+                    userGuide: item.userGuide,
+                    original_name: item.name,
+                    image_url: game.image_url,
+                  },
+                },
+                { upsert: true, new: true },
+              );
+              totalSynced++;
+            }
+          } catch (itemErr: any) {
+            this.logger.warn(`Failed to sync FoxReload products for ${game.name}: ${itemErr.message}`);
+          }
+        }
+
+        await this.checkStatus(provider._id.toString());
+        return {
+          message: `تمت مزامنة ${totalSynced} منتج عبر ${targetGames.length} لعبة وتطبيق من FoxReload بنجاح`,
+          syncedCount: totalSynced,
+        };
+      } catch (err: any) {
+        this.logger.error(`Error in syncProviderProducts (FoxReload): ${err.message}`);
+        throw new BadRequestException('فشل في مزامنة المنتجات من مزود FoxReload: ' + (err.response?.data?.detail || err.message));
+      }
     }
 
     return { message: 'لا تدعم هذه الفئة المزامنة التلقائية للمزود الحالي', syncedCount: 0 };
@@ -245,9 +663,9 @@ export class ProvidersService {
 
     if (products.length === 0) {
       const provider = await this.findOne(providerId);
-      if (this.isBay2Game(provider)) {
-        // Auto-run initial sync for Bay2Game
-        this.logger.log(`Initial sync for Bay2Game provider ${provider.name}...`);
+      if (this.isBay2Game(provider) || this.isFoxReload(provider)) {
+        // Auto-run initial sync for provider
+        this.logger.log(`Initial sync for provider ${provider.name}...`);
         await this.syncProviderProducts(providerId);
         products = await this.providerProductModel.find(filter).sort({ category: 1, costPrice: 1 });
       } else {
@@ -295,17 +713,22 @@ export class ProvidersService {
   async importToProducts(
     providerProductId: string,
     appId: string,
-    marginType?: ProfitMarginType,
-    marginValue?: number,
+    opts: {
+      name?: string;
+      serviceTemplateId?: string;
+      quantityLabel?: string;
+    } = {},
   ) {
     const item = await this.providerProductModel.findById(providerProductId);
     if (!item) throw new NotFoundException('منتج المزود غير موجود');
 
     const costPrice = item.costPrice;
-    // Margin is configured later from the admin dashboard — import with 0 margin by default
-    const resolvedMarginType = marginType ?? ProfitMarginType.PERCENTAGE;
-    const resolvedMarginValue = marginValue ?? 0;
-    const salePrice = costPrice; // No markup at import time
+
+    // هامش الربح يُقرأ من إعدادات المزود (وليس من المنتج)
+    const provider = await this.providerModel.findById(item.providerId);
+    const marginType = provider?.profitMarginType ?? ProfitMarginType.PERCENTAGE;
+    const marginValue = provider?.profitMarginValue ?? 0;
+    const salePrice = this.computeSalePrice(costPrice, marginType, marginValue);
 
     // Determine requiredFields dynamically from rawDetails.game_fields if available
     const gameFields: string[] = item.rawDetails?.game_fields || [];
@@ -318,14 +741,19 @@ export class ProvidersService {
 
     const newProduct = new this.productModel({
       appId: new Types.ObjectId(appId),
-      name: item.name,
+      name: opts.name?.trim() ? opts.name.trim() : item.name,
       description: item.category,
       type: ProductType.DIRECT_API,
       providerId: item.providerId,
       providerProductCode: item.providerProductCode,
+      serviceTemplateId:
+        opts.serviceTemplateId && Types.ObjectId.isValid(opts.serviceTemplateId)
+          ? new Types.ObjectId(opts.serviceTemplateId)
+          : undefined,
+      quantityLabel: opts.quantityLabel?.trim() || '',
       costPrice,
-      profitMarginType: resolvedMarginType,
-      profitMarginValue: resolvedMarginValue,
+      profitMarginType: marginType,
+      profitMarginValue: marginValue,
       salePrice,
       isActive: true,
       requiredFields,
@@ -338,13 +766,17 @@ export class ProvidersService {
   async batchImportToProducts(
     providerProductIds: string[],
     appId: string,
-    marginType: ProfitMarginType,
-    marginValue: number,
+    opts: {
+      name?: string;
+      serviceTemplateId?: string;
+      quantityLabel?: string;
+    } = {},
   ) {
     const results = [];
     for (const id of providerProductIds) {
       try {
-        const prod = await this.importToProducts(id, appId, marginType, marginValue);
+        // في الاستيراد الجماعي يُطبَّق الاسم فقط إن حُدِّد، وإلا يُترك لكل باقة اسمها
+        const prod = await this.importToProducts(id, appId, opts);
         results.push(prod);
       } catch (err: any) {
         this.logger.warn(`Failed to import provider product ${id}: ${err.message}`);
@@ -396,12 +828,18 @@ export class ProvidersService {
         try {
           response = await axios.post(url, payload, {
             headers: { 'Content-Type': 'application/json' },
-            timeout: 25000,
+            timeout: ProvidersService.ORDER_TIMEOUT_MS,
           });
         } catch (postErr: any) {
-          // If 405 Method Not Allowed or similar, try GET with query params
-          if (postErr.response?.status === 405 || !postErr.response) {
-            response = await axios.get(url, { params: payload, timeout: 25000 });
+          // Fall back to GET only when the provider explicitly rejects the method.
+          // On a timeout/network error we must NOT send a second request: the first
+          // one may already have been executed by the provider (duplicate fulfilment).
+          const methodRejected = [404, 405, 501].includes(postErr.response?.status);
+          if (methodRejected) {
+            response = await axios.get(url, {
+              params: payload,
+              timeout: ProvidersService.ORDER_TIMEOUT_MS,
+            });
           } else {
             throw postErr;
           }
@@ -429,8 +867,89 @@ export class ProvidersService {
           };
         }
       } catch (error: any) {
-        const errMsg = error.response?.data?.message || error.message || 'حدث خطأ أثناء الاتصال بمزود الخدمة';
+        const errMsg = this.isTimeoutError(error)
+          ? 'انتهت مهلة الاستجابة من مزود الخدمة'
+          : error.response?.data?.message || error.message || 'حدث خطأ أثناء الاتصال بمزود الخدمة';
         this.logger.error(`Bay2Game executeOrder error: ${errMsg}`);
+        return {
+          success: false,
+          message: errMsg,
+          raw: error.response?.data,
+        };
+      }
+    } else if (this.isFoxReload(provider)) {
+      const baseUrl = this.getFoxReloadBaseUrl(provider);
+      const headers = this.getFoxReloadHeaders(provider);
+      const url = `${baseUrl}/api/orders/`;
+
+      try {
+        const notePayload: Record<string, any> = {};
+        if (params.gameUserId) {
+          notePayload.login = params.gameUserId;
+          notePayload.account_id = params.gameUserId;
+          notePayload.userId = params.gameUserId;
+          notePayload.player_id = params.gameUserId;
+        }
+        if (params.gameZoneId) {
+          notePayload.zoneId = params.gameZoneId;
+          notePayload.server_id = params.gameZoneId;
+        }
+
+        const orderBody: Record<string, any> = {
+          items: [
+            {
+              itemId: params.productCode,
+              quantity: 1,
+              ...(Object.keys(notePayload).length > 0 ? { note: notePayload } : {}),
+            },
+          ],
+          idempotencyKey: params.reference,
+        };
+
+        this.logger.log(`Executing FoxReload order for ref ${params.reference}, product: ${params.productCode}`);
+
+        const response = await axios.post(url, orderBody, {
+          headers,
+          timeout: ProvidersService.ORDER_TIMEOUT_MS,
+        });
+
+        const data = response.data;
+        if (data && data.id) {
+          const item = data.items && data.items[0];
+          const isFailed = data.status === 'cancelled' || (item && item.fulfillmentStatus === 'failed');
+
+          if (isFailed) {
+            const failReason = data.cancelReason || item?.error || 'فشل تنفيذ الطلب لدى مزود FoxReload';
+            return {
+              success: false,
+              message: failReason,
+              raw: data,
+            };
+          }
+
+          // Refresh provider balance in background
+          this.checkStatus(provider._id.toString()).catch(() => {});
+
+          const codes = item?.externalData || [];
+          return {
+            success: true,
+            transactionId: data.id,
+            balanceAfter: provider.balance,
+            message: codes.length > 0 ? `تم استلام الكود: ${codes.join(', ')}` : 'تم إرسال الطلب وتنفيذه بنجاح عبر FoxReload',
+            raw: data,
+          };
+        } else {
+          return {
+            success: false,
+            message: data?.detail || 'فشل تنفيذ الطلب لدى مزود FoxReload',
+            raw: data,
+          };
+        }
+      } catch (error: any) {
+        const errMsg = this.isTimeoutError(error)
+          ? 'انتهت مهلة الاستجابة من مزود الخدمة'
+          : error.response?.data?.detail || error.response?.data?.message || error.message || 'حدث خطأ أثناء الاتصال بمزود FoxReload';
+        this.logger.error(`FoxReload executeOrder error: ${errMsg}`);
         return {
           success: false,
           message: errMsg,
@@ -465,7 +984,24 @@ export class ProvidersService {
       } catch (err: any) {
         return {
           status: 'error',
+          isTransportError: true,
           message: err.response?.data?.message || err.message,
+        };
+      }
+    } else if (this.isFoxReload(provider)) {
+      const baseUrl = this.getFoxReloadBaseUrl(provider);
+      const headers = this.getFoxReloadHeaders(provider);
+      try {
+        const res = await axios.get(`${baseUrl}/api/orders/${reference}`, {
+          headers,
+          timeout: 10000,
+        });
+        return res.data;
+      } catch (err: any) {
+        return {
+          status: 'error',
+          isTransportError: true,
+          message: err.response?.data?.detail || err.message,
         };
       }
     }

@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../core/theme/app_colors.dart';
 import '../core/theme/app_typography.dart';
 import '../models/user_model.dart';
 import '../providers/auth_provider.dart';
@@ -16,6 +17,7 @@ import '../screens/supervisor/supervisor_dashboard_screen.dart';
 import '../screens/agent/agent_dashboard_screen.dart';
 import 'margin_dialog.dart';
 import 'update_check_dialog.dart';
+import 'user_avatar.dart';
 
 class UnifiedTactileHeader extends StatelessWidget {
   final UserModel? user;
@@ -71,20 +73,42 @@ class UnifiedTactileHeader extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
+        // خلفية داكنة: العنوان أبيض، فكان نصّه غير مقروء على الأبيض سابقاً
+        backgroundColor: AppColors.darkNav,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: Color(0xFFE2E8F0)),
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.14),
+            width: 1.2,
+          ),
         ),
+        titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        actionsPadding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
         title: Row(
           children: [
-            const Icon(Icons.logout, color: Color(0xFFEF4444), size: 22),
-            const SizedBox(width: 10),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFEF4444).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: const Color(0xFFEF4444).withValues(alpha: 0.35),
+                ),
+              ),
+              child: const Icon(
+                Icons.logout_rounded,
+                color: Color(0xFFF87171),
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
             Text(
               'تسجيل الخروج',
               style: AppTypography.cairo(
                 fontWeight: FontWeight.bold,
-                fontSize: 18,
+                fontSize: 17,
+                color: Colors.white,
               ),
             ),
           ],
@@ -92,41 +116,71 @@ class UnifiedTactileHeader extends StatelessWidget {
         content: Text(
           'هل أنت متأكد من رغبتك في تسجيل الخروج من تطبيق JGO؟',
           style: AppTypography.cairo(
-            color: const Color(0xFF64748B),
-            fontSize: 14,
+            color: const Color(0xFF94A3B8),
+            fontSize: 13.5,
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'إلغاء',
-              style: AppTypography.cairo(color: const Color(0xFF64748B)),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFEF4444),
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
+          Row(
+            children: [
+              Expanded(
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: const Color(0xFF94A3B8),
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.12),
+                      ),
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(
+                    'إلغاء',
+                    style: AppTypography.cairo(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
               ),
-            ),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              final auth = Provider.of<AuthProvider>(context, listen: false);
-              await auth.logout();
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
-            },
-            child: Text(
-              'تسجيل الخروج',
-              style: AppTypography.cairo(fontWeight: FontWeight.bold),
-            ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFEF4444),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    final auth = Provider.of<AuthProvider>(
+                      context,
+                      listen: false,
+                    );
+                    await auth.logout();
+                    if (context.mounted) {
+                      Navigator.of(context).pushAndRemoveUntil(
+                        MaterialPageRoute(builder: (_) => const LoginScreen()),
+                        (route) => false,
+                      );
+                    }
+                  },
+                  child: Text(
+                    'تسجيل الخروج',
+                    style: AppTypography.cairo(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -143,24 +197,24 @@ class UnifiedTactileHeader extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+        backgroundColor: const Color.fromARGB(255, 10, 15, 26),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+        contentPadding: const EdgeInsets.fromLTRB(18, 14, 18, 18),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.15)),
+          borderRadius: BorderRadius.circular(22),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.14)),
         ),
-        titlePadding: const EdgeInsets.fromLTRB(20, 18, 16, 0),
+        titlePadding: const EdgeInsets.fromLTRB(18, 16, 12, 0),
         title: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.all(7),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0284C7).withValues(alpha: 0.2),
-                    borderRadius: BorderRadius.circular(10),
+                    color: const Color(0xFF0284C7).withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(8),
                     border: Border.all(
                       color: const Color(0xFF0284C7).withValues(alpha: 0.4),
                     ),
@@ -168,30 +222,17 @@ class UnifiedTactileHeader extends StatelessWidget {
                   child: const Icon(
                     Icons.qr_code_2_rounded,
                     color: Color(0xFF38BDF8),
-                    size: 20,
+                    size: 18,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'بطاقة العميل // DIGITAL PASS',
-                      style: AppTypography.plusJakartaSans(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 13,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                    Text(
-                      'باركود الهوية الفورية والمشاركة',
-                      style: AppTypography.cairo(
-                        color: const Color(0xFF94A3B8),
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                const SizedBox(width: 8),
+                Text(
+                  'باركود الحساب',
+                  style: AppTypography.cairo(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
               ],
             ),
@@ -199,399 +240,146 @@ class UnifiedTactileHeader extends StatelessWidget {
               onPressed: () => Navigator.of(ctx).pop(),
               icon: const Icon(
                 Icons.close_rounded,
-                color: Colors.white70,
+                color: Colors.white60,
                 size: 20,
               ),
               visualDensity: VisualDensity.compact,
-              splashRadius: 18,
             ),
           ],
         ),
         content: SizedBox(
-          width: 320,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 1. Client Identity Bento Card
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1E293B),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF0284C7), Color(0xFF0369A1)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          shape: BoxShape.circle,
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(
-                                0xFF0284C7,
-                              ).withValues(alpha: 0.35),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: Center(
-                          child: Text(
-                            clientName.isNotEmpty
-                                ? clientName[0].toUpperCase()
-                                : 'C',
-                            style: AppTypography.plusJakartaSans(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w900,
-                              fontSize: 18,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              clientName,
-                              style: AppTypography.cairo(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w800,
-                                fontSize: 15,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 1.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: const Color(
-                                      0xFF10B981,
-                                    ).withValues(alpha: 0.15),
-                                    borderRadius: BorderRadius.circular(6),
-                                    border: Border.all(
-                                      color: const Color(
-                                        0xFF10B981,
-                                      ).withValues(alpha: 0.4),
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(
-                                        Icons.verified_rounded,
-                                        size: 11,
-                                        color: Color(0xFF34D399),
-                                      ),
-                                      const SizedBox(width: 3),
-                                      Text(
-                                        currentUser?.isAgent == true
-                                            ? 'وكيل معتمد'
-                                            : currentUser?.isAdmin == true
-                                            ? 'مدير النظام'
-                                            : currentUser?.isSupervisor == true
-                                            ? 'مشرف مسؤول'
-                                            : 'عميل موثق',
-                                        style: AppTypography.cairo(
-                                          color: const Color(0xFF34D399),
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // 2. High-Contrast Barcode & QR Code Digital Canvas
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.2),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      // 1D Linear Barcode (Code 128)
-                      BarcodeWidget(
-                        barcode: Barcode.code128(),
-                        data: uid,
-                        width: double.infinity,
-                        height: 52,
-                        drawText: false,
-                        color: const Color(0xFF0F172A),
-                      ),
-                      const SizedBox(height: 6),
-                      // UID Digits Below Barcode
-                      Text(
-                        uid,
-                        style: AppTypography.technicalCode(
-                          color: const Color(0xFF0F172A),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 2.0,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-
-                      // Perforated Dashed Divider
-                      Row(
-                        children: [
-                          Expanded(
-                            child: LayoutBuilder(
-                              builder: (context, constraints) {
-                                return Flex(
-                                  direction: Axis.horizontal,
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.spaceBetween,
-                                  children: List.generate(
-                                    (constraints.constrainWidth() / 8).floor(),
-                                    (_) => const SizedBox(
-                                      width: 4,
-                                      height: 1.2,
-                                      child: DecoratedBox(
-                                        decoration: BoxDecoration(
-                                          color: Color(0xFFCBD5E1),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-
-                      // 2D QR Code for Fast Scanning
-                      QrImageView(
-                        data: uid,
-                        version: QrVersions.auto,
-                        size: 140.0,
-                        padding: EdgeInsets.zero,
-                        backgroundColor: Colors.white,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'امسح الباركود للشحن أو التحويل الفوري',
-                        style: AppTypography.cairo(
-                          color: const Color(0xFF64748B),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-
-                // 3. Fast Copy Pill
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(
-                            Icons.fingerprint_rounded,
-                            size: 16,
-                            color: Color(0xFF38BDF8),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'آيدي الحساب:',
-                            style: AppTypography.cairo(
-                              color: const Color(0xFF94A3B8),
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            uid,
-                            style: AppTypography.technicalCode(
-                              color: const Color(0xFFFDE68A),
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                      InkWell(
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: uid));
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'تم نسخ آيدي الحساب: $uid بنجاح',
-                                style: AppTypography.cairo(),
-                              ),
-                              backgroundColor: const Color(0xFF059669),
-                              behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(8),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(
-                                Icons.copy_rounded,
-                                color: Colors.white,
-                                size: 14,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'نسخ',
-                                style: AppTypography.cairo(
-                                  color: Colors.white,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
-        actions: [
-          Row(
+          width: 280,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              // Share Button (مشاركة)
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0284C7),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+              // كرت الباركود الأبيض البسيط والواضح
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    QrImageView(
+                      data: uid,
+                      version: QrVersions.auto,
+                      size: 140.0,
+                      padding: EdgeInsets.zero,
+                      backgroundColor: Colors.white,
+                    ),
+                    const SizedBox(height: 10),
+                    BarcodeWidget(
+                      barcode: Barcode.code128(),
+                      data: uid,
+                      width: double.infinity,
+                      height: 38,
+                      drawText: false,
+                      color: const Color(0xFF0F172A),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      uid,
+                      style: AppTypography.technicalCode(
+                        color: const Color(0xFF0F172A),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
+
+              // أزرار سريعة: نسخ ومشاركة
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.copy_rounded, size: 15),
+                      label: Text(
+                        'نسخ الآيدي',
+                        style: AppTypography.cairo(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: uid));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'تم نسخ آيدي الحساب: $uid بنجاح',
+                              style: AppTypography.cairo(),
+                            ),
+                            backgroundColor: const Color(0xFF059669),
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                  icon: const Icon(Icons.share_rounded, size: 18),
-                  label: Text(
-                    'مشاركة الآيدي',
-                    style: AppTypography.cairo(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                    ),
-                  ),
-                  onPressed: () async {
-                    final shareText =
-                        '''
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.2),
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: const Icon(Icons.share_rounded, size: 15),
+                      label: Text(
+                        'مشاركة',
+                        style: AppTypography.cairo(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                      onPressed: () async {
+                        final shareText =
+                            '''
 بطاقة حساب JGO:
 👤 الاسم: $clientName
 🆔 آيدي الحساب (UID): $uid
-⚡ يمكن استخدام هذا الآيدي للتحويل المالي المباشر أو شحن الرصيد الفوري عبر التطبيق.
+⚡ يمكن استخدام هذا الآيدي للتحويل المالي المباشر أو شحن الرصيد الفوري.
 '''
-                            .trim();
-                    final box = context.findRenderObject() as RenderBox?;
-                    final origin = box != null
-                        ? box.localToGlobal(Offset.zero) & box.size
-                        : null;
-                    await SharePlus.instance.share(
-                      ShareParams(
-                        text: shareText,
-                        subject: 'JGO Account ID - $uid',
-                        sharePositionOrigin: origin,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              const SizedBox(width: 8),
-
-              // Close Button (إغلاق)
-              TextButton(
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.white70,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: BorderSide(
-                      color: Colors.white.withValues(alpha: 0.15),
+                                .trim();
+                        final box = context.findRenderObject() as RenderBox?;
+                        final origin = box != null
+                            ? box.localToGlobal(Offset.zero) & box.size
+                            : null;
+                        await SharePlus.instance.share(
+                          ShareParams(
+                            text: shareText,
+                            subject: 'JGO Account ID - $uid',
+                            sharePositionOrigin: origin,
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ),
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: Text(
-                  'إغلاق',
-                  style: AppTypography.cairo(
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -631,23 +419,87 @@ class UnifiedTactileHeader extends StatelessWidget {
     required IconData icon,
     required Color iconColor,
     required String title,
+    String? subtitle,
     Color? textColor,
+    bool isDestructive = false,
   }) {
     return PopupMenuItem<String>(
       value: value,
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: iconColor),
-          const SizedBox(width: 12),
-          Text(
-            title,
-            style: AppTypography.cairo(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: textColor ?? const Color(0xFF0F172A),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      height: 38,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(9),
+          // صف الخروج: خانة مُصبغة بلون الخطأ فوق السطح الفاتح
+          color: isDestructive
+              ? AppColors.rose.withValues(alpha: 0.07)
+              : Colors.transparent,
+          border: isDestructive
+              ? Border.all(color: AppColors.rose.withValues(alpha: 0.22))
+              : null,
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: iconColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: iconColor.withValues(alpha: 0.30),
+                  width: 0.8,
+                ),
+              ),
+              child: Icon(icon, size: 13.5, color: iconColor),
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.cairo(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w700,
+                      color: textColor ?? AppColors.slate900,
+                      height: 1.15,
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 0.5),
+                    Text(
+                      subtitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.technicalCode(
+                        fontSize: 8,
+                        fontWeight: FontWeight.w600,
+                        color: isDestructive
+                            ? AppColors.rose.withValues(alpha: 0.80)
+                            : AppColors.slate500,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_left_rounded,
+              size: 14,
+              color: isDestructive
+                  ? AppColors.rose.withValues(alpha: 0.60)
+                  : AppColors.slate300,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -666,45 +518,46 @@ class UnifiedTactileHeader extends StatelessWidget {
     final String clientId = currentUser?.displayId ?? '8940-CX';
 
     // Role badge text and tailored luxury color tokens
+    // الخلفية داكنة الآن (كلوحة الشريط السفلي)، فيُعرض شارة الدور كلون مُصبّغ
+    // فوق الداكن بدل خلفيات فاتحة كانت مصمّمة للشريط الأبيض.
     final String roleBadgeText;
-    final Color roleBadgeBg;
+    final Color roleAccent;
     final Color roleBadgeTextCol;
-    final Color roleBadgeBorder;
 
     if (currentUser?.isAdmin == true) {
       roleBadgeText = "ادمن";
-      roleBadgeBg = const Color(0xFFFAF5FF);
-      roleBadgeTextCol = const Color(0xFF7E22CE);
-      roleBadgeBorder = const Color(0xFFD8B4FE);
+      roleAccent = const Color(0xFFA855F7);
+      roleBadgeTextCol = const Color(0xFFD8B4FE);
     } else if (currentUser?.isSupervisor == true ||
         currentUser?.role.toLowerCase() == 'provider') {
       roleBadgeText = "مقدم خدمة";
-      roleBadgeBg = const Color(0xFFF0F9FF);
-      roleBadgeTextCol = const Color(0xFF0369A1);
-      roleBadgeBorder = const Color(0xFFBAE6FD);
+      roleAccent = const Color(0xFF0EA5E9);
+      roleBadgeTextCol = const Color(0xFF7DD3FC);
     } else if (currentUser?.isAgent == true) {
       roleBadgeText = "وكيل";
-      roleBadgeBg = const Color(0xFFFFFBEB);
-      roleBadgeTextCol = const Color(0xFFB45309);
-      roleBadgeBorder = const Color(0xFFFDE68A);
+      roleAccent = AppColors.ticketAmber;
+      roleBadgeTextCol = const Color(0xFFFCD34D);
     } else {
       roleBadgeText = "عميل";
-      roleBadgeBg = const Color(0xFFECFDF5);
-      roleBadgeTextCol = const Color(0xFF047857);
-      roleBadgeBorder = const Color(0xFFA7F3D0);
+      roleAccent = AppColors.accentGreen;
+      roleBadgeTextCol = const Color(0xFF6EE7B7);
     }
+
+    final Color roleBadgeBg = roleAccent.withValues(alpha: 0.16);
+    final Color roleBadgeBorder = roleAccent.withValues(alpha: 0.42);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        // نفس لوحة الشريط السفلي العائم: داكن slate + حدّ أدكن منه
+        color: AppColors.darkNav,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
+        border: Border.all(color: AppColors.slate800, width: 1.0),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -764,7 +617,7 @@ class UnifiedTactileHeader extends StatelessWidget {
                         style: AppTypography.cairo(
                           fontSize: 13,
                           fontWeight: FontWeight.w800,
-                          color: const Color(0xFF0F172A),
+                          color: Colors.white,
                           height: 1.2,
                         ),
                       ),
@@ -782,32 +635,38 @@ class UnifiedTactileHeader extends StatelessWidget {
                               style: AppTypography.technicalCode(
                                 fontSize: 9.5,
                                 fontWeight: FontWeight.w700,
-                                color: const Color(0xFF64748B),
+                                color: AppColors.slate400,
                                 letterSpacing: 0.3,
                               ),
                             ),
                           ),
                           const SizedBox(width: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 5,
-                              vertical: 1,
-                            ),
-                            decoration: BoxDecoration(
-                              color: roleBadgeBg,
-                              borderRadius: BorderRadius.circular(5),
-                              border: Border.all(
-                                color: roleBadgeBorder,
-                                width: 0.8,
+                          // شارة الدور قابلة للتقلّص: على العروض الضيقة (320dp) تمنع
+                          // طفو الصف حين تضيق مساحة الهوية بسبب كتلة الأدوات اليمنى.
+                          Flexible(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
                               ),
-                            ),
-                            child: Text(
-                              roleBadgeText,
-                              style: AppTypography.cairo(
-                                fontSize: 8.5,
-                                fontWeight: FontWeight.w900,
-                                color: roleBadgeTextCol,
-                                height: 1.1,
+                              decoration: BoxDecoration(
+                                color: roleBadgeBg,
+                                borderRadius: BorderRadius.circular(5),
+                                border: Border.all(
+                                  color: roleBadgeBorder,
+                                  width: 0.8,
+                                ),
+                              ),
+                              child: Text(
+                                roleBadgeText,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.cairo(
+                                  fontSize: 8.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: roleBadgeTextCol,
+                                  height: 1.1,
+                                ),
                               ),
                             ),
                           ),
@@ -837,9 +696,9 @@ class UnifiedTactileHeader extends StatelessWidget {
                     height: 36,
                     padding: const EdgeInsets.symmetric(horizontal: 7),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
+                      color: AppColors.slate800,
                       borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: AppColors.slate700),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -857,7 +716,7 @@ class UnifiedTactileHeader extends StatelessWidget {
                           "\$$balanceStr",
                           style: AppTypography.balance(
                             fontSize: 11.5,
-                            color: const Color(0xFF0F172A),
+                            color: Colors.white,
                           ),
                         ),
                       ],
@@ -877,97 +736,86 @@ class UnifiedTactileHeader extends StatelessWidget {
                     width: 36,
                     height: 36,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: AppColors.slate800,
                       borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: const Color(0xFFE2E8F0)),
+                      border: Border.all(color: AppColors.slate700),
                     ),
                     child: const Icon(
                       Icons.qr_code_scanner_rounded,
                       size: 18,
-                      color: Color(0xFF334155),
+                      color: AppColors.slate300,
                     ),
                   ),
                 ),
               ),
               const SizedBox(width: 5),
 
-              // Tool D: User Profile Avatar with Fast Menu
+              // Tool D: User Profile Avatar with Fast Menu (القائمة الجانبية)
               PopupMenuButton<String>(
-                tooltip: 'قائمة الحساب',
-                offset: const Offset(0, 46),
-                color: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                ),
+                tooltip: 'القائمة الجانبية',
+                offset: const Offset(0, 44),
+                // سطح البطاقة الفاتح المعتمد في كل بطاقات التطبيق بدل الأسود
+                color: AppColors.surfaceCard,
+                surfaceTintColor: Colors.transparent,
+                elevation: 6,
+                shadowColor: AppColors.slate900.withValues(alpha: 0.30),
+                // لمسة التذكرة: فتحتا تثقيب على الطرفين وخط مثقَّب بينهما
+                shape: const _TicketMenuShape(),
+                clipBehavior: Clip.antiAlias,
+                // حشو رأسي متماثل مع صفوف متساوية = التثقيب في المنتصف بالظبط
+                menuPadding: const EdgeInsets.symmetric(vertical: 8),
+                constraints: const BoxConstraints(minWidth: 210, maxWidth: 234),
                 onSelected: (value) =>
                     _handleMenuAction(context, value, currentUser),
                 itemBuilder: (context) {
-                  final bool isPrivileged =
-                      currentUser != null &&
-                      (currentUser.isAdmin ||
-                          currentUser.isSupervisor ||
-                          currentUser.isAgent);
                   return [
-                    if (isPrivileged && !isDashboard) ...[
-                      _buildPopupItem(
-                        value: 'dashboard',
-                        icon: Icons.dashboard_rounded,
-                        iconColor: const Color(0xFFF59E0B),
-                        title: 'لوحة التحكم // DASHBOARD',
-                        textColor: const Color(0xFF0F172A),
-                      ),
-                      const PopupMenuDivider(),
-                    ],
                     _buildPopupItem(
                       value: 'account',
-                      icon: Icons.person_outline,
-                      iconColor: const Color(0xFF0F172A),
-                      title: 'حسابي',
-                    ),
-                    _buildPopupItem(
-                      value: 'topup',
-                      icon: Icons.account_balance_wallet_outlined,
-                      iconColor: const Color(0xFF10B981),
-                      title: 'شحن رصيد',
+                      icon: Icons.person_rounded,
+                      iconColor: AppColors.primaryBlue,
+                      title: 'الملف الشخصي',
+                      subtitle: 'MY PROFILE // INFO',
                     ),
                     _buildPopupItem(
                       value: 'margin',
                       icon: Icons.percent_rounded,
-                      iconColor: const Color(0xFFF59E0B),
+                      iconColor: AppColors.ticketAmber,
                       title: 'تحديد نسبة الربح',
+                      subtitle: 'PROFIT MARGIN RATE',
                     ),
                     _buildPopupItem(
                       value: 'update',
-                      icon: Icons.system_update_outlined,
-                      iconColor: const Color(0xFF0284C7),
+                      icon: Icons.system_update_rounded,
+                      iconColor: AppColors.accentGreen,
                       title: 'التحقق من التحديثات',
+                      subtitle: 'SYSTEM // OTA CHECK',
                     ),
-                    const PopupMenuDivider(),
                     _buildPopupItem(
                       value: 'logout',
                       icon: Icons.logout_rounded,
-                      iconColor: const Color(0xFFEF4444),
-                      title: 'تسجيل خروج',
-                      textColor: const Color(0xFFEF4444),
+                      iconColor: AppColors.rose,
+                      title: 'تسجيل الخروج',
+                      subtitle: 'TERMINATE SESSION',
+                      textColor: AppColors.errorLight,
+                      isDestructive: true,
                     ),
                   ];
                 },
                 child: Container(
-                  width: 36,
-                  height: 36,
+                  width: 38,
+                  height: 38,
+                  padding: const EdgeInsets.all(1),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(9),
-                    border: Border.all(
-                      color: const Color(0xFFE2E8F0),
-                      width: 1.2,
-                    ),
-                    image: const DecorationImage(
-                      image: NetworkImage(
-                        "https://lh3.googleusercontent.com/aida-public/AB6AXuB-54C4RiT1G-MnnGHXxePYK4XTwWpp8cZLZq5d9iSS83qt9uQx8-QJaSs6GhCzqqu-Ypi18_ngAvYc8V9bQbgNQCJcMChBuP7S5_tCCf9_0wKIcrA9kXtl8nfSQ-MGPtfNQmaB_3smXptXlY9DRqB3WbIJp7R6RCHNqjn4gkkTOVW5qyP-a2spBPMfjUARwjI6ajSg5K2Cd3YjQU6jg0k1ReaP--SrxuCLe92zWyZHOs6jeJNkvUzL",
-                      ),
-                      fit: BoxFit.cover,
-                    ),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.slate700, width: 1.2),
+                  ),
+                  // الصورة الشخصية المرفوعة، أو أول حرف من الاسم عند غيابها
+                  child: UserAvatar(
+                    url: currentUser?.avatar,
+                    initial: currentUser?.initial ?? 'U',
+                    size: 36,
+                    circular: false,
+                    backgroundColor: AppColors.slate800,
                   ),
                 ),
               ),
@@ -977,4 +825,108 @@ class UnifiedTactileHeader extends StatelessWidget {
       ),
     );
   }
+}
+
+// ---------------------------------------------------------------------------
+// لمسة التذكرة للقائمة السريعة: نفس مسارات TicketPassClipper المستخدمة في
+// بطاقات التطبيق (زوايا دائرية + فتحة تثقيب في كل جانب) مع خط مثقَّب يرسم
+// نفسه على ارتفاع الفتحات تماماً، فلا يحتاج أي فاصل بين الصفوف.
+// التثقيب عند منتصف الارتفاع: القائمة عدد صفوفها زوجي ومتساوية والحشو
+// الرأسي متماثل، لذلك منتصف الارتفاع يقع دائماً على الحد بين صفين.
+// ---------------------------------------------------------------------------
+class _TicketMenuShape extends ShapeBorder {
+  const _TicketMenuShape({
+    this.cornerRadius = 14,
+    this.notchRadius = 6,
+    this.borderColor = AppColors.outlineVariant,
+    this.tearColor = AppColors.slate300,
+  });
+
+  final double cornerRadius;
+  final double notchRadius;
+  final Color borderColor;
+  final Color tearColor;
+
+  Path _ticketPath(Rect rect) {
+    final r = cornerRadius;
+    final tearY = rect.top + rect.height / 2;
+    final nr = notchRadius < rect.height / 2 ? notchRadius : rect.height / 4;
+
+    return Path()
+      ..moveTo(rect.left + r, rect.top)
+      ..lineTo(rect.right - r, rect.top)
+      ..arcToPoint(Offset(rect.right, rect.top + r), radius: Radius.circular(r))
+      ..lineTo(rect.right, tearY - nr)
+      // الفتحة اليمنى تدخل داخل القائمة
+      ..arcToPoint(
+        Offset(rect.right, tearY + nr),
+        radius: Radius.circular(nr),
+        clockwise: false,
+      )
+      ..lineTo(rect.right, rect.bottom - r)
+      ..arcToPoint(
+        Offset(rect.right - r, rect.bottom),
+        radius: Radius.circular(r),
+      )
+      ..lineTo(rect.left + r, rect.bottom)
+      ..arcToPoint(
+        Offset(rect.left, rect.bottom - r),
+        radius: Radius.circular(r),
+      )
+      ..lineTo(rect.left, tearY + nr)
+      // الفتحة اليسرى تدخل داخل القائمة
+      ..arcToPoint(
+        Offset(rect.left, tearY - nr),
+        radius: Radius.circular(nr),
+        clockwise: false,
+      )
+      ..lineTo(rect.left, rect.top + r)
+      ..arcToPoint(Offset(rect.left + r, rect.top), radius: Radius.circular(r))
+      ..close();
+  }
+
+  @override
+  EdgeInsetsGeometry get dimensions =>
+      EdgeInsets.symmetric(horizontal: cornerRadius, vertical: cornerRadius);
+
+  @override
+  Path getInnerPath(Rect rect, {TextDirection? textDirection}) =>
+      _ticketPath(rect);
+
+  @override
+  Path getOuterPath(Rect rect, {TextDirection? textDirection}) =>
+      _ticketPath(rect);
+
+  @override
+  void paint(Canvas canvas, Rect rect, {TextDirection? textDirection}) {
+    // حدود التذكرة تتبع القصّة بما فيها الفتحتان
+    canvas.drawPath(
+      _ticketPath(rect),
+      Paint()
+        ..color = borderColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1,
+    );
+
+    // خط التثقيب: نقط بين الفتحتين بعيداً عن حواف القص
+    final tearY = rect.top + rect.height / 2;
+    final dash = Paint()
+      ..color = tearColor
+      ..strokeWidth = 1;
+    final right = rect.right - notchRadius - 4;
+    double x = rect.left + notchRadius + 4;
+    while (x < right) {
+      final next = x + 4 > right ? right : x + 4;
+      canvas.drawLine(Offset(x, tearY), Offset(next, tearY), dash);
+      x += 7;
+    }
+  }
+
+  @override
+  ShapeBorder scale(double t) => _TicketMenuShape(
+    cornerRadius: cornerRadius * t,
+    notchRadius: notchRadius * t,
+    borderColor: borderColor,
+    tearColor: tearColor,
+  );
 }

@@ -6,12 +6,12 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/agent_user_model.dart';
+import '../../models/user_model.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../user/user_main_screen.dart';
-import '../auth/login_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
-import '../../widgets/live_status_console.dart';
+import '../../widgets/digital_pass_card.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 
 class AgentDashboardScreen extends StatefulWidget {
@@ -59,73 +59,6 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
     provider.refreshAll();
   }
 
-  void _showLogoutDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.outline),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.logout_rounded, color: AppColors.error, size: 22),
-            const SizedBox(width: 10),
-            Text(
-              'تسجيل الخروج',
-              style: AppTypography.cairo(
-                fontWeight: FontWeight.w900,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'هل أنت متأكد من رغبتك في تسجيل الخروج من لوحة الوكيل المعتمد؟',
-          style: AppTypography.cairo(
-            color: AppColors.textSecondary,
-            fontSize: 13,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: Text(
-              'إلغاء',
-              style: AppTypography.cairo(color: AppColors.textSecondary),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-              elevation: 0,
-            ),
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              final auth = Provider.of<AuthProvider>(context, listen: false);
-              await auth.logout();
-              if (mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
-            },
-            child: Text(
-              'خروج',
-              style: AppTypography.cairo(fontWeight: FontWeight.w800),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final agentProvider = Provider.of<AgentProvider>(context);
@@ -154,39 +87,31 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                     ),
                   ),
 
-                  // 1. Vault Header
-                  SliverToBoxAdapter(
-                    child: _buildVaultHeader(agentUser, stats),
-                  ),
+                  // 1. شريط الهوية المضغوط (بديل الكرت العلوي)
+                  SliverToBoxAdapter(child: _identityStrip(agentUser)),
 
-                  // 2. Metrics Bento Grid
+                  // 2. جدول ملخص العمليات (مضغوط + هوية تذكرة)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                      child: _buildMetricsGrid(stats),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: _opsSummaryTable(stats, agentUser),
                     ),
                   ),
 
-                  // 3. Quick Action Bar (Add Client / Link Client)
+                  // 3. أزرار الإجراءات السريعة
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                       child: _buildQuickActionBar(),
                     ),
                   ),
 
-                  // 4. Tab Bar (Sub-Users vs Transfers Log)
+                  // 4. التبويبات (العملاء / سجل التحويلات)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
                       child: Container(
-                        padding: const EdgeInsets.all(4),
+                        padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(
                           color: AppColors.surfaceDim,
                           borderRadius: BorderRadius.circular(14),
@@ -196,7 +121,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                           controller: _tabController,
                           indicator: BoxDecoration(
                             color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
+                            borderRadius: BorderRadius.circular(11),
                             boxShadow: [
                               BoxShadow(
                                 color: Colors.black.withValues(alpha: 0.05),
@@ -209,40 +134,30 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                           unselectedLabelColor: AppColors.textSecondary,
                           labelStyle: AppTypography.cairo(
                             fontWeight: FontWeight.w900,
-                            fontSize: 13,
+                            fontSize: 12.5,
                           ),
                           unselectedLabelStyle: AppTypography.cairo(
                             fontWeight: FontWeight.w700,
-                            fontSize: 13,
+                            fontSize: 12.5,
                           ),
                           indicatorSize: TabBarIndicatorSize.tab,
                           dividerColor: Colors.transparent,
+                          labelPadding: const EdgeInsets.symmetric(
+                            horizontal: 4,
+                          ),
                           tabs: [
                             Tab(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(
-                                    Icons.people_alt_rounded,
-                                    size: 16,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'العملاء التابعون (${stats.totalSubUsers})',
-                                  ),
-                                ],
+                              height: 38,
+                              child: _tabLabel(
+                                Icons.people_alt_rounded,
+                                'العملاء (${stats.totalSubUsers})',
                               ),
                             ),
                             Tab(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Icon(Icons.history_rounded, size: 16),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    'سجل التحويلات (${stats.transferCount})',
-                                  ),
-                                ],
+                              height: 38,
+                              child: _tabLabel(
+                                Icons.swap_vert_rounded,
+                                'التحويلات (${agentProvider.transfers.length})',
                               ),
                             ),
                           ],
@@ -251,7 +166,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                     ),
                   ),
 
-                  // 5. Dynamic Content (Tab 0: Sub-users with filters / Tab 1: Transfers log)
+                  // 5. المحتوى (العملاء / سجل التحويلات)
                   SliverFillRemaining(
                     hasScrollBody: true,
                     child: TabBarView(
@@ -285,296 +200,600 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
     }
   }
 
-  // --- Top Vault Header ---
-  Widget _buildVaultHeader(dynamic agentUser, AgentDashboardStats stats) {
-    final balance = stats.agentBalance > 0
-        ? stats.agentBalance
-        : (agentUser?.balance ?? 0.0);
-
-    return Container(
-      margin: const EdgeInsets.all(16),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.darkNav,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.35),
-          width: 1.2,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.darkNav.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+  // --- شريط الهوية المضغوط (بديل الكرت العلوي) ---
+  Widget _identityStrip(UserModel? agentUser) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 0),
+      child: Row(
         children: [
-          // Top Row: Agent Profile & Controls
-          Row(
-            children: [
-              // Avatar with Agent Storefront Emblem
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [AppColors.primaryBlue, Color(0xFF0369A1)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.primaryBlue.withValues(alpha: 0.35),
-                      blurRadius: 10,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.storefront_rounded,
-                  color: Colors.white,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+          _iconChip(AppColors.primaryBlue, Icons.storefront_rounded, size: 36),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
                   children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            agentUser?.name ?? 'الوكيل المعتمد',
-                            style: AppTypography.cairo(
-                              color: Colors.white,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w900,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: AppColors.accentGreen.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: AppColors.accentGreen.withValues(
-                                alpha: 0.5,
-                              ),
-                            ),
-                          ),
-                          child: Text(
-                            'وكيل معتمد',
-                            style: AppTypography.cairo(
-                              color: AppColors.accentGreen,
-                              fontSize: 9.5,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Text(
-                          'TKT #${agentUser?.displayId ?? "AGENT"}',
-                          style: AppTypography.technicalCode(
-                            color: AppColors.ticketAmber,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          agentUser?.email ?? '',
-                          style: AppTypography.cairo(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 10.5,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              // Refresh Icon Button
-              IconButton(
-                icon: const Icon(
-                  Icons.refresh_rounded,
-                  color: Colors.white70,
-                  size: 20,
-                ),
-                tooltip: 'تحديث البيانات',
-                onPressed: _loadData,
-              ),
-              // Logout Icon Button
-              IconButton(
-                icon: const Icon(
-                  Icons.logout_rounded,
-                  color: Color(0xFFF87171),
-                  size: 20,
-                ),
-                tooltip: 'تسجيل الخروج',
-                onPressed: _showLogoutDialog,
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-          const Divider(color: Colors.white12, height: 1),
-          const SizedBox(height: 14),
-
-          // Bottom Row: Balance Display & Quick Fund
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 7,
-                        height: 7,
-                        decoration: const BoxDecoration(
-                          color: AppColors.accentGreen,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'رصيد محفظة الوكيل المتاح للتحويل',
+                    Flexible(
+                      child: Text(
+                        agentUser?.name ?? 'الوكيل المعتمد',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
-                          color: Colors.white.withValues(alpha: 0.7),
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.baseline,
-                    textBaseline: TextBaseline.alphabetic,
-                    children: [
-                      Text(
-                        '\$${balance.toStringAsFixed(2)}',
-                        style: AppTypography.plusJakartaSans(
-                          color: Colors.white,
-                          fontSize: 26,
+                          fontSize: 13.5,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
+                          color: AppColors.textPrimary,
                         ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'USDT',
-                        style: AppTypography.technicalCode(
-                          color: AppColors.ticketAmber,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              // Quick Info Badge
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.white12),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.bolt_rounded,
-                      color: AppColors.ticketAmber,
-                      size: 16,
                     ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'تحويل فوري 0.0s',
-                      style: AppTypography.cairo(
-                        color: Colors.white,
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w800,
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: _pill(
+                        'وكيل معتمد',
+                        AppColors.accentGreen,
+                        dot: true,
                       ),
                     ),
                   ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Row(
+                  children: [
+                    Text(
+                      'TKT #${agentUser?.displayId ?? 'AGENT'}',
+                      maxLines: 1,
+                      style: AppTypography.technicalCode(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.secondaryBright,
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text(
+                        agentUser?.email ?? '',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 9.5,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          IconButton(
+            onPressed: _loadData,
+            tooltip: 'تحديث البيانات',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(
+              Icons.refresh_rounded,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
           ),
         ],
       ),
     );
   }
 
-  // --- Live Status Console (مؤشرات محفظة الوكيل) ---
-  Widget _buildMetricsGrid(AgentDashboardStats stats) {
-    final metrics = [
-      LiveStatusMetric(
-        label: 'إجمالي العملاء',
-        sub: 'عميل تابع لك',
-        value: '${stats.totalSubUsers}',
-        icon: Icons.groups_rounded,
-        accent: AppColors.primaryBlue,
-        statusText: 'الكل',
-        rawValue: stats.totalSubUsers,
-      ),
-      LiveStatusMetric(
-        label: 'عملاء نشطين',
-        sub: 'حسابات مصرحة',
-        value: '${stats.activeSubUsers}',
-        icon: Icons.check_circle_rounded,
-        accent: AppColors.accentGreen,
-        statusText: 'نشط',
-        rawValue: stats.activeSubUsers,
-      ),
-      LiveStatusMetric(
-        label: 'موقوف (احتيال / نصب)',
-        sub: 'تجميد لمنع النصب',
-        value: '${stats.suspendedSubUsers}',
-        icon: Icons.gpp_bad_rounded,
-        accent: AppColors.error,
-        statusText: stats.suspendedSubUsers > 0 ? 'تنبيه' : 'مستقر',
-        isAlert: stats.suspendedSubUsers > 0,
-        rawValue: stats.suspendedSubUsers,
-      ),
-      LiveStatusMetric(
-        label: 'إجمالي المحول',
-        sub: '${stats.transferCount} عملية تحويل',
-        value: '\$${stats.totalTransferred.toStringAsFixed(1)}',
-        icon: Icons.payments_rounded,
-        accent: AppColors.ticketAmber,
-        statusText: 'محوّل',
-        rawValue: stats.transferCount,
-      ),
-    ];
+  // --- جدول ملخص العمليات (مصغّر + هوية تذكرة) ---
+  Widget _opsSummaryTable(AgentDashboardStats stats, UserModel? agentUser) {
+    final double balance = stats.agentBalance > 0
+        ? stats.agentBalance
+        : (agentUser?.balance ?? 0.0);
 
-    return LiveStatusConsole(
-      title: 'ملخّص العملاء والتحويلات',
-      metrics: metrics,
+    return _ticketShell(
+      radius: 16,
+      notch: 8,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 9, 12, 9),
+            child: Row(
+              children: [
+                _iconChip(
+                  AppColors.primaryBlue,
+                  Icons.insights_rounded,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    'ملخص العمليات',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.cairo(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'OPS SUMMARY',
+                  maxLines: 1,
+                  style: AppTypography.technicalCode(
+                    fontSize: 8,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textMuted,
+                    letterSpacing: 0.6,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _dashedRule(),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _summaryCell(
+                    'رصيد الوكيل',
+                    '\$${balance.toStringAsFixed(2)}',
+                    Icons.account_balance_wallet_rounded,
+                    AppColors.primaryBlue,
+                  ),
+                ),
+                _summaryDivider(),
+                Expanded(
+                  child: _summaryCell(
+                    'مستلم من الإدارة',
+                    '\$${stats.totalReceived.toStringAsFixed(2)}',
+                    Icons.call_received_rounded,
+                    AppColors.accentGreen,
+                  ),
+                ),
+                _summaryDivider(),
+                Expanded(
+                  child: _summaryCell(
+                    'محوّل للعملاء',
+                    '\$${stats.totalTransferred.toStringAsFixed(2)}',
+                    Icons.call_made_rounded,
+                    AppColors.ticketAmber,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          _dashedRule(),
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: _summaryCell(
+                    'العملاء',
+                    '${stats.totalSubUsers}',
+                    Icons.groups_rounded,
+                    AppColors.primaryBlue,
+                  ),
+                ),
+                _summaryDivider(),
+                Expanded(
+                  child: _summaryCell(
+                    'نشط',
+                    '${stats.activeSubUsers}',
+                    Icons.check_circle_rounded,
+                    AppColors.accentGreen,
+                  ),
+                ),
+                _summaryDivider(),
+                Expanded(
+                  child: _summaryCell(
+                    'موقوف',
+                    '${stats.suspendedSubUsers}',
+                    Icons.gpp_bad_rounded,
+                    AppColors.error,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryCell(String label, String value, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 11, color: color),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.cairo(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.plusJakartaSans(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w900,
+              color: color,
+              height: 1.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryDivider() {
+    return SizedBox(
+      width: 1,
+      child: CustomPaint(
+        painter: VerticalDashedLinePainter(
+          color: AppColors.outline,
+          dashHeight: 4,
+          dashSpace: 4,
+        ),
+      ),
+    );
+  }
+
+  Widget _tabLabel(IconData icon, String label) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, size: 15),
+        const SizedBox(width: 5),
+        Flexible(
+          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+      ],
+    );
+  }
+
+  // --- أساسيات هوية التذكرة ---
+  Widget _ticketShell({
+    required Widget child,
+    double radius = 16,
+    double notch = 8,
+    double elevation = 6,
+    Color? borderColor,
+  }) {
+    return CustomPaint(
+      painter: TicketPassShadowPainter(
+        cornerRadius: radius,
+        notchRadius: notch,
+        notchPositionFraction: 0.5,
+        shadowColor: AppColors.slate900,
+        elevation: elevation,
+      ),
+      foregroundPainter: TicketPassBorderPainter(
+        cornerRadius: radius,
+        notchRadius: notch,
+        notchPositionFraction: 0.5,
+        borderColor: borderColor ?? AppColors.outline,
+        borderWidth: 1,
+      ),
+      child: ClipPath(
+        clipper: TicketPassClipper(
+          cornerRadius: radius,
+          notchRadius: notch,
+          notchPositionFraction: 0.5,
+        ),
+        child: Material(color: AppColors.surfaceCard, child: child),
+      ),
+    );
+  }
+
+  Widget _dashedRule({Color color = AppColors.outline, double gap = 0}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: gap),
+      child: SizedBox(
+        height: 1,
+        child: CustomPaint(
+          painter: DashedLinePainter(color: color, dashWidth: 4, dashSpace: 4),
+        ),
+      ),
+    );
+  }
+
+  Widget _iconChip(Color color, IconData icon, {double size = 32}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color.lerp(color, Colors.white, 0.28)!, color],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(size * 0.32),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.26),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: Colors.white, size: size * 0.48),
+    );
+  }
+
+  Widget _pill(String label, Color color, {bool dot = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (dot) ...[
+            Container(
+              width: 5,
+              height: 5,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 4),
+          ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- تذكرة تحويل (وارد من الإدارة / صادر إلى عميل) ---
+  Widget _transferTicket(AgentTransferRecord transfer) {
+    final bool incoming = transfer.isIncoming;
+    final Color accent = incoming
+        ? AppColors.accentGreen
+        : AppColors.ticketAmber;
+    final String date = transfer.createdAt != null
+        ? DateFormat('yyyy-MM-dd • hh:mm a').format(transfer.createdAt!)
+        : 'الآن';
+    // هوية العميل التابع: اسمًا وآيديًا من المستقبلين أو من تفاصيل الوصف
+    final String titleLine = incoming
+        ? transfer.counterpartyName
+        : (transfer.resolvedRecipientName.isNotEmpty
+              ? transfer.resolvedRecipientName
+              : 'عميل تابع');
+    final String idLine = incoming
+        ? 'من الإدارة'
+        : (transfer.resolvedRecipientId.isNotEmpty
+              ? transfer.resolvedRecipientId
+              : 'بدون معرّف');
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: _ticketShell(
+        radius: 14,
+        notch: 7,
+        elevation: 5,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(10, 9, 10, 9),
+          child: Row(
+            children: [
+              _iconChip(
+                accent,
+                incoming
+                    ? Icons.call_received_rounded
+                    : Icons.call_made_rounded,
+                size: 30,
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      titleLine,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            idLine.isEmpty ? '—' : idLine,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.technicalCode(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        const Text(
+                          '•',
+                          style: TextStyle(
+                            fontSize: 8,
+                            color: AppColors.textMuted,
+                          ),
+                        ),
+                        const SizedBox(width: 5),
+                        Flexible(
+                          child: Text(
+                            date,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 8.5,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (transfer.note != null &&
+                        transfer.note!.trim().isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        'ملاحظة: ${transfer.note!.trim()}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${incoming ? '+' : '-'}\$${transfer.amount.toStringAsFixed(2)}',
+                        maxLines: 1,
+                        style: AppTypography.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: incoming
+                              ? AppColors.accentGreen
+                              : AppColors.textPrimary,
+                        ),
+                      ),
+                      Text(
+                        incoming ? 'IN // إدارة' : 'OUT // عميل',
+                        maxLines: 1,
+                        style: AppTypography.technicalCode(
+                          fontSize: 7,
+                          fontWeight: FontWeight.w700,
+                          color: accent,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _transferFilterChip(
+    String key,
+    String label,
+    AgentProvider provider,
+    Color color,
+  ) {
+    final bool isSelected = provider.transferFilter == key;
+
+    return InkWell(
+      onTap: () => provider.setTransferFilter(key),
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? color : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: isSelected ? color : AppColors.outline),
+        ),
+        child: Text(
+          label,
+          maxLines: 1,
+          style: AppTypography.cairo(
+            fontSize: 10.5,
+            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w700,
+            color: isSelected ? Colors.white : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _emptyTransfers(AgentProvider provider) {
+    final bool filtered = provider.transferFilter != 'all';
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _iconChip(
+              filtered ? AppColors.textMuted : AppColors.primaryBlue,
+              filtered ? Icons.filter_alt_off_rounded : Icons.swap_vert_rounded,
+              size: 40,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              filtered
+                  ? 'لا توجد تحويلات بهذا الاتجاه'
+                  : 'لا يوجد سجل تحويلات حتى الآن',
+              textAlign: TextAlign.center,
+              style: AppTypography.cairo(
+                fontSize: 13,
+                fontWeight: FontWeight.w900,
+                color: AppColors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              filtered
+                  ? 'جرّب «الكل» لعرض الوارد والصادر معاً'
+                  : 'سيظهر هنا ما تستلمه من الإدارة وما تحوّله إلى عملائك',
+              textAlign: TextAlign.center,
+              style: AppTypography.cairo(
+                fontSize: 10.5,
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -588,17 +807,19 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryBlue,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               elevation: 0,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            icon: const Icon(Icons.person_add_rounded, size: 18),
+            icon: const Icon(Icons.person_add_rounded, size: 17),
             label: Text(
               'إنشاء عميل جديد',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -614,20 +835,22 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
               foregroundColor: AppColors.darkNav,
               backgroundColor: Colors.white,
               side: const BorderSide(color: AppColors.outline),
-              padding: const EdgeInsets.symmetric(vertical: 12),
+              padding: const EdgeInsets.symmetric(vertical: 10),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
             icon: const Icon(
               Icons.link_rounded,
-              size: 18,
+              size: 17,
               color: AppColors.primaryBlue,
             ),
             label: Text(
               'ربط عميل قائم',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
-                fontSize: 12.5,
+                fontSize: 12,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -661,7 +884,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                   style: AppTypography.cairo(fontSize: 13),
                   decoration: InputDecoration(
                     hintText:
-                        'ابحث بالاسم، الآيدي (chx...)، الهاتف، أو البريد...',
+                        'ابحث بالاسم، الآيدي (JGO...)، الهاتف، أو البريد...',
                     hintStyle: AppTypography.cairo(
                       fontSize: 12,
                       color: AppColors.textSecondary,
@@ -694,28 +917,31 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
               const SizedBox(height: 10),
 
               // Filter Chips
-              Row(
-                children: [
-                  _buildFilterChip(
-                    'all',
-                    'الكل (${provider.subUsers.length})',
-                    provider,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    'active',
-                    'نشط (${provider.stats.activeSubUsers})',
-                    provider,
-                    activeColor: AppColors.accentGreen,
-                  ),
-                  const SizedBox(width: 8),
-                  _buildFilterChip(
-                    'suspended',
-                    'موقوف (احتيال) (${provider.stats.suspendedSubUsers})',
-                    provider,
-                    activeColor: AppColors.error,
-                  ),
-                ],
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildFilterChip(
+                      'all',
+                      'الكل (${provider.subUsers.length})',
+                      provider,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      'active',
+                      'نشط (${provider.stats.activeSubUsers})',
+                      provider,
+                      activeColor: AppColors.accentGreen,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildFilterChip(
+                      'suspended',
+                      'موقوف (احتيال) (${provider.stats.suspendedSubUsers})',
+                      provider,
+                      activeColor: AppColors.error,
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -765,7 +991,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                   physics: const BouncingScrollPhysics(),
                   itemCount: subUsers.length,
                   itemBuilder: (context, index) {
-                    return _buildUserTicketCard(subUsers[index], provider);
+                    return _buildUserTicketCard(subUsers[index]);
                   },
                 ),
         ),
@@ -805,562 +1031,384 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
     );
   }
 
-  // --- Sub-User Ticket Card ---
-  Widget _buildUserTicketCard(AgentUserModel client, AgentProvider provider) {
+  // --- تذكرة العميل المضغوطة (قائمة العملاء) ---
+  Widget _buildUserTicketCard(AgentUserModel client) {
     final isSuspended = client.isSuspendedByAgent;
+    final Color accent = isSuspended ? AppColors.error : AppColors.primaryBlue;
+    final String contact =
+        (client.phone != null && client.phone!.trim().isNotEmpty)
+        ? client.phone!.trim()
+        : client.email;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: isSuspended
-              ? AppColors.error.withValues(alpha: 0.6)
-              : AppColors.outline,
-          width: isSuspended ? 1.4 : 1.0,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: isSuspended
-                ? AppColors.error.withValues(alpha: 0.08)
-                : Colors.black.withValues(alpha: 0.03),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        children: [
-          // Upper Ticket Body
-          Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Top Row: Avatar, Name, Status Badge
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Avatar
-                    Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        color: isSuspended
-                            ? const Color(0xFFFEE2E2)
-                            : const Color(0xFFE0F2FE),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Center(
-                        child: Icon(
-                          isSuspended
-                              ? Icons.person_off_rounded
-                              : Icons.person_rounded,
-                          color: isSuspended
-                              ? AppColors.error
-                              : AppColors.primaryBlue,
-                          size: 24,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-
-                    // Name & Details
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  client.name,
-                                  style: AppTypography.cairo(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w900,
-                                    color: AppColors.textPrimary,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ],
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 9),
+      child: _ticketShell(
+        radius: 14,
+        notch: 7,
+        elevation: 5,
+        borderColor: isSuspended
+            ? AppColors.error.withValues(alpha: 0.45)
+            : null,
+        child: Column(
+          children: [
+            // جسم التذكرة: الهوية + الرصيد
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 9, 10, 7),
+              child: Row(
+                children: [
+                  _iconChip(
+                    accent,
+                    isSuspended
+                        ? Icons.person_off_rounded
+                        : Icons.person_rounded,
+                    size: 30,
+                  ),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // الاسم يأخذ كامل عرض التذكرة: شارة الحالة نُقلت للكعب
+                        // حتى لا تقتطع من بقية الاسم الطويل.
+                        Text(
+                          client.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.cairo(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.textPrimary,
                           ),
-                          const SizedBox(height: 2),
-                          Row(
-                            children: [
-                              InkWell(
-                                onTap: () {
-                                  Clipboard.setData(
-                                    ClipboardData(text: client.displayId),
-                                  );
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        'تم نسخ الآيدي: ${client.displayId}',
-                                        style: AppTypography.cairo(
-                                          color: Colors.white,
-                                        ),
-                                      ),
-                                      duration: const Duration(seconds: 1),
-                                    ),
-                                  );
-                                },
-                                borderRadius: BorderRadius.circular(4),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 5,
-                                    vertical: 1.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.surfaceDim,
-                                    borderRadius: BorderRadius.circular(5),
-                                    border: Border.all(
-                                      color: AppColors.outline,
-                                    ),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Text(
-                                        client.displayId,
-                                        style: AppTypography.technicalCode(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.darkNav,
-                                        ),
-                                      ),
-                                      const SizedBox(width: 4),
-                                      const Icon(
-                                        Icons.copy_rounded,
-                                        size: 10,
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ],
-                                  ),
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Flexible(child: _clientIdChip(client)),
+                            const SizedBox(width: 5),
+                            const Text(
+                              '•',
+                              style: TextStyle(
+                                fontSize: 8,
+                                color: AppColors.textMuted,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Flexible(
+                              child: Text(
+                                contact.isEmpty ? '—' : contact,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: AppTypography.cairo(
+                                  fontSize: 8.5,
+                                  color: AppColors.textMuted,
                                 ),
                               ),
-                              if (client.phone != null &&
-                                  client.phone!.isNotEmpty) ...[
-                                const SizedBox(width: 8),
-                                Text(
-                                  client.phone!,
-                                  style: AppTypography.cairo(
-                                    fontSize: 10.5,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                ),
-                              ],
-                            ],
+                            ),
+                          ],
+                        ),
+                        // سطر تجميد واحد بدل لافتة كبيرة
+                        if (isSuspended) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            (client.agentDeactivationReason != null &&
+                                    client.agentDeactivationReason!.isNotEmpty)
+                                ? 'مجمّد: ${client.agentDeactivationReason!.trim()}'
+                                : 'مجمّد بقرار الوكيل (احتيال / عدم سداد)',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 8.5,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.error,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // عمود الرصيد بعرض أقصى ثابت ليأخذ الاسم كل بقية السطر
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 96),
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '\$${client.balance.toStringAsFixed(2)}',
+                            maxLines: 1,
+                            style: AppTypography.plusJakartaSans(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w900,
+                              color: isSuspended
+                                  ? AppColors.error
+                                  : AppColors.accentGreen,
+                            ),
+                          ),
+                          Text(
+                            'CLIENT BALANCE',
+                            maxLines: 1,
+                            style: AppTypography.technicalCode(
+                              fontSize: 7,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textMuted,
+                              letterSpacing: 0.4,
+                            ),
                           ),
                         ],
                       ),
                     ),
-
-                    // Balance Capsule
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'رصيد العميل',
-                          style: AppTypography.cairo(
-                            fontSize: 10,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        Text(
-                          '\$${client.balance.toStringAsFixed(2)}',
-                          style: AppTypography.plusJakartaSans(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
-                            color: isSuspended
-                                ? AppColors.error
-                                : AppColors.accentGreen,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
-                // Scam Alert Banner if Suspended
-                if (isSuspended) ...[
-                  const SizedBox(height: 10),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 8,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: AppColors.error.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.warning_amber_rounded,
-                          color: AppColors.error,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'حساب مجمد بقرار الوكيل (احتيال / عدم سداد)',
-                                style: AppTypography.cairo(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.error,
-                                ),
-                              ),
-                              if (client.agentDeactivationReason != null &&
-                                  client.agentDeactivationReason!.isNotEmpty)
-                                Text(
-                                  'السبب: ${client.agentDeactivationReason}',
-                                  style: AppTypography.cairo(
-                                    fontSize: 10.5,
-                                    fontWeight: FontWeight.w700,
-                                    color: const Color(0xFF991B1B),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                 ],
-              ],
+              ),
             ),
-          ),
-
-          // Perforated Dashed Divider
-          _buildPerforatedDivider(),
-
-          // Bottom Action Bar
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-            child: Row(
-              children: [
-                // Transfer Balance Button (⚡ تحويل رصيد)
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: isSuspended
-                          ? AppColors.surfaceDim
-                          : AppColors.accentGreen,
-                      foregroundColor: isSuspended
-                          ? AppColors.textSecondary
-                          : Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(vertical: 9),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                    ),
-                    icon: const Icon(Icons.bolt_rounded, size: 16),
-                    label: Text(
-                      'تحويل رصيد',
-                      style: AppTypography.cairo(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    onPressed: () => _showTransferModal(client),
+            _dashedRule(),
+            // كعب التذكرة: شارة الحالة + التحويل السريع + قائمة الإجراءات
+            // (زر «إيقاف» أُزيل من الكرت ليصير داخل قائمة ...)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(10, 10, 4, 10),
+              child: Row(
+                children: [
+                  _pill(
+                    isSuspended ? 'موقوف' : 'نشط',
+                    isSuspended ? AppColors.error : AppColors.accentGreen,
+                    dot: true,
                   ),
-                ),
-                const SizedBox(width: 8),
-
-                // Scam Freeze / Reactivate Button
-                if (!isSuspended)
-                  // Suspend Button (🛑 إيقاف الحساب - حماية من النصب)
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFEE2E2),
-                      foregroundColor: AppColors.error,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                          color: AppColors.error.withValues(alpha: 0.3),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isSuspended
+                            ? AppColors.surfaceDim
+                            : AppColors.accentGreen,
+                        foregroundColor: isSuspended
+                            ? AppColors.textSecondary
+                            : Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        minimumSize: const Size(0, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(9),
                         ),
                       ),
-                    ),
-                    icon: const Icon(
-                      Icons.block_rounded,
-                      size: 16,
-                      color: AppColors.error,
-                    ),
-                    label: Text(
-                      'إيقاف (نصب)',
-                      style: AppTypography.cairo(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    onPressed: () => _showScamFreezeModal(client),
-                  )
-                else
-                  // Reactivate Button (🔄 تفعيل الحساب)
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFD1FAE5),
-                      foregroundColor: AppColors.accentGreen,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 9,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        side: BorderSide(
-                          color: AppColors.accentGreen.withValues(alpha: 0.3),
+                      icon: const Icon(Icons.bolt_rounded, size: 14),
+                      label: Text(
+                        'تحويل رصيد',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
                         ),
                       ),
+                      onPressed: () => _showTransferModal(client),
                     ),
-                    icon: const Icon(
-                      Icons.lock_open_rounded,
-                      size: 16,
-                      color: AppColors.accentGreen,
-                    ),
-                    label: Text(
-                      'إلغاء التجميد والتفعيل',
-                      style: AppTypography.cairo(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    onPressed: () => _showReactivateModal(client),
                   ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPerforatedDivider() {
-    return SizedBox(
-      height: 18,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          // Dashed Line
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final boxWidth = constraints.constrainWidth();
-              const dashWidth = 5.0;
-              const dashSpace = 4.0;
-              final dashCount = (boxWidth / (dashWidth + dashSpace)).floor();
-              return Flex(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                direction: Axis.horizontal,
-                children: List.generate(dashCount, (_) {
-                  return const SizedBox(
-                    width: dashWidth,
-                    height: 1,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(color: AppColors.outline),
-                    ),
-                  );
-                }),
-              );
-            },
-          ),
-          // Left Notch
-          Positioned(
-            left: -9,
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: const BoxDecoration(
-                color: AppColors.background,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          // Right Notch
-          Positioned(
-            right: -9,
-            child: Container(
-              width: 18,
-              height: 18,
-              decoration: const BoxDecoration(
-                color: AppColors.background,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // --- Transfers History Tab ---
-  Widget _buildTransfersTab(AgentProvider provider) {
-    final transfers = provider.transfers;
-
-    if (transfers.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.receipt_long_rounded,
-              size: 48,
-              color: AppColors.textSecondary.withValues(alpha: 0.5),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'لا يوجد سجل تحويلات حتى الآن',
-              style: AppTypography.cairo(
-                fontSize: 14,
-                fontWeight: FontWeight.w800,
-                color: AppColors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'جميع عمليات تحويل الرصيد لعملائك ستظهر هنا بتفاصيلها',
-              style: AppTypography.cairo(
-                fontSize: 11,
-                color: AppColors.textSecondary,
+                  _clientMenu(client, isSuspended),
+                ],
               ),
             ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-      physics: const BouncingScrollPhysics(),
-      itemCount: transfers.length,
-      itemBuilder: (context, index) {
-        final t = transfers[index];
-        final formattedDate = t.createdAt != null
-            ? DateFormat('yyyy-MM-dd • hh:mm a').format(t.createdAt!)
-            : 'الآن';
+  /// آيدي العميل داخل التذكرة: لمسة واحدة تنسخه
+  Widget _clientIdChip(AgentUserModel client) {
+    return InkWell(
+      onTap: () => _copyClientId(client),
+      borderRadius: BorderRadius.circular(5),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+        decoration: BoxDecoration(
+          color: AppColors.surfaceDim,
+          borderRadius: BorderRadius.circular(5),
+          border: Border.all(color: AppColors.outline),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(
+                client.displayId,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.technicalCode(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.darkNav,
+                ),
+              ),
+            ),
+            const SizedBox(width: 3),
+            const Icon(
+              Icons.copy_rounded,
+              size: 9,
+              color: AppColors.textSecondary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
-        return Container(
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.outline),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFEF3C7),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.arrow_outward_rounded,
-                  color: AppColors.ticketAmber,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      t.recipientName.isNotEmpty
-                          ? t.recipientName
-                          : 'عميل تابع',
-                      style: AppTypography.cairo(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        if (t.recipientUserId.isNotEmpty) ...[
-                          Text(
-                            t.recipientUserId,
-                            style: AppTypography.technicalCode(
-                              fontSize: 9.5,
-                              color: AppColors.textSecondary,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          const Text(
-                            '•',
-                            style: TextStyle(
-                              color: AppColors.textSecondary,
-                              fontSize: 10,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                        ],
-                        Text(
-                          formattedDate,
-                          style: AppTypography.cairo(
-                            fontSize: 9.5,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (t.note != null && t.note!.isNotEmpty) ...[
-                      const SizedBox(height: 3),
-                      Text(
-                        'ملاحظة: ${t.note}',
-                        style: AppTypography.cairo(
-                          fontSize: 10,
-                          color: AppColors.primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    '-\$${t.amount.toStringAsFixed(2)}',
-                    style: AppTypography.plusJakartaSans(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      color: AppColors.darkNav,
-                    ),
-                  ),
-                  Text(
-                    'تم التحويل بنجاح',
-                    style: AppTypography.cairo(
-                      fontSize: 9,
-                      color: AppColors.accentGreen,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        );
+  /// نسخ آيدي العميل (من الشارة أو من قائمة الإجراءات)
+  void _copyClientId(AgentUserModel client) {
+    Clipboard.setData(ClipboardData(text: client.displayId));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'تم نسخ الآيدي: ${client.displayId}',
+          style: AppTypography.cairo(color: Colors.white),
+        ),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+  }
+
+  /// قائمة إجراءات العميل: أزرار التجميد/التفعيل اختُزلت هنا
+  /// بدل أن تزاحم الاسم والرصيد في كعب التذكرة.
+  Widget _clientMenu(AgentUserModel client, bool isSuspended) {
+    return PopupMenuButton<String>(
+      tooltip: 'إجراءات العميل',
+      color: Colors.white,
+      surfaceTintColor: Colors.transparent,
+      elevation: 6,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+      offset: const Offset(0, 28),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.outline),
+      ),
+      icon: const Icon(
+        Icons.more_vert_rounded,
+        size: 18,
+        color: AppColors.textSecondary,
+      ),
+      onSelected: (value) {
+        if (value == 'transfer') _showTransferModal(client);
+        if (value == 'copy') _copyClientId(client);
+        if (value == 'freeze') _showScamFreezeModal(client);
+        if (value == 'reactivate') _showReactivateModal(client);
       },
+      itemBuilder: (context) => [
+        _menuItem(
+          'transfer',
+          Icons.bolt_rounded,
+          AppColors.accentGreen,
+          'تحويل رصيد',
+        ),
+        _menuItem(
+          'copy',
+          Icons.copy_rounded,
+          AppColors.primaryBlue,
+          'نسخ الآيدي',
+        ),
+        if (isSuspended)
+          _menuItem(
+            'reactivate',
+            Icons.lock_open_rounded,
+            AppColors.accentGreen,
+            'إلغاء التجميد والتفعيل',
+          )
+        else
+          _menuItem(
+            'freeze',
+            Icons.block_rounded,
+            AppColors.error,
+            'إيقاف الحساب ',
+          ),
+      ],
+    );
+  }
+
+  PopupMenuEntry<String> _menuItem(
+    String value,
+    IconData icon,
+    Color color,
+    String label,
+  ) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+      child: Row(
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w900,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // --- Transfers History Tab (وارد من الإدارة / صادر إلى العملاء) ---
+  Widget _buildTransfersTab(AgentProvider provider) {
+    final transfers = provider.filteredTransfers;
+    final int total =
+        provider.incomingTransferCount + provider.outgoingTransferCount;
+
+    return Column(
+      children: [
+        // فلاتر اتجاه التحويل
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                _transferFilterChip(
+                  'all',
+                  'الكل ($total)',
+                  provider,
+                  AppColors.primaryBlue,
+                ),
+                const SizedBox(width: 8),
+                _transferFilterChip(
+                  'in',
+                  'من الإدارة (${provider.incomingTransferCount})',
+                  provider,
+                  AppColors.accentGreen,
+                ),
+                const SizedBox(width: 8),
+                _transferFilterChip(
+                  'out',
+                  'إلى العملاء (${provider.outgoingTransferCount})',
+                  provider,
+                  AppColors.ticketAmber,
+                ),
+              ],
+            ),
+          ),
+        ),
+        Expanded(
+          child: transfers.isEmpty
+              ? _emptyTransfers(provider)
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: transfers.length,
+                  itemBuilder: (context, index) =>
+                      _transferTicket(transfers[index]),
+                ),
+        ),
+      ],
     );
   }
 
@@ -1665,10 +1713,10 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
     );
   }
 
-  // 2. Scam Freeze Modal (إيقاف وتجميد الحساب في حال النصب)
+  // 2. Scam Freeze Modal (إيقاف وتجميد الحساب في حال )
   void _showScamFreezeModal(AgentUserModel client) {
     final reasonController = TextEditingController(
-      text: 'احتيال ونصب مالي وعدم سداد المستحقات',
+      text: 'احتيال  مالي وعدم سداد المستحقات',
     );
     final agentProvider = Provider.of<AgentProvider>(context, listen: false);
 
@@ -1774,7 +1822,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              'تستخدم هذه الميزة في حال العميل نصب على الوكيل:',
+                              'تستخدم هذه الميزة في حال العميل احتال على الوكيل:',
                               style: AppTypography.cairo(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w900,
@@ -1811,7 +1859,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                     runSpacing: 6,
                     children:
                         [
-                          'احتيال ونصب مالي وعدم سداد المستحقات',
+                          'احتيال  مالي وعدم سداد المستحقات',
                           'عدم سداد قيمة شحنة رصيد معلقة',
                           'مطالبة مالية متنازع عليها مع الوكيل',
                           'مخالفة اتفاقية التعامل التجاري',
@@ -2266,7 +2314,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'أدخل آيدي العميل (مثل chx26101571944) أو بريده الإلكتروني لربطه ليصبح تحت إدارتك:',
+              'أدخل آيدي العميل (مثل JGO26101571944) أو بريده الإلكتروني لربطه ليصبح تحت إدارتك:',
               style: AppTypography.cairo(
                 fontSize: 12.5,
                 color: AppColors.textSecondary,
@@ -2276,7 +2324,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
             TextField(
               controller: identifierCtrl,
               decoration: InputDecoration(
-                hintText: 'chx... أو example@gmail.com',
+                hintText: 'JGO... أو example@gmail.com',
                 prefixIcon: const Icon(Icons.person_pin_rounded),
                 filled: true,
                 fillColor: AppColors.surfaceDim,

@@ -6,6 +6,7 @@ import { User, UserDocument } from '../../database/schemas/user.schema';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 export declare class AuthService implements OnModuleInit {
     private userModel;
     private jwtService;
@@ -45,5 +46,6 @@ export declare class AuthService implements OnModuleInit {
     } & {
         id: string;
     }>;
+    updateProfile(userId: string, dto: UpdateProfileDto): Promise<any>;
     private generateTokens;
 }

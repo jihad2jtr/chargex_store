@@ -123,6 +123,9 @@ export class Order {
   @Prop({ type: Object, default: {} })
   providerResponse?: Record<string, any>;
 
+  @Prop()
+  providerSettledAt?: Date; // Set once the provider execution is confirmed/reconciled
+
   // --- Manual Human Execution System Fields ---
   @Prop({ type: Types.ObjectId, ref: 'User', index: true })
   assignedSupervisorId?: Types.ObjectId; // Supervisor executing this manual service
@@ -183,3 +186,8 @@ export class Order {
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);
+
+// فهارس تُسرّع استعلامات اللوحة (تصفية بالنطاق الزمني، الترتيب، والتصفية بالحالة/النوع)
+OrderSchema.index({ createdAt: -1 });
+OrderSchema.index({ status: 1, createdAt: -1 });
+OrderSchema.index({ type: 1, createdAt: -1 });

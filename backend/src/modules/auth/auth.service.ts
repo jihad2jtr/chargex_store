@@ -1,4 +1,10 @@
-import { Injectable, BadRequestException, UnauthorizedException, OnModuleInit, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  UnauthorizedException,
+  OnModuleInit,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
@@ -6,9 +12,15 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../database/schemas/user.schema';
 import { Role } from '../../common/interfaces/role.enum';
+import {
+  USER_ID_PREFIX,
+  generateUserId,
+  userIdFilter,
+} from '../../common/utils/user-id.util';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 
 @Injectable()
 export class AuthService implements OnModuleInit {
@@ -29,21 +41,10 @@ export class AuthService implements OnModuleInit {
   }
 
   async generateUniqueUserId(): Promise<string> {
-    let unique = false;
-    let userId = '';
-    while (!unique) {
-      const now = new Date();
-      const yy = String(now.getFullYear()).slice(-2);
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const rand = Math.floor(10000 + Math.random() * 90000);
-      userId = `chx${yy}${mm}${dd}${rand}`;
-      const existing = await this.userModel.findOne({ userId });
-      if (!existing) {
-        unique = true;
-      }
-    }
-    return userId;
+    // JGO + yyMMdd + 5 أرقام (أحرف كبيرة)، مع تجاوز ما هو مستخدم بالفعل
+    return generateUserId(async (candidateId) =>
+      Boolean(await this.userModel.findOne(userIdFilter(candidateId))),
+    );
   }
 
   async ensureUserIds() {
@@ -53,13 +54,21 @@ export class AuthService implements OnModuleInit {
           { userId: { $exists: false } },
           { userId: null },
           { userId: '' },
-          { userId: { $not: /^chx\d{11}$/i } },
+          // يقبل كل الصيغ القديمة والجديدة (JGO الكبيرة، jgo و chx القديمة)
+          // كي لا تتغيّر آيديهات العملاء الحاليين
+          {
+            userId: {
+              $not: new RegExp(`^(${USER_ID_PREFIX}|chx)\\d{11}$`, 'i'),
+            },
+          },
         ],
       });
       for (const u of usersToMigrate) {
         u.userId = await this.generateUniqueUserId();
         await u.save();
-        this.logger.log(`Assigned/migrated unique userId ${u.userId} to user ${u.email}`);
+        this.logger.log(
+          `Assigned/migrated unique userId ${u.userId} to user ${u.email}`,
+        );
       }
     } catch (err) {
       this.logger.error('Failed to ensure userIds:', err);
@@ -70,8 +79,12 @@ export class AuthService implements OnModuleInit {
     try {
       const adminExists = await this.userModel.findOne({ role: Role.ADMIN });
       if (!adminExists) {
-        const adminEmail = this.configService.get<string>('ADMIN_DEFAULT_EMAIL') || 'admin@chargex.com';
-        const adminPass = this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') || 'Z@@lka1994';
+        const adminEmail =
+          this.configService.get<string>('ADMIN_DEFAULT_EMAIL') ||
+          'admin@chargex.com';
+        const adminPass =
+          this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') ||
+          'Z@@lka1994';
         const hashedPassword = await bcrypt.hash(adminPass, 10);
         const adminUserId = await this.generateUniqueUserId();
 
@@ -85,7 +98,9 @@ export class AuthService implements OnModuleInit {
           isActive: true,
         });
 
-        this.logger.log(`Default Admin created successfully: ${adminEmail} (ID: ${adminUserId})`);
+        this.logger.log(
+          `Default Admin created successfully: ${adminEmail} (ID: ${adminUserId})`,
+        );
       }
     } catch (err) {
       this.logger.error('Failed to seed default admin:', err);
@@ -95,7 +110,9 @@ export class AuthService implements OnModuleInit {
   async seedSupervisor() {
     try {
       const supervisorEmail = 'supervisor@chargex.com';
-      const supervisorExists = await this.userModel.findOne({ email: supervisorEmail });
+      const supervisorExists = await this.userModel.findOne({
+        email: supervisorEmail,
+      });
       if (!supervisorExists) {
         const supervisorPass = 'Z@@lka1994';
         const hashedPassword = await bcrypt.hash(supervisorPass, 10);
@@ -112,7 +129,9 @@ export class AuthService implements OnModuleInit {
           isActive: true,
         });
 
-        this.logger.log(`Default Supervisor created successfully: ${supervisorEmail} (ID: ${supervisorUserId})`);
+        this.logger.log(
+          `Default Supervisor created successfully: ${supervisorEmail} (ID: ${supervisorUserId})`,
+        );
       }
     } catch (err) {
       this.logger.error('Failed to seed default supervisor:', err);
@@ -139,7 +158,9 @@ export class AuthService implements OnModuleInit {
           isActive: true,
         });
 
-        this.logger.log(`Default Client User created successfully: ${clientEmail} (ID: ${clientUserId})`);
+        this.logger.log(
+          `Default Client User created successfully: ${clientEmail} (ID: ${clientUserId})`,
+        );
       }
     } catch (err) {
       this.logger.error('Failed to seed default client user:', err);
@@ -167,15 +188,21 @@ export class AuthService implements OnModuleInit {
           isActive: true,
         });
 
-        this.logger.log(`Default Agent created successfully: ${agentEmail} (ID: ${agentUserId})`);
+        this.logger.log(
+          `Default Agent created successfully: ${agentEmail} (ID: ${agentUserId})`,
+        );
       }
 
       // Link demo client to this agent for immediate live testing
-      const demoUser = await this.userModel.findOne({ email: 'user@chargex.com' });
+      const demoUser = await this.userModel.findOne({
+        email: 'user@chargex.com',
+      });
       if (demoUser && !demoUser.parentAgentId && agent) {
         demoUser.parentAgentId = agent._id as any;
         await demoUser.save();
-        this.logger.log(`Linked demo user ${demoUser.email} to agent ${agent.email}`);
+        this.logger.log(
+          `Linked demo user ${demoUser.email} to agent ${agent.email}`,
+        );
       }
     } catch (err) {
       this.logger.error('Failed to seed default agent:', err);
@@ -183,7 +210,9 @@ export class AuthService implements OnModuleInit {
   }
 
   async register(registerDto: RegisterDto) {
-    const existing = await this.userModel.findOne({ email: registerDto.email.toLowerCase() });
+    const existing = await this.userModel.findOne({
+      email: registerDto.email.toLowerCase(),
+    });
     if (existing) {
       throw new BadRequestException('البريد الإلكتروني مسجل مسبقاً');
     }
@@ -204,7 +233,11 @@ export class AuthService implements OnModuleInit {
 
     await user.save();
 
-    const tokens = await this.generateTokens(user._id.toString(), user.email, user.role);
+    const tokens = await this.generateTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+    );
     user.refreshToken = tokens.refreshToken;
     await user.save();
 
@@ -220,17 +253,25 @@ export class AuthService implements OnModuleInit {
   }
 
   async login(loginDto: LoginDto) {
-    const user = await this.userModel.findOne({ email: loginDto.email.toLowerCase() });
+    const user = await this.userModel.findOne({
+      email: loginDto.email.toLowerCase(),
+    });
     if (!user) {
       throw new UnauthorizedException('بيانات الدخول غير صحيحة');
     }
 
     if (!user.isActive) {
       if (user.deactivatedByAgent) {
-        const reason = user.agentDeactivationReason ? ` (${user.agentDeactivationReason})` : '';
-        throw new UnauthorizedException(`تم إيقاف حسابك من قبل الوكيل المعتمد${reason}. يرجى مراجعة الوكيل لتسوية الحساب.`);
+        const reason = user.agentDeactivationReason
+          ? ` (${user.agentDeactivationReason})`
+          : '';
+        throw new UnauthorizedException(
+          `تم إيقاف حسابك من قبل الوكيل المعتمد${reason}. يرجى مراجعة الوكيل لتسوية الحساب.`,
+        );
       }
-      throw new UnauthorizedException('تم تعطيل هذا الحساب، يرجى مراجعة الإدارة');
+      throw new UnauthorizedException(
+        'تم تعطيل هذا الحساب، يرجى مراجعة الإدارة',
+      );
     }
 
     const isMatch = await bcrypt.compare(loginDto.password, user.password);
@@ -242,7 +283,11 @@ export class AuthService implements OnModuleInit {
       user.fcmTokens.push(loginDto.fcmToken);
     }
 
-    const tokens = await this.generateTokens(user._id.toString(), user.email, user.role);
+    const tokens = await this.generateTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+    );
     user.refreshToken = tokens.refreshToken;
     await user.save();
 
@@ -260,15 +305,23 @@ export class AuthService implements OnModuleInit {
   async refreshToken(dto: RefreshTokenDto) {
     try {
       const payload = this.jwtService.verify(dto.refreshToken, {
-        secret: this.configService.get<string>('JWT_REFRESH_SECRET') || 'default_refresh_secret',
+        secret:
+          this.configService.get<string>('JWT_REFRESH_SECRET') ||
+          'default_refresh_secret',
       });
 
       const user = await this.userModel.findById(payload.sub);
       if (!user || user.refreshToken !== dto.refreshToken) {
-        throw new UnauthorizedException('جلسة العمل منتهية الصلاحية، يرجى تسجيل الدخول من جديد');
+        throw new UnauthorizedException(
+          'جلسة العمل منتهية الصلاحية، يرجى تسجيل الدخول من جديد',
+        );
       }
 
-      const tokens = await this.generateTokens(user._id.toString(), user.email, user.role);
+      const tokens = await this.generateTokens(
+        user._id.toString(),
+        user.email,
+        user.role,
+      );
       user.refreshToken = tokens.refreshToken;
       await user.save();
 
@@ -284,11 +337,53 @@ export class AuthService implements OnModuleInit {
   }
 
   async getMe(userId: string) {
-    const user = await this.userModel.findById(userId).select('-password -refreshToken');
+    const user = await this.userModel
+      .findById(userId)
+      .select('-password -refreshToken');
     if (!user) {
       throw new UnauthorizedException('المستخدم غير موجود');
     }
     return user;
+  }
+
+  // تحديث بيانات الملف الشخصي لصاحب الحساب: الاسم / الهاتف / الصورة الشخصية
+  async updateProfile(userId: string, dto: UpdateProfileDto) {
+    const user = await this.userModel.findById(userId);
+    if (!user) {
+      throw new UnauthorizedException('المستخدم غير موجود');
+    }
+
+    if (dto.name !== undefined) {
+      const name = dto.name.trim();
+      if (name.length < 2) {
+        throw new BadRequestException('الاسم يجب أن يكون حرفين على الأقل');
+      }
+      user.name = name;
+    }
+
+    if (dto.phone !== undefined) {
+      const phone = dto.phone.trim();
+      if (phone && !/^[\d+\-\s()]{6,25}$/.test(phone)) {
+        throw new BadRequestException('رقم الهاتف غير صالح');
+      }
+      user.phone = phone || undefined;
+    }
+
+    if (dto.avatar !== undefined) {
+      // يُقبل الرابط الكامل أو مسار /uploads المحلي، والسلسلة الفارغة تحذف الصورة
+      const avatar = dto.avatar.trim();
+      if (avatar && !/^(https?:\/\/|\/uploads\/)/i.test(avatar)) {
+        throw new BadRequestException('رابط الصورة غير صالح');
+      }
+      user.avatar = avatar || undefined;
+    }
+
+    await user.save();
+
+    const userObj: any = user.toObject();
+    delete userObj.password;
+    delete userObj.refreshToken;
+    return userObj;
   }
 
   private async generateTokens(userId: string, email: string, role: string) {
@@ -296,12 +391,16 @@ export class AuthService implements OnModuleInit {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: this.configService.get<string>('JWT_SECRET') || 'default_secret',
-      expiresIn: (this.configService.get<string>('JWT_EXPIRATION') || '7d') as any,
+      expiresIn: (this.configService.get<string>('JWT_EXPIRATION') ||
+        '7d') as any,
     });
 
     const refreshToken = this.jwtService.sign(payload, {
-      secret: this.configService.get<string>('JWT_REFRESH_SECRET') || 'default_refresh_secret',
-      expiresIn: (this.configService.get<string>('JWT_REFRESH_EXPIRATION') || '30d') as any,
+      secret:
+        this.configService.get<string>('JWT_REFRESH_SECRET') ||
+        'default_refresh_secret',
+      expiresIn: (this.configService.get<string>('JWT_REFRESH_EXPIRATION') ||
+        '30d') as any,
     });
 
     return { accessToken, refreshToken };

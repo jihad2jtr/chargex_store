@@ -43,3 +43,6 @@ export class ManualOrder {
 }
 
 export const ManualOrderSchema = SchemaFactory.createForClass(ManualOrder);
+
+// فهرس يُسرّع عدّ الإيداعات المعلّقة وترتيبها زمنياً
+ManualOrderSchema.index({ status: 1, createdAt: -1 });

@@ -16,6 +16,7 @@ var AppType;
     AppType["GAME"] = "game";
     AppType["APP"] = "app";
     AppType["SERVICE"] = "service";
+    AppType["SUBSCRIPTION"] = "subscription";
 })(AppType || (exports.AppType = AppType = {}));
 let App = class App {
 };

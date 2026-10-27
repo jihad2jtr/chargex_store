@@ -20,16 +20,15 @@ import '../screens/agent/agent_dashboard_screen.dart';
 class FloatingRoleDashboardShield extends StatefulWidget {
   final VoidCallback? onCustomTap;
 
-  const FloatingRoleDashboardShield({
-    super.key,
-    this.onCustomTap,
-  });
+  const FloatingRoleDashboardShield({super.key, this.onCustomTap});
 
   @override
-  State<FloatingRoleDashboardShield> createState() => _FloatingRoleDashboardShieldState();
+  State<FloatingRoleDashboardShield> createState() =>
+      _FloatingRoleDashboardShieldState();
 }
 
-class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShield>
+class _FloatingRoleDashboardShieldState
+    extends State<FloatingRoleDashboardShield>
     with TickerProviderStateMixin {
   // أبعاد الدرع المدمجة (Compact & Sleek)
   static const double _shieldWidth = 44.0;
@@ -94,9 +93,11 @@ class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShiel
     final double minX = 8.0;
     final double maxX = screenSize.width - _shieldWidth - 8.0;
     final double minY = padding.top + 8.0;
-    final double maxY = screenSize.height - _shieldHeight - padding.bottom - 88.0;
+    final double maxY =
+        screenSize.height - _shieldHeight - padding.bottom - 88.0;
 
-    final double targetX = (_position!.dx + _shieldWidth / 2) < (screenSize.width / 2)
+    final double targetX =
+        (_position!.dx + _shieldWidth / 2) < (screenSize.width / 2)
         ? minX
         : maxX;
     final double targetY = _position!.dy.clamp(minY, maxY);
@@ -104,15 +105,16 @@ class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShiel
     final startOffset = _position!;
     final endOffset = Offset(targetX, targetY);
 
-    _snapAnimation = Tween<Offset>(begin: startOffset, end: endOffset).animate(
-      CurvedAnimation(parent: _snapController, curve: Curves.easeOutBack),
-    )..addListener(() {
-        if (mounted) {
-          setState(() {
-            _position = _snapAnimation!.value;
-          });
-        }
-      });
+    _snapAnimation =
+        Tween<Offset>(begin: startOffset, end: endOffset).animate(
+          CurvedAnimation(parent: _snapController, curve: Curves.easeOutBack),
+        )..addListener(() {
+          if (mounted) {
+            setState(() {
+              _position = _snapAnimation!.value;
+            });
+          }
+        });
 
     _snapController.forward(from: 0.0);
   }
@@ -126,17 +128,17 @@ class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShiel
     }
 
     if (currentUser.isAdmin) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const AdminDashboardScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AdminDashboardScreen()));
     } else if (currentUser.isSupervisor) {
       Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const SupervisorDashboardScreen()),
       );
     } else if (currentUser.isAgent) {
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const AgentDashboardScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const AgentDashboardScreen()));
     }
   }
 
@@ -148,9 +150,8 @@ class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShiel
     // شرط الحماية الأساسي: لا يظهر إطلاقاً للعميل العادي أو عند عدم تسجيل الدخول
     if (currentUser == null) return const SizedBox.shrink();
 
-    final bool isPrivileged = currentUser.isAdmin ||
-        currentUser.isSupervisor ||
-        currentUser.isAgent;
+    final bool isPrivileged =
+        currentUser.isAdmin || currentUser.isSupervisor || currentUser.isAgent;
 
     if (!isPrivileged) return const SizedBox.shrink();
 
@@ -161,7 +162,8 @@ class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShiel
     int pendingCount = 0;
     if (currentUser.isAdmin) {
       final admin = Provider.of<AdminProvider>(context);
-      pendingCount = admin.adminOrders.where((o) => o.status == 'pending').length +
+      pendingCount =
+          admin.adminOrders.where((o) => o.status == 'pending').length +
           admin.manualTopupRequests.where((r) => r.status == 'pending').length;
     } else if (currentUser.isSupervisor) {
       final supervisor = Provider.of<ManualServicesProvider>(context);
@@ -174,14 +176,16 @@ class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShiel
     final _RoleTheme roleTheme = _getRoleTheme(currentUser);
 
     // ضمان بقاء الموقع داخل حدود الشاشة
-    final double safeX = (_position?.dx ?? (screenSize.width - _shieldWidth - 12.0)).clamp(
-      6.0,
-      screenSize.width - _shieldWidth - 6.0,
-    );
-    final double safeY = (_position?.dy ?? (screenSize.height - _shieldHeight - 110.0)).clamp(
-      padding.top + 6.0,
-      screenSize.height - _shieldHeight - padding.bottom - 85.0,
-    );
+    final double safeX =
+        (_position?.dx ?? (screenSize.width - _shieldWidth - 12.0)).clamp(
+          6.0,
+          screenSize.width - _shieldWidth - 6.0,
+        );
+    final double safeY =
+        (_position?.dy ?? (screenSize.height - _shieldHeight - 110.0)).clamp(
+          padding.top + 6.0,
+          screenSize.height - _shieldHeight - padding.bottom - 85.0,
+        );
 
     return Positioned(
       left: safeX,
@@ -268,14 +272,19 @@ class _FloatingRoleDashboardShieldState extends State<FloatingRoleDashboardShiel
                         top: -3,
                         right: -3,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 4.5,
+                            vertical: 1.5,
+                          ),
                           decoration: BoxDecoration(
                             color: const Color(0xFFEF4444),
                             borderRadius: BorderRadius.circular(8),
                             border: Border.all(color: Colors.white, width: 1.2),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFFEF4444).withValues(alpha: 0.6),
+                                color: const Color(
+                                  0xFFEF4444,
+                                ).withValues(alpha: 0.6),
                                 blurRadius: 6,
                                 offset: const Offset(0, 2),
                               ),

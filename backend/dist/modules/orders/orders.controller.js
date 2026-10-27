@@ -72,6 +72,9 @@ let OrdersController = class OrdersController {
     async getOrderDecryptedCredentials(id, user) {
         return this.ordersService.getOrderDecryptedResult(id, user);
     }
+    async getOrderDecryptedInput(id, user) {
+        return this.ordersService.getOrderDecryptedInput(id, user);
+    }
     async getAllOrdersAdmin(status, type, supervisorId, isDelayed, search) {
         return this.ordersService.getAllOrdersAdmin({
             status,
@@ -80,6 +83,10 @@ let OrdersController = class OrdersController {
             isDelayed: isDelayed === 'true',
             search,
         });
+    }
+    async reconcileProviderOrders(limit) {
+        const parsed = Number(limit);
+        return this.ordersService.reconcileProviderOrders(Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 100) : 20);
     }
     async adminReassignSupervisor(id, user, body) {
         return this.ordersService.adminReassignSupervisor(id, body.newSupervisorId, user, body.reason);
@@ -228,6 +235,16 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OrdersController.prototype, "getOrderDecryptedCredentials", null);
 __decorate([
+    (0, common_1.Get)(':id/input'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.SUPERVISOR, role_enum_1.Role.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], OrdersController.prototype, "getOrderDecryptedInput", null);
+__decorate([
     (0, common_1.Get)('admin/all'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN),
@@ -240,6 +257,15 @@ __decorate([
     __metadata("design:paramtypes", [String, String, String, String, String]),
     __metadata("design:returntype", Promise)
 ], OrdersController.prototype, "getAllOrdersAdmin", null);
+__decorate([
+    (0, common_1.Post)('admin/reconcile-providers'),
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN),
+    __param(0, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], OrdersController.prototype, "reconcileProviderOrders", null);
 __decorate([
     (0, common_1.Post)(':id/admin-reassign'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),

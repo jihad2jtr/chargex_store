@@ -116,6 +116,8 @@ export class CodesService {
       amount: code.amount,
       description: `شحن عبر كود رقمي: ${code.code}`,
       adminId: userId,
+      referenceType: 'ShippingCode',
+      referenceId: code._id.toString(),
     });
 
     return {

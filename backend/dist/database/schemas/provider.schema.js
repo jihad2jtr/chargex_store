@@ -11,6 +11,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.ProviderSchema = exports.Provider = exports.ProviderType = exports.ProviderStatus = void 0;
 const mongoose_1 = require("@nestjs/mongoose");
+const product_schema_1 = require("./product.schema");
 var ProviderStatus;
 (function (ProviderStatus) {
     ProviderStatus["ONLINE"] = "online";
@@ -20,6 +21,7 @@ var ProviderStatus;
 var ProviderType;
 (function (ProviderType) {
     ProviderType["BAY2GAME"] = "bay2game";
+    ProviderType["FOXRELOAD"] = "foxreload";
     ProviderType["CUSTOM"] = "custom";
 })(ProviderType || (exports.ProviderType = ProviderType = {}));
 let Provider = class Provider {
@@ -69,6 +71,14 @@ __decorate([
     (0, mongoose_1.Prop)({ default: 'USD' }),
     __metadata("design:type", String)
 ], Provider.prototype, "currency", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: String, enum: product_schema_1.ProfitMarginType, default: product_schema_1.ProfitMarginType.PERCENTAGE }),
+    __metadata("design:type", String)
+], Provider.prototype, "profitMarginType", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: Number, default: 10.0 }),
+    __metadata("design:type", Number)
+], Provider.prototype, "profitMarginValue", void 0);
 __decorate([
     (0, mongoose_1.Prop)({ default: true }),
     __metadata("design:type", Boolean)

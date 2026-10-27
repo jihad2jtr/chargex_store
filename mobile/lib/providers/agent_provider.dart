@@ -13,6 +13,7 @@ class AgentProvider extends ChangeNotifier {
   String? _errorMessage;
   String _activeFilter = 'all'; // 'all' | 'active' | 'suspended'
   String _searchQuery = '';
+  String _transferFilter = 'all'; // 'all' | 'in' | 'out'
 
   AgentDashboardStats get stats => _stats;
   List<AgentUserModel> get subUsers => _subUsers;
@@ -21,10 +22,28 @@ class AgentProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String get activeFilter => _activeFilter;
   String get searchQuery => _searchQuery;
+  String get transferFilter => _transferFilter;
+
+  // سجل التحويلات مصفّى بحسب الاتجاه: من الإدارة أو إلى العملاء
+  // يقرأ من الواجهة العامة `transfers` كي تمرّ التصفية على أي مصدر للبيانات.
+  List<AgentTransferRecord> get filteredTransfers {
+    final all = transfers;
+    if (_transferFilter == 'in') {
+      return all.where((t) => t.isIncoming).toList();
+    }
+    if (_transferFilter == 'out') {
+      return all.where((t) => !t.isIncoming).toList();
+    }
+    return all;
+  }
+
+  int get incomingTransferCount => transfers.where((t) => t.isIncoming).length;
+  int get outgoingTransferCount => transfers.where((t) => !t.isIncoming).length;
 
   // Filtered view of sub-users
+  // يقرأ من الواجهة العامة `subUsers` كي تمرّ التصفية على أي مصدر للبيانات.
   List<AgentUserModel> get filteredSubUsers {
-    return _subUsers.where((u) {
+    return subUsers.where((u) {
       if (_activeFilter == 'active' && !u.isActive) return false;
       if (_activeFilter == 'suspended' && u.isActive) return false;
       if (_searchQuery.isNotEmpty) {
@@ -46,6 +65,11 @@ class AgentProvider extends ChangeNotifier {
 
   void setSearchQuery(String query) {
     _searchQuery = query;
+    notifyListeners();
+  }
+
+  void setTransferFilter(String filter) {
+    _transferFilter = filter;
     notifyListeners();
   }
 
@@ -95,7 +119,12 @@ class AgentProvider extends ChangeNotifier {
 
       final res = await _api.get(endpoint);
       if (res is List) {
-        _subUsers = res.map((item) => AgentUserModel.fromJson(Map<String, dynamic>.from(item))).toList();
+        _subUsers = res
+            .map(
+              (item) =>
+                  AgentUserModel.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
       }
     } catch (e) {
       if (!silent) _errorMessage = _cleanError(e);
@@ -112,7 +141,12 @@ class AgentProvider extends ChangeNotifier {
     try {
       final res = await _api.get(ApiConstants.agentTransfers);
       if (res is List) {
-        _transfers = res.map((item) => AgentTransferRecord.fromJson(Map<String, dynamic>.from(item))).toList();
+        _transfers = res
+            .map(
+              (item) =>
+                  AgentTransferRecord.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
         notifyListeners();
       }
     } catch (e) {
@@ -163,10 +197,7 @@ class AgentProvider extends ChangeNotifier {
       _isLoading = false;
       _errorMessage = _cleanError(e);
       notifyListeners();
-      return {
-        'success': false,
-        'message': _errorMessage ?? 'فشل تحويل الرصيد',
-      };
+      return {'success': false, 'message': _errorMessage ?? 'فشل تحويل الرصيد'};
     }
   }
 
@@ -185,7 +216,8 @@ class AgentProvider extends ChangeNotifier {
         '${ApiConstants.agentToggleUserStatus}/$userId/toggle-status',
         body: {
           'isActive': isActive,
-          if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+          if (reason != null && reason.trim().isNotEmpty)
+            'reason': reason.trim(),
         },
       );
 
@@ -196,7 +228,9 @@ class AgentProvider extends ChangeNotifier {
 
       return {
         'success': true,
-        'message': res['message'] ?? (isActive ? 'تم تفعيل الحساب' : 'تم تجميد الحساب فوراً'),
+        'message':
+            res['message'] ??
+            (isActive ? 'تم تفعيل الحساب' : 'تم تجميد الحساب فوراً'),
         'data': res,
       };
     } catch (e) {
@@ -231,7 +265,8 @@ class AgentProvider extends ChangeNotifier {
           'email': email.trim().toLowerCase(),
           'password': password,
           if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
-          if (initialBalance != null && initialBalance > 0) 'initialBalance': initialBalance,
+          if (initialBalance != null && initialBalance > 0)
+            'initialBalance': initialBalance,
           if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
         },
       );
@@ -249,10 +284,7 @@ class AgentProvider extends ChangeNotifier {
       _isLoading = false;
       _errorMessage = _cleanError(e);
       notifyListeners();
-      return {
-        'success': false,
-        'message': _errorMessage ?? 'فشل إنشاء العميل',
-      };
+      return {'success': false, 'message': _errorMessage ?? 'فشل إنشاء العميل'};
     }
   }
 
@@ -265,9 +297,7 @@ class AgentProvider extends ChangeNotifier {
     try {
       final res = await _api.post(
         ApiConstants.agentLinkUser,
-        body: {
-          'userIdentifier': userIdentifier.trim(),
-        },
+        body: {'userIdentifier': userIdentifier.trim()},
       );
 
       await refreshAll(silent: true);
@@ -283,10 +313,7 @@ class AgentProvider extends ChangeNotifier {
       _isLoading = false;
       _errorMessage = _cleanError(e);
       notifyListeners();
-      return {
-        'success': false,
-        'message': _errorMessage ?? 'فشل ربط العميل',
-      };
+      return {'success': false, 'message': _errorMessage ?? 'فشل ربط العميل'};
     }
   }
 

@@ -36,7 +36,11 @@ class BalanceBadge extends StatelessWidget {
                 gradient: AppColors.brandGradient,
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.bolt_rounded, size: 12, color: Colors.white),
+              child: const Icon(
+                Icons.bolt_rounded,
+                size: 12,
+                color: Colors.white,
+              ),
             ),
             const SizedBox(width: 7),
             Text(
@@ -47,11 +51,14 @@ class BalanceBadge extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 5),
-            const Icon(Icons.add_circle, size: 15, color: AppColors.ticketAmber),
+            const Icon(
+              Icons.add_circle,
+              size: 15,
+              color: AppColors.ticketAmber,
+            ),
           ],
         ),
       ),
     );
   }
 }
-

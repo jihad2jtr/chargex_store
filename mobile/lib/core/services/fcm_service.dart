@@ -14,7 +14,9 @@ import '../../providers/wallet_provider.dart';
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (_) {}
 }
 
@@ -58,11 +60,12 @@ class FcmService {
       debugPrint('[FCM] Permission status: ${settings.authorizationStatus}');
 
       // 4. Foreground notification presentation options
-      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      await FirebaseMessaging.instance
+          .setForegroundNotificationPresentationOptions(
+            alert: true,
+            badge: true,
+            sound: true,
+          );
 
       // 5. Get Initial Device Token
       // ignore: deprecated_member_use
@@ -79,7 +82,9 @@ class FcmService {
 
       // 7. Foreground message listener
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-        debugPrint('[FCM] Foreground message received: ${message.notification?.title}');
+        debugPrint(
+          '[FCM] Foreground message received: ${message.notification?.title}',
+        );
         _handleForegroundMessage(message);
         _notifyAppDataChange(message.data);
       });
@@ -92,7 +97,8 @@ class FcmService {
       });
 
       // 9. Check terminated message that opened app
-      final initialMessage = await FirebaseMessaging.instance.getInitialMessage();
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
       if (initialMessage != null) {
         debugPrint('[FCM] App opened from terminated state by notification');
         _notifyAppDataChange(initialMessage.data);
@@ -111,10 +117,10 @@ class FcmService {
     if (tokenToSync == null || tokenToSync.isEmpty) return;
 
     try {
-      await _api.post('/notifications/fcm-token', body: {
-        'token': tokenToSync,
-        'platform': defaultTargetPlatform.name,
-      });
+      await _api.post(
+        '/notifications/fcm-token',
+        body: {'token': tokenToSync, 'platform': defaultTargetPlatform.name},
+      );
       debugPrint('[FCM] Token synced with backend successfully');
     } catch (e) {
       debugPrint('[FCM] Failed to sync token with backend: $e');
@@ -125,9 +131,10 @@ class FcmService {
   Future<void> removeTokenFromBackend() async {
     if (_currentToken == null) return;
     try {
-      await _api.delete('/notifications/fcm-token', body: {
-        'token': _currentToken,
-      });
+      await _api.delete(
+        '/notifications/fcm-token',
+        body: {'token': _currentToken},
+      );
       debugPrint('[FCM] Token removed from backend');
     } catch (_) {}
   }
@@ -158,7 +165,11 @@ class FcmService {
                 color: const Color(0xFF00BCD4).withValues(alpha: 0.2),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.notifications_active_rounded, color: Color(0xFF00BCD4), size: 22),
+              child: const Icon(
+                Icons.notifications_active_rounded,
+                color: Color(0xFF00BCD4),
+                size: 22,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -168,13 +179,20 @@ class FcmService {
                 children: [
                   Text(
                     title,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.white),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Colors.white,
+                    ),
                   ),
                   if (body.isNotEmpty) ...[
                     const SizedBox(height: 2),
                     Text(
                       body,
-                      style: const TextStyle(fontSize: 11.5, color: Colors.white70),
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: Colors.white70,
+                      ),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -224,7 +242,10 @@ class FcmService {
 
       // 3. Refresh supervisor manual orders
       try {
-        final supervisor = Provider.of<ManualServicesProvider>(context, listen: false);
+        final supervisor = Provider.of<ManualServicesProvider>(
+          context,
+          listen: false,
+        );
         supervisor.fetchSupervisorOrders(null, true);
       } catch (_) {}
 
@@ -233,7 +254,7 @@ class FcmService {
         final wallet = Provider.of<WalletProvider>(context, listen: false);
         wallet.fetchBalance();
       } catch (_) {}
-      
+
       debugPrint('[FCM] Application providers refreshed successfully');
     } catch (e) {
       debugPrint('[FCM] Data auto-refresh warning: $e');

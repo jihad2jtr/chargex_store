@@ -6,6 +6,7 @@ import { UserDocument } from '../../database/schemas/user.schema';
 import { WalletTransactionDocument } from '../../database/schemas/wallet-transaction.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProvidersService } from '../providers/providers.service';
+import { UsersService } from '../users/users.service';
 export declare class OrdersService {
     private orderModel;
     private productModel;
@@ -14,8 +15,9 @@ export declare class OrdersService {
     private transactionModel;
     private notificationsService;
     private providersService;
+    private usersService;
     private readonly logger;
-    constructor(orderModel: Model<OrderDocument>, productModel: Model<ProductDocument>, appModel: Model<AppDocument>, userModel: Model<UserDocument>, transactionModel: Model<WalletTransactionDocument>, notificationsService: NotificationsService, providersService: ProvidersService);
+    constructor(orderModel: Model<OrderDocument>, productModel: Model<ProductDocument>, appModel: Model<AppDocument>, userModel: Model<UserDocument>, transactionModel: Model<WalletTransactionDocument>, notificationsService: NotificationsService, providersService: ProvidersService, usersService: UsersService);
     private generateOrderNumber;
     createOrder(params: {
         userId: string;
@@ -32,6 +34,17 @@ export declare class OrdersService {
         };
         newBalance: number;
         deliveredCode: string | undefined;
+    }>;
+    private failPaidOrder;
+    private autoRefundOrder;
+    reconcileProviderOrders(limit?: number): Promise<{
+        checked: number;
+        settled: number;
+        refunded: number;
+        pending: number;
+        flagged: number;
+        recovered: number;
+        message: string;
     }>;
     getMyOrders(userId: string): Promise<(import("mongoose").Document<unknown, {}, OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & Order & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: Types.ObjectId;
@@ -66,6 +79,7 @@ export declare class OrdersService {
         deliveredCode?: string;
         providerReference?: string;
         providerResponse?: Record<string, any>;
+        providerSettledAt?: Date;
         assignedSupervisorId?: Types.ObjectId;
         estimatedMinutes?: number;
         deadlineAt?: Date;
@@ -103,54 +117,7 @@ export declare class OrdersService {
         supervisorId?: string;
         isDelayed?: boolean;
         search?: string;
-    }): Promise<{
-        isDelayed: boolean | undefined;
-        orderNumber: string;
-        userId: Types.ObjectId;
-        appId: Types.ObjectId;
-        productId: Types.ObjectId;
-        providerId?: Types.ObjectId;
-        type: ProductType;
-        amount: number;
-        cost: number;
-        profit: number;
-        status: OrderStatus;
-        accountInput: Record<string, any>;
-        adminNotes?: string;
-        deliveredCode?: string;
-        providerReference?: string;
-        providerResponse?: Record<string, any>;
-        assignedSupervisorId?: Types.ObjectId;
-        estimatedMinutes?: number;
-        deadlineAt?: Date;
-        acceptedAt?: Date;
-        startedAt?: Date;
-        deliveredAt?: Date;
-        completedAt?: Date;
-        isSensitive?: boolean;
-        sensitiveFields?: string[];
-        encryptedResultData?: string;
-        resultNotes?: string;
-        resultAttachments?: string[];
-        isResultPurged?: boolean;
-        purgedAt?: Date;
-        rejectionReason?: string;
-        disputeReason?: string;
-        revisionNotes?: string;
-        timeline: OrderTimelineEvent[];
-        chatMessages: OrderChatMessage[];
-        _id: Types.ObjectId;
-        $locals: Record<string, unknown>;
-        $op: "save" | "validate" | "remove" | null;
-        $where: Record<string, unknown>;
-        baseModelName?: string;
-        collection: import("mongoose").Collection;
-        db: import("mongoose").Connection;
-        errors?: import("mongoose").Error.ValidationError;
-        isNew: boolean;
-        schema: import("mongoose").Schema;
-        __v: number;
-    }[]>;
+    }): Promise<any[]>;
     supervisorAcceptOrder(orderId: string, supervisor: UserDocument): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & Order & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
@@ -281,6 +248,13 @@ export declare class OrdersService {
         credentials: any;
         purgedAt?: undefined;
         message?: undefined;
+    }>;
+    getOrderDecryptedInput(orderId: string, user: UserDocument): Promise<{
+        orderId: string;
+        orderNumber: string;
+        isSensitive: boolean;
+        sensitiveFields: string[];
+        accountInput: Record<string, any>;
     }>;
     acceptManualOrder(id: string, notes?: string): Promise<{
         message: string;

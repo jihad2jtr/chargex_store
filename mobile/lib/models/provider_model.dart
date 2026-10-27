@@ -9,6 +9,8 @@ class ProviderModel {
   final String? lastError;
   final DateTime? lastCheckAt;
   final double balance;
+  final String profitMarginType; // 'percentage' | 'fixed'
+  final double profitMarginValue;
   final bool isActive;
 
   ProviderModel({
@@ -22,6 +24,8 @@ class ProviderModel {
     this.lastError,
     this.lastCheckAt,
     this.balance = 0.0,
+    this.profitMarginType = 'percentage',
+    this.profitMarginValue = 10.0,
     this.isActive = true,
   });
 
@@ -35,8 +39,16 @@ class ProviderModel {
       headers: (json['headers'] as Map<String, dynamic>?) ?? {},
       status: json['status'] ?? 'offline',
       lastError: json['lastError'],
-      lastCheckAt: json['lastCheckAt'] != null ? DateTime.tryParse(json['lastCheckAt'].toString()) : null,
-      balance: (json['balance'] is num) ? (json['balance'] as num).toDouble() : 0.0,
+      lastCheckAt: json['lastCheckAt'] != null
+          ? DateTime.tryParse(json['lastCheckAt'].toString())
+          : null,
+      balance: (json['balance'] is num)
+          ? (json['balance'] as num).toDouble()
+          : 0.0,
+      profitMarginType: json['profitMarginType'] ?? 'percentage',
+      profitMarginValue: (json['profitMarginValue'] is num)
+          ? (json['profitMarginValue'] as num).toDouble()
+          : 10.0,
       isActive: json['isActive'] ?? true,
     );
   }
@@ -52,6 +64,8 @@ class ProviderModel {
       'status': status,
       'lastError': lastError,
       'balance': balance,
+      'profitMarginType': profitMarginType,
+      'profitMarginValue': profitMarginValue,
       'isActive': isActive,
     };
   }

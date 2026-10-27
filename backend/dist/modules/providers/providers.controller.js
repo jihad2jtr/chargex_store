@@ -19,7 +19,6 @@ const jwt_auth_guard_1 = require("../../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../../common/guards/roles.guard");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
 const role_enum_1 = require("../../common/interfaces/role.enum");
-const product_schema_1 = require("../../database/schemas/product.schema");
 let ProvidersController = class ProvidersController {
     constructor(providersService) {
         this.providersService = providersService;
@@ -55,10 +54,21 @@ let ProvidersController = class ProvidersController {
         return this.providersService.checkOrderStatus(id, reference);
     }
     async importProduct(providerId, body) {
-        return this.providersService.importToProducts(body.providerProductId, body.appId, body.marginType || product_schema_1.ProfitMarginType.PERCENTAGE, body.marginValue || 10);
+        return this.providersService.importToProducts(body.providerProductId, body.appId, {
+            name: body.name,
+            serviceTemplateId: body.serviceTemplateId,
+            quantityLabel: body.quantityLabel,
+        });
     }
     async batchImport(providerId, body) {
-        return this.providersService.batchImportToProducts(body.providerProductIds, body.appId, body.marginType || product_schema_1.ProfitMarginType.PERCENTAGE, body.marginValue || 10);
+        return this.providersService.batchImportToProducts(body.providerProductIds, body.appId, {
+            name: body.name,
+            serviceTemplateId: body.serviceTemplateId,
+            quantityLabel: body.quantityLabel,
+        });
+    }
+    async recalculatePrices(id) {
+        return this.providersService.recalculateProviderPrices(id);
     }
 };
 exports.ProvidersController = ProvidersController;
@@ -150,6 +160,13 @@ __decorate([
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
 ], ProvidersController.prototype, "batchImport", null);
+__decorate([
+    (0, common_1.Post)(':id/recalculate-prices'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ProvidersController.prototype, "recalculatePrices", null);
 exports.ProvidersController = ProvidersController = __decorate([
     (0, common_1.Controller)('providers'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

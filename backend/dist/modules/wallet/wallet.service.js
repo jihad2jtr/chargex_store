@@ -74,8 +74,8 @@ let WalletService = class WalletService {
             balanceBefore,
             balanceAfter,
             description: params.description || (params.amount > 0 ? 'شحن رصيد من الإدارة' : 'خصم رصيد من الإدارة'),
-            referenceType: 'Admin',
-            referenceId: params.adminId,
+            referenceType: params.referenceType ?? 'Admin',
+            referenceId: params.referenceId ?? params.adminId,
             status: wallet_transaction_schema_1.TransactionStatus.COMPLETED,
         });
         await transaction.save();

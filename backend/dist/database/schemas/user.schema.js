@@ -25,7 +25,13 @@ __decorate([
     __metadata("design:type", String)
 ], User.prototype, "name", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ required: true, unique: true, lowercase: true, trim: true, index: true }),
+    (0, mongoose_1.Prop)({
+        required: true,
+        unique: true,
+        lowercase: true,
+        trim: true,
+        index: true,
+    }),
     __metadata("design:type", String)
 ], User.prototype, "email", void 0);
 __decorate([
@@ -44,6 +50,10 @@ __decorate([
     (0, mongoose_1.Prop)({ trim: true }),
     __metadata("design:type", String)
 ], User.prototype, "phone", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ trim: true }),
+    __metadata("design:type", String)
+], User.prototype, "avatar", void 0);
 __decorate([
     (0, mongoose_1.Prop)(),
     __metadata("design:type", String)
@@ -86,7 +96,7 @@ exports.UserSchema.pre('save', async function () {
             const mm = String(now.getMonth() + 1).padStart(2, '0');
             const dd = String(now.getDate()).padStart(2, '0');
             const rand = Math.floor(10000 + Math.random() * 90000);
-            const candidateId = `chx${yy}${mm}${dd}${rand}`;
+            const candidateId = `jgo${yy}${mm}${dd}${rand}`;
             const existing = await model.findOne({ userId: candidateId });
             if (!existing) {
                 this.userId = candidateId;

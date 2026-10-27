@@ -558,6 +558,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                 ),
               ],
             ),
+
+            // بيانات إدخال العميل (مع إمكانية كشف الحقول الحساسة)
+            if (order.accountInput.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _CustomerInputBlock(order: order),
+            ],
+
             const Divider(height: 20, color: AppColors.outline),
 
             // SLA / Deadline Counter Box
@@ -1249,10 +1256,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                   credentials = {};
                   if (email.isNotEmpty) credentials['email'] = email;
                   if (pass.isNotEmpty) credentials['password'] = pass;
-                  if (backupCtrl.text.trim().isNotEmpty)
+                  if (backupCtrl.text.trim().isNotEmpty) {
                     credentials['recovery'] = backupCtrl.text.trim();
-                  if (extraCtrl.text.trim().isNotEmpty)
+                  }
+                  if (extraCtrl.text.trim().isNotEmpty) {
                     credentials['notes'] = extraCtrl.text.trim();
+                  }
                 }
 
                 Navigator.pop(ctx);
@@ -1330,6 +1339,172 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// يعرض بيانات إدخال العميل في بطاقة المشرف مع إخفاء الحقول الحساسة
+/// وإتاحة كشفها/نسخها عند الحاجة لتنفيذ الخدمة.
+class _CustomerInputBlock extends StatefulWidget {
+  final OrderModel order;
+
+  const _CustomerInputBlock({required this.order});
+
+  @override
+  State<_CustomerInputBlock> createState() => _CustomerInputBlockState();
+}
+
+class _CustomerInputBlockState extends State<_CustomerInputBlock> {
+  Map<String, dynamic>? _decrypted;
+  bool _isRevealing = false;
+
+  bool _isSensitiveField(String key) =>
+      widget.order.sensitiveFields.contains(key);
+
+  Future<void> _reveal() async {
+    setState(() => _isRevealing = true);
+    final provider = Provider.of<ManualServicesProvider>(
+      context,
+      listen: false,
+    );
+    final res = await provider.fetchDecryptedInput(widget.order.id);
+    if (!mounted) return;
+    setState(() {
+      _isRevealing = false;
+      final input = res?['accountInput'];
+      if (input is Map) {
+        _decrypted = Map<String, dynamic>.from(input);
+      }
+    });
+    if (_decrypted == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(provider.errorMessage ?? 'تعذر كشف البيانات'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = widget.order.accountInput.entries.toList();
+    final hasSensitive = widget.order.sensitiveFields.isNotEmpty;
+    final revealed = _decrypted != null;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.assignment_ind_outlined,
+                size: 15,
+                color: AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              const Text(
+                'بيانات إدخال العميل',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const Spacer(),
+              if (hasSensitive)
+                TextButton.icon(
+                  onPressed: _isRevealing ? null : _reveal,
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    minimumSize: const Size(0, 30),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  icon: _isRevealing
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Icon(
+                          revealed
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
+                          size: 16,
+                          color: const Color(0xFF7C3AED),
+                        ),
+                  label: Text(
+                    revealed ? 'إخفاء' : 'كشف',
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF7C3AED),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          for (final entry in entries)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 110,
+                    child: Text(
+                      entry.key,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: _isSensitiveField(entry.key)
+                        ? Row(
+                            children: [
+                              const Icon(
+                                Icons.lock_rounded,
+                                size: 12,
+                                color: Color(0xFF7C3AED),
+                              ),
+                              const SizedBox(width: 4),
+                              Expanded(
+                                child: SelectableText(
+                                  revealed
+                                      ? '${_decrypted?[entry.key] ?? ''}'
+                                      : '••••••••',
+                                  style: const TextStyle(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          )
+                        : SelectableText(
+                            '${entry.value}',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+        ],
       ),
     );
   }

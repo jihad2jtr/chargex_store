@@ -27,13 +27,7 @@ export declare class TopupController {
             id: string;
         };
     }>;
-    getMyRequests(user: UserDocument): Promise<(import("mongoose").Document<unknown, {}, import("../../database/schemas/manual-order.schema").ManualOrderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/manual-order.schema").ManualOrder & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-        _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
+    getMyRequests(user: UserDocument): Promise<any[]>;
     getAllAccountsAdmin(type?: PaymentAccountType): Promise<(import("mongoose").Document<unknown, {}, import("../../database/schemas/sham-cash-account.schema").ShamCashAccountDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/sham-cash-account.schema").ShamCashAccount & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
@@ -72,6 +66,28 @@ export declare class TopupController {
     } & {
         id: string;
     })[]>;
+    getAdminTopupLog(): Promise<any[]>;
+    createIdTopup(admin: UserDocument, body: {
+        userId: string;
+        amount: number;
+        description?: string;
+    }): Promise<{
+        message: string;
+        user: {
+            id: import("mongoose").Types.ObjectId;
+            userId: string | undefined;
+            name: string;
+            email: string;
+            balance: number;
+        };
+        entry: import("mongoose").Document<unknown, {}, import("../../database/schemas/manual-order.schema").ManualOrderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/manual-order.schema").ManualOrder & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+            _id: import("mongoose").Types.ObjectId;
+        }> & {
+            __v: number;
+        } & {
+            id: string;
+        };
+    }>;
     approveTopup(id: string, admin: UserDocument, body: {
         approvedAmount?: number;
         notes?: string;

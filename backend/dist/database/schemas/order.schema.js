@@ -169,6 +169,10 @@ __decorate([
     __metadata("design:type", Object)
 ], Order.prototype, "providerResponse", void 0);
 __decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", Date)
+], Order.prototype, "providerSettledAt", void 0);
+__decorate([
     (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User', index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Order.prototype, "assignedSupervisorId", void 0);
@@ -248,4 +252,7 @@ exports.Order = Order = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], Order);
 exports.OrderSchema = mongoose_1.SchemaFactory.createForClass(Order);
+exports.OrderSchema.index({ createdAt: -1 });
+exports.OrderSchema.index({ status: 1, createdAt: -1 });
+exports.OrderSchema.index({ type: 1, createdAt: -1 });
 //# sourceMappingURL=order.schema.js.map

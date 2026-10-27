@@ -5,8 +5,12 @@ export declare class ProductsController {
     getByApp(appId: string): Promise<{
         availableCodesCount: number;
         inventoryCodes: undefined;
+        providerAvailable: boolean;
         appId: import("mongoose").Types.ObjectId;
         name: string;
+        serviceTemplateId?: import("mongoose").Types.ObjectId;
+        quantityLabel: string;
+        kind: string;
         description?: string;
         type: import("../../database/schemas/product.schema").ProductType;
         providerId?: import("mongoose").Types.ObjectId;
@@ -40,6 +44,9 @@ export declare class ProductsController {
         availableCodesCount: number;
         appId: import("mongoose").Types.ObjectId;
         name: string;
+        serviceTemplateId?: import("mongoose").Types.ObjectId;
+        quantityLabel: string;
+        kind: string;
         description?: string;
         type: import("../../database/schemas/product.schema").ProductType;
         providerId?: import("mongoose").Types.ObjectId;

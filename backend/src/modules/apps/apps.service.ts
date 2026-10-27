@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { App, AppDocument } from '../../database/schemas/app.schema';
@@ -27,6 +27,23 @@ export class AppsService {
     return app;
   }
 
+  // يمنع تكرار التطبيقات/الخدمات بنفس الاسم (يتجاهل المسافات الزائدة وحالة الأحرف)
+  private async assertUniqueName(name: string, excludeId?: string) {
+    const trimmed = (name || '').trim();
+    if (!trimmed) throw new BadRequestException('اسم التطبيق مطلوب');
+
+    const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const query: any = {
+      name: { $regex: `^\\s*${escaped}\\s*$`, $options: 'i' },
+    };
+    if (excludeId) query._id = { $ne: excludeId };
+
+    const existing = await this.appModel.exists(query);
+    if (existing) {
+      throw new BadRequestException('يوجد تطبيق مسجّل بنفس الاسم بالفعل — لا يُسمح بالتكرار');
+    }
+  }
+
   async create(createDto: {
     name: string;
     iconUrl: string;
@@ -35,6 +52,7 @@ export class AppsService {
     description?: string;
     isActive?: boolean;
   }) {
+    await this.assertUniqueName(createDto.name);
     const app = new this.appModel({
       ...createDto,
       isActive: createDto.isActive !== undefined ? createDto.isActive : true,
@@ -44,6 +62,10 @@ export class AppsService {
   }
 
   async update(id: string, updateDto: any) {
+    // عند إعادة التسمية: لا يُسمح باسم مطابق لتطبيق آخر
+    if (updateDto?.name !== undefined) {
+      await this.assertUniqueName(updateDto.name, id);
+    }
     const app = await this.appModel.findByIdAndUpdate(id, updateDto, { new: true });
     if (!app) throw new NotFoundException('الخدمة / التطبيق غير موجود');
     return app;

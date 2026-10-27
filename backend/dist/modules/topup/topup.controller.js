@@ -59,6 +59,17 @@ let TopupController = class TopupController {
     async getManualOrders(status) {
         return this.topupService.getManualOrders(status);
     }
+    async getAdminTopupLog() {
+        return this.topupService.getAdminTopupLog();
+    }
+    async createIdTopup(admin, body) {
+        return this.topupService.createIdTopup({
+            userId: body.userId,
+            amount: Number(body.amount),
+            description: body.description,
+            adminId: admin._id.toString(),
+        });
+    }
     async approveTopup(id, admin, body) {
         return this.topupService.approveTopup(id, admin._id.toString(), body.approvedAmount, body.notes);
     }
@@ -146,6 +157,24 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], TopupController.prototype, "getManualOrders", null);
+__decorate([
+    (0, common_1.Get)('admin/log'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], TopupController.prototype, "getAdminTopupLog", null);
+__decorate([
+    (0, common_1.Post)('admin/id-topup'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.ADMIN),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, Object]),
+    __metadata("design:returntype", Promise)
+], TopupController.prototype, "createIdTopup", null);
 __decorate([
     (0, common_1.Post)('admin/requests/:id/approve'),
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),

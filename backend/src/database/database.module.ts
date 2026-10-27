@@ -13,6 +13,8 @@ import { ShippingCode, ShippingCodeSchema } from './schemas/shipping-code.schema
 import { ManualOrder, ManualOrderSchema } from './schemas/manual-order.schema';
 import { Notification, NotificationSchema } from './schemas/notification.schema';
 import { Banner, BannerSchema } from './schemas/banner.schema';
+import { ServiceTemplate, ServiceTemplateSchema } from './schemas/service-template.schema';
+import { ExchangeRate, ExchangeRateSchema } from './schemas/exchange-rate.schema';
 
 const featureModels = [
   { name: User.name, schema: UserSchema },
@@ -28,6 +30,8 @@ const featureModels = [
   { name: ManualOrder.name, schema: ManualOrderSchema },
   { name: Notification.name, schema: NotificationSchema },
   { name: Banner.name, schema: BannerSchema },
+  { name: ServiceTemplate.name, schema: ServiceTemplateSchema },
+  { name: ExchangeRate.name, schema: ExchangeRateSchema },
 ];
 
 @Module({

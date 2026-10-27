@@ -8,7 +8,7 @@ class ApiConstants {
   static const String cloudUrl = 'http://45.151.180.73:3000/api';
 
   // Local server (نفس جهاز التشغيل أو جهاز على نفس الشبكة)
-  static const String serverHost = '192.168.1.198';
+  static const String serverHost = '45.151.180.73';
   static const String serverPort = '3000';
   static const String localUrl = 'http://$serverHost:$serverPort/api';
 
@@ -28,6 +28,8 @@ class ApiConstants {
 
   static const String productsByApp = '/products/by-app';
   static const String adminProducts = '/products/admin/all';
+  static const String serviceTemplates = '/service-templates';
+  static const String adminServiceTemplates = '/service-templates/admin/all';
   static const String syncProviderPrices = '/products/sync-provider-prices';
 
   static const String providers = '/providers';
@@ -35,6 +37,9 @@ class ApiConstants {
   static const String orders = '/orders';
   static const String myOrders = '/orders/my-orders';
   static const String adminOrders = '/orders/admin/all';
+  static const String adminDashboardStats = '/dashboard/admin';
+  static const String adminDashboardPendingCounts =
+      '/dashboard/admin/pending-counts';
 
   static const String walletBalance = '/wallet/balance';
   static const String walletTransactions = '/wallet/transactions';
@@ -45,6 +50,8 @@ class ApiConstants {
   static const String topupMyRequests = '/topup/my-requests';
   static const String adminTopupAccounts = '/topup/admin/accounts';
   static const String adminTopupRequests = '/topup/admin/requests';
+  static const String adminTopupLog = '/topup/admin/log';
+  static const String adminIdTopup = '/topup/admin/id-topup';
 
   static const String codesVerify = '/codes/verify';
   static const String codesRedeem = '/codes/redeem';
@@ -59,10 +66,15 @@ class ApiConstants {
   static const String banners = '/banners';
   static const String adminBanners = '/banners/admin/all';
 
+  // سعر صرف الدولار مقابل الليرة السورية (يُحدَّث على الخادم يومياً)
+  static const String exchangeRate = '/exchange-rates/current';
+  static const String adminRefreshExchangeRate = '/exchange-rates/refresh';
+
   // Manual Services & Supervisor Workflow Endpoints
   static const String supervisorOrders = '/orders/supervisor/my-orders';
-  static const String supervisorsList = '/users/supervisors';
-  static const String createSupervisor = '/users/create-supervisor';
+
+  // Users Management Endpoints
+  static const String usersList = '/users';
 
   // Agent (الوكيل) Endpoints
   static const String agentDashboard = '/agent/dashboard';

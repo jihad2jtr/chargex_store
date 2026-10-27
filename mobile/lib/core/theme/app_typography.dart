@@ -147,7 +147,10 @@ class AppTypography {
   // ---------------------------------------------------------------------------
 
   /// Balance display (e.g. $1,248.50)
-  static TextStyle balance({Color color = const Color(0xFF0F172A), double fontSize = 12.0}) {
+  static TextStyle balance({
+    Color color = const Color(0xFF0F172A),
+    double fontSize = 12.0,
+  }) {
     return plusJakartaSans(
       fontSize: fontSize,
       fontWeight: FontWeight.w900,

@@ -6,12 +6,14 @@ import 'core/theme/app_colors.dart';
 import 'providers/auth_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/app_catalog_provider.dart';
+import 'providers/exchange_rate_provider.dart';
 import 'providers/admin_provider.dart';
 import 'providers/margin_provider.dart';
 import 'providers/manual_services_provider.dart';
 import 'providers/agent_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/user/user_main_screen.dart';
+import 'core/services/cache_service.dart';
 import 'core/services/fcm_service.dart';
 
 final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -19,6 +21,7 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await ApiClient().init();
+  await CacheService.instance.init();
   await FcmService.instance.initialize(navKey: rootNavigatorKey);
 
   runApp(
@@ -27,6 +30,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => WalletProvider()),
         ChangeNotifierProvider(create: (_) => AppCatalogProvider()),
+        ChangeNotifierProvider(create: (_) => ExchangeRateProvider()),
         ChangeNotifierProvider(create: (_) => AdminProvider()),
         ChangeNotifierProvider(create: (_) => MarginProvider()),
         ChangeNotifierProvider(create: (_) => ManualServicesProvider()),

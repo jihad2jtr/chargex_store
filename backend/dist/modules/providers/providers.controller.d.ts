@@ -1,5 +1,4 @@
 import { ProvidersService } from './providers.service';
-import { ProfitMarginType } from '../../database/schemas/product.schema';
 export declare class ProvidersController {
     private readonly providersService;
     constructor(providersService: ProvidersService);
@@ -74,8 +73,9 @@ export declare class ProvidersController {
     importProduct(providerId: string, body: {
         providerProductId: string;
         appId: string;
-        marginType?: ProfitMarginType;
-        marginValue?: number;
+        name?: string;
+        serviceTemplateId?: string;
+        quantityLabel?: string;
     }): Promise<import("mongoose").Document<unknown, {}, import("../../database/schemas/product.schema").ProductDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/product.schema").Product & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
@@ -86,8 +86,9 @@ export declare class ProvidersController {
     batchImport(providerId: string, body: {
         providerProductIds: string[];
         appId: string;
-        marginType?: ProfitMarginType;
-        marginValue?: number;
+        name?: string;
+        serviceTemplateId?: string;
+        quantityLabel?: string;
     }): Promise<{
         message: string;
         importedCount: number;
@@ -98,5 +99,9 @@ export declare class ProvidersController {
         } & {
             id: string;
         })[];
+    }>;
+    recalculatePrices(id: string): Promise<{
+        message: string;
+        updated: number;
     }>;
 }

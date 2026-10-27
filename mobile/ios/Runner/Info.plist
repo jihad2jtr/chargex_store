@@ -29,6 +29,10 @@
 		<key>NSAllowsArbitraryLoads</key>
 		<true/>
 	</dict>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>نحتاج الوصول إلى معرض الصور لاختيار صورة الإعلان أو الصورة الشخصية.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>نحتاج الكاميرا لالتقاط صورة شخصية أو صورة إعلان.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>

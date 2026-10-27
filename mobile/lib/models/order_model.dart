@@ -1,3 +1,5 @@
+import 'service_template_model.dart';
+
 class OrderTimelineEventModel {
   final String action;
   final String title;
@@ -57,7 +59,10 @@ class OrderChatMessageModel {
   factory OrderChatMessageModel.fromJson(Map<String, dynamic> json) {
     return OrderChatMessageModel(
       id: (json['_id'] ?? json['id'] ?? '').toString(),
-      senderId: (json['senderId'] is Map ? json['senderId']['_id'] : json['senderId'])?.toString() ?? '',
+      senderId:
+          (json['senderId'] is Map ? json['senderId']['_id'] : json['senderId'])
+              ?.toString() ??
+          '',
       senderName: json['senderName'] ?? '',
       senderRole: json['senderRole'] ?? 'user',
       message: json['message'] ?? '',
@@ -105,6 +110,8 @@ class OrderModel {
   final DateTime? startedAt;
   final DateTime? deliveredAt;
   final bool isSensitive;
+  final List<String> sensitiveFields;
+  final ServiceTemplateModel? serviceTemplate;
   final String? resultNotes;
   final List<String> resultAttachments;
   final bool isResultPurged;
@@ -145,6 +152,8 @@ class OrderModel {
     this.startedAt,
     this.deliveredAt,
     this.isSensitive = false,
+    this.sensitiveFields = const [],
+    this.serviceTemplate,
     this.resultNotes,
     this.resultAttachments = const [],
     this.isResultPurged = false,
@@ -176,33 +185,63 @@ class OrderModel {
     String? supPhone;
 
     if (json['assignedSupervisorId'] is Map) {
-      supId = (json['assignedSupervisorId']['_id'] ?? json['assignedSupervisorId']['id'])?.toString();
+      supId =
+          (json['assignedSupervisorId']['_id'] ??
+                  json['assignedSupervisorId']['id'])
+              ?.toString();
       supName = json['assignedSupervisorId']['name']?.toString();
       supPhone = json['assignedSupervisorId']['phone']?.toString();
     } else if (json['assignedSupervisorId'] != null) {
       supId = json['assignedSupervisorId'].toString();
     }
 
-    final dl = json['deadlineAt'] != null ? DateTime.tryParse(json['deadlineAt'].toString()) : null;
+    final dl = json['deadlineAt'] != null
+        ? DateTime.tryParse(json['deadlineAt'].toString())
+        : null;
     final now = DateTime.now();
     final st = json['status'] ?? 'pending';
-    final delayed = json['isDelayed'] == true || (dl != null && now.isAfter(dl) && st != 'completed' && st != 'refunded');
+    final delayed =
+        json['isDelayed'] == true ||
+        (dl != null &&
+            now.isAfter(dl) &&
+            st != 'completed' &&
+            st != 'refunded');
 
     return OrderModel(
       id: json['_id'] ?? json['id'] ?? '',
       orderNumber: json['orderNumber'] ?? '',
-      userId: json['userId'] is Map ? (json['userId']['userId'] ?? json['userId']['_id'] ?? '') : (json['userId'] ?? ''),
-      userName: json['userId'] is Map ? json['userId']['name'] : json['userName'],
-      userEmail: json['userId'] is Map ? json['userId']['email'] : json['userEmail'],
-      appId: json['appId'] is Map ? json['appId']['_id'] : (json['appId'] ?? ''),
-      appName: json['appName'] ?? (json['appId'] is Map ? json['appId']['name'] : ''),
-      appIcon: json['appIcon'] ?? (json['appId'] is Map ? json['appId']['iconUrl'] : null),
-      productId: json['productId'] is Map ? json['productId']['_id'] : (json['productId'] ?? ''),
-      productName: json['productName'] ?? (json['productId'] is Map ? json['productId']['name'] : ''),
+      userId: json['userId'] is Map
+          ? (json['userId']['userId'] ?? json['userId']['_id'] ?? '')
+          : (json['userId'] ?? ''),
+      userName: json['userId'] is Map
+          ? json['userId']['name']
+          : json['userName'],
+      userEmail: json['userId'] is Map
+          ? json['userId']['email']
+          : json['userEmail'],
+      appId: json['appId'] is Map
+          ? json['appId']['_id']
+          : (json['appId'] ?? ''),
+      appName:
+          json['appName'] ??
+          (json['appId'] is Map ? json['appId']['name'] : ''),
+      appIcon:
+          json['appIcon'] ??
+          (json['appId'] is Map ? json['appId']['iconUrl'] : null),
+      productId: json['productId'] is Map
+          ? json['productId']['_id']
+          : (json['productId'] ?? ''),
+      productName:
+          json['productName'] ??
+          (json['productId'] is Map ? json['productId']['name'] : ''),
       type: json['type'] ?? 'direct_api',
-      amount: (json['amount'] is num) ? (json['amount'] as num).toDouble() : 0.0,
+      amount: (json['amount'] is num)
+          ? (json['amount'] as num).toDouble()
+          : 0.0,
       cost: (json['cost'] is num) ? (json['cost'] as num).toDouble() : 0.0,
-      profit: (json['profit'] is num) ? (json['profit'] as num).toDouble() : 0.0,
+      profit: (json['profit'] is num)
+          ? (json['profit'] as num).toDouble()
+          : 0.0,
       status: st,
       accountInput: (json['accountInput'] as Map<String, dynamic>?) ?? {},
       adminNotes: json['adminNotes'],
@@ -210,29 +249,65 @@ class OrderModel {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
-      completedAt: json['completedAt'] != null ? DateTime.tryParse(json['completedAt'].toString()) : null,
+      completedAt: json['completedAt'] != null
+          ? DateTime.tryParse(json['completedAt'].toString())
+          : null,
       assignedSupervisorId: supId,
       assignedSupervisorName: supName,
       assignedSupervisorPhone: supPhone,
-      estimatedMinutes: (json['estimatedMinutes'] is num) ? (json['estimatedMinutes'] as num).toInt() : 120,
+      estimatedMinutes: (json['estimatedMinutes'] is num)
+          ? (json['estimatedMinutes'] as num).toInt()
+          : 120,
       deadlineAt: dl,
       isDelayed: delayed,
-      acceptedAt: json['acceptedAt'] != null ? DateTime.tryParse(json['acceptedAt'].toString()) : null,
-      startedAt: json['startedAt'] != null ? DateTime.tryParse(json['startedAt'].toString()) : null,
-      deliveredAt: json['deliveredAt'] != null ? DateTime.tryParse(json['deliveredAt'].toString()) : null,
+      acceptedAt: json['acceptedAt'] != null
+          ? DateTime.tryParse(json['acceptedAt'].toString())
+          : null,
+      startedAt: json['startedAt'] != null
+          ? DateTime.tryParse(json['startedAt'].toString())
+          : null,
+      deliveredAt: json['deliveredAt'] != null
+          ? DateTime.tryParse(json['deliveredAt'].toString())
+          : null,
       isSensitive: json['isSensitive'] == true,
+      sensitiveFields:
+          (json['sensitiveFields'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
+      serviceTemplate:
+          (json['productId'] is Map &&
+              json['productId']['serviceTemplateId'] is Map)
+          ? ServiceTemplateModel.fromJson(
+              Map<String, dynamic>.from(
+                json['productId']['serviceTemplateId'] as Map,
+              ),
+            )
+          : null,
       resultNotes: json['resultNotes'],
-      resultAttachments: (json['resultAttachments'] as List<dynamic>?)?.map((e) => e.toString()).toList() ?? [],
+      resultAttachments:
+          (json['resultAttachments'] as List<dynamic>?)
+              ?.map((e) => e.toString())
+              .toList() ??
+          [],
       isResultPurged: json['isResultPurged'] == true,
       rejectionReason: json['rejectionReason'],
       disputeReason: json['disputeReason'],
       revisionNotes: json['revisionNotes'],
-      timeline: (json['timeline'] as List<dynamic>?)
-              ?.map((e) => OrderTimelineEventModel.fromJson(e as Map<String, dynamic>))
+      timeline:
+          (json['timeline'] as List<dynamic>?)
+              ?.map(
+                (e) =>
+                    OrderTimelineEventModel.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
-      chatMessages: (json['chatMessages'] as List<dynamic>?)
-              ?.map((e) => OrderChatMessageModel.fromJson(e as Map<String, dynamic>))
+      chatMessages:
+          (json['chatMessages'] as List<dynamic>?)
+              ?.map(
+                (e) =>
+                    OrderChatMessageModel.fromJson(e as Map<String, dynamic>),
+              )
               .toList() ??
           [],
     );

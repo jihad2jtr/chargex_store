@@ -32,6 +32,8 @@ export declare class WalletService {
         amount: number;
         description: string;
         adminId: string;
+        referenceType?: string;
+        referenceId?: string;
     }): Promise<{
         message: string;
         user: {

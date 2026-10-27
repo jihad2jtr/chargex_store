@@ -36,11 +36,15 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
     final imageUrlController = TextEditingController(
       text: banner?.imageUrl ?? '',
     );
+    final linkController = TextEditingController(
+      text: banner?.actionValue ?? '',
+    );
     final sortOrderController = TextEditingController(
       text: (banner?.sortOrder ?? 0).toString(),
     );
 
-    String actionType = banner?.actionType ?? 'topup';
+    // الإعلان إما له رابط يُفتح عند الضغط عليه، أو "بدون رابط" (عرض فقط)
+    bool noLink = (banner?.actionType ?? 'none') != 'url';
     bool isActive = banner?.isActive ?? true;
     bool isUploading = false;
     String previewImageUrl = banner?.imageUrl ?? '';
@@ -51,14 +55,15 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (dialogCtx, setDialogState) {
-            Future<void> pickImage(ImageSource source) async {
+            // صورة الإعلان من معرض الصور فقط
+            Future<void> pickImage() async {
               try {
                 final admin = Provider.of<AdminProvider>(
                   context,
                   listen: false,
                 );
                 final XFile? image = await _picker.pickImage(
-                  source: source,
+                  source: ImageSource.gallery,
                   imageQuality: 80,
                   maxWidth: 1200,
                 );
@@ -110,56 +115,6 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                   );
                 }
               }
-            }
-
-            void showImageSourcePicker() {
-              showModalBottomSheet(
-                context: dialogCtx,
-                backgroundColor: AppColors.surfaceContainer,
-                shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-                ),
-                builder: (sheetCtx) => SafeArea(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          'اختر مصدر صورة الإعلان',
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.photo_library_outlined,
-                            color: AppColors.primaryContainer,
-                          ),
-                          title: const Text('اختيار من معرض الصور'),
-                          onTap: () {
-                            Navigator.pop(sheetCtx);
-                            pickImage(ImageSource.gallery);
-                          },
-                        ),
-                        ListTile(
-                          leading: const Icon(
-                            Icons.camera_alt_outlined,
-                            color: AppColors.secondary,
-                          ),
-                          title: const Text('التقاط صورة بالكاميرا'),
-                          onTap: () {
-                            Navigator.pop(sheetCtx);
-                            pickImage(ImageSource.camera);
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
             }
 
             return AlertDialog(
@@ -315,12 +270,14 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: isUploading
-                                  ? null
-                                  : showImageSourcePicker,
-                              icon: const Icon(Icons.add_a_photo, size: 16),
+                              // صورة الإعلان تُختار من معرض الصور فقط (بدون كاميرا)
+                              onPressed: isUploading ? null : pickImage,
+                              icon: const Icon(
+                                Icons.photo_library_outlined,
+                                size: 16,
+                              ),
                               label: const Text(
-                                'اختيار / التقاط صورة',
+                                'اختيار صورة من المعرض',
                                 style: TextStyle(fontSize: 12),
                               ),
                               style: OutlinedButton.styleFrom(
@@ -407,30 +364,41 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                       ),
                       const SizedBox(height: 14),
 
-                      // Action Type selector
-                      DropdownButtonFormField<String>(
-                        initialValue: actionType,
+                      // رابط الإعلان (يُفتح عند الضغط على الإعلان)
+                      TextField(
+                        controller: linkController,
+                        enabled: !noLink,
+                        textDirection: TextDirection.ltr,
+                        keyboardType: TextInputType.url,
                         decoration: const InputDecoration(
-                          labelText: 'نوع الإجراء عند الضغط',
-                          prefixIcon: Icon(Icons.touch_app),
+                          labelText: 'رابط الإعلان (يُفتح عند الضغط)',
+                          hintText: 'https://example.com',
+                          prefixIcon: Icon(Icons.link),
+                          isDense: true,
                         ),
-                        items: const [
-                          DropdownMenuItem(
-                            value: 'topup',
-                            child: Text('فتح صفحة شحن المحفظة'),
-                          ),
-                          DropdownMenuItem(
-                            value: 'none',
-                            child: Text('بدون إجراء (عرض فقط)'),
-                          ),
-                        ],
-                        onChanged: (val) {
-                          if (val != null) {
-                            setDialogState(() => actionType = val);
-                          }
-                        },
                       ),
-                      const SizedBox(height: 14),
+
+                      // خيار بدون رابط
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text(
+                          'بدون رابط',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        subtitle: const Text(
+                          'الإعلان للعرض فقط، والضغط عليه لن يفتح أي صفحة',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                        value: noLink,
+                        onChanged: (val) {
+                          setDialogState(() => noLink = val);
+                        },
+                        activeThumbColor: AppColors.secondary,
+                      ),
+                      const SizedBox(height: 6),
 
                       // Sort Order
                       TextField(
@@ -505,6 +473,41 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                             return;
                           }
 
+                          // الرابط الذي يُفتح عند الضغط على الإعلان
+                          final rawLink = linkController.text.trim();
+
+                          if (!noLink && rawLink.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text(
+                                  'يرجى إدخال رابط الإعلان أو تفعيل خيار "بدون رابط"',
+                                ),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+
+                          if (!noLink &&
+                              (rawLink.contains(' ') ||
+                                  !rawLink.contains('.'))) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('رابط الإعلان غير صالح'),
+                                backgroundColor: AppColors.error,
+                              ),
+                            );
+                            return;
+                          }
+
+                          var link = rawLink;
+                          if (!noLink) {
+                            final parsedLink = Uri.tryParse(link);
+                            if (parsedLink == null || !parsedLink.hasScheme) {
+                              link = 'https://$link';
+                            }
+                          }
+
                           final admin = Provider.of<AdminProvider>(
                             context,
                             listen: false,
@@ -518,7 +521,8 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                             'title': title,
                             'description': description,
                             'imageUrl': imageUrl,
-                            'actionType': actionType,
+                            'actionType': noLink ? 'none' : 'url',
+                            'actionValue': noLink ? '' : link,
                             'sortOrder': sortOrder,
                             'isActive': isActive,
                           };
@@ -1053,24 +1057,47 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                             ],
                           ),
                         ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 3,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: Colors.white24),
-                          ),
-                          child: Text(
-                            banner.actionType == 'topup'
-                                ? 'إجراء: شحن المحفظة'
-                                : 'بدون إجراء',
-                            style: AppTypography.cairo(
-                              fontSize: 10,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 3,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black54,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(color: Colors.white24),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  banner.actionValue != null &&
+                                          banner.actionValue!.trim().isNotEmpty
+                                      ? Icons.link
+                                      : Icons.block,
+                                  size: 11,
+                                  color: Colors.white,
+                                ),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    banner.actionValue != null &&
+                                            banner.actionValue!
+                                                .trim()
+                                                .isNotEmpty
+                                        ? banner.actionValue!.trim()
+                                        : 'بدون رابط',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.cairo(
+                                      fontSize: 10,
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ),

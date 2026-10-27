@@ -35,6 +35,18 @@ __decorate([
     __metadata("design:type", String)
 ], Product.prototype, "name", void 0);
 __decorate([
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'ServiceTemplate', index: true }),
+    __metadata("design:type", mongoose_2.Types.ObjectId)
+], Product.prototype, "serviceTemplateId", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ trim: true, default: '' }),
+    __metadata("design:type", String)
+], Product.prototype, "quantityLabel", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ trim: true, default: 'quantity', index: true }),
+    __metadata("design:type", String)
+], Product.prototype, "kind", void 0);
+__decorate([
     (0, mongoose_1.Prop)({ trim: true }),
     __metadata("design:type", String)
 ], Product.prototype, "description", void 0);

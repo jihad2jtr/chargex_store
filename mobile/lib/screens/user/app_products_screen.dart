@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/product_kinds.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/app_model.dart';
 import '../../models/product_model.dart';
+import '../../models/service_template_model.dart';
 import '../../providers/app_catalog_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/exchange_rate_provider.dart';
 import '../../providers/margin_provider.dart';
 import '../../widgets/balance_badge.dart';
-import '../../widgets/digital_pass_card.dart';
+import '../../widgets/product_list_card.dart';
 
 class AppProductsScreen extends StatefulWidget {
   final AppItemModel app;
@@ -21,6 +24,9 @@ class AppProductsScreen extends StatefulWidget {
 }
 
 class _AppProductsScreenState extends State<AppProductsScreen> {
+  /// فلتر الفئة التفصيلية: 'all' أو مفتاح فئة (quantity / package / مخصصة)
+  String _kindFilter = 'all';
+
   @override
   void initState() {
     super.initState();
@@ -30,6 +36,14 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
         listen: false,
       ).fetchProductsByApp(widget.app.id);
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant AppProductsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.app.id != widget.app.id) {
+      _kindFilter = 'all';
+    }
   }
 
   void _openPurchaseDialog(ProductModel product) {
@@ -44,10 +58,23 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
     final double profitAmount = marginProvider.calculateProfit(
       product.salePrice,
     );
+    final templateFields =
+        product.serviceTemplate?.fields ?? const <ServiceFieldDef>[];
     final Map<String, TextEditingController> controllers = {};
+    final Map<String, int> quantityValues = {};
 
-    for (final field in product.requiredFields) {
-      controllers[field] = TextEditingController();
+    if (templateFields.isNotEmpty) {
+      for (final field in templateFields) {
+        if (field.type == 'quantity') {
+          quantityValues[field.label] = 1;
+        } else {
+          controllers[field.label] = TextEditingController();
+        }
+      }
+    } else {
+      for (final field in product.requiredFields) {
+        controllers[field] = TextEditingController();
+      }
     }
 
     showModalBottomSheet(
@@ -212,18 +239,47 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
 
                   // Required inputs (e.g. Player ID)
                   if (product.type != 'codes' &&
-                      product.requiredFields.isNotEmpty) ...[
-                    for (final field in product.requiredFields) ...[
-                      TextField(
-                        controller: controllers[field],
-                        decoration: InputDecoration(
-                          labelText: field,
-                          hintText: 'أدخل $field الخاص بك',
-                          prefixIcon: const Icon(Icons.badge_outlined),
+                      (templateFields.isNotEmpty ||
+                          product.requiredFields.isNotEmpty)) ...[
+                    if (templateFields.isNotEmpty)
+                      for (final field in templateFields) ...[
+                        if (field.type == 'quantity')
+                          _buildQuantityField(
+                            field,
+                            quantityValues,
+                            setSheetState,
+                          )
+                        else
+                          TextField(
+                            controller: controllers[field.label],
+                            obscureText: field.isSensitive,
+                            keyboardType: field.type == 'phone'
+                                ? TextInputType.phone
+                                : field.type == 'email'
+                                ? TextInputType.emailAddress
+                                : TextInputType.text,
+                            decoration: InputDecoration(
+                              labelText: field.label,
+                              hintText: field.placeholder.isNotEmpty
+                                  ? field.placeholder
+                                  : 'أدخل ${field.label}',
+                              prefixIcon: Icon(_fieldIcon(field.type)),
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                      ]
+                    else
+                      for (final field in product.requiredFields) ...[
+                        TextField(
+                          controller: controllers[field],
+                          decoration: InputDecoration(
+                            labelText: field,
+                            hintText: 'أدخل $field الخاص بك',
+                            prefixIcon: const Icon(Icons.badge_outlined),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                    ],
+                        const SizedBox(height: 12),
+                      ],
                   ],
 
                   if (product.type == 'codes') ...[
@@ -290,15 +346,22 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                   Consumer<AppCatalogProvider>(
                     builder: (context, catalog, child) {
                       final hasEnough = userBalance >= product.salePrice;
+                      final unavailable = !product.providerAvailable;
 
                       return ElevatedButton(
-                        onPressed: (!hasEnough || catalog.isOrdering)
+                        onPressed:
+                            (!hasEnough || unavailable || catalog.isOrdering)
                             ? null
                             : () async {
                                 final Map<String, dynamic> accountInput = {};
                                 for (final entry in controllers.entries) {
                                   final val = entry.value.text.trim();
-                                  if (val.isEmpty && product.type != 'codes') {
+                                  final isOptional = templateFields.any(
+                                    (f) => f.label == entry.key && !f.required,
+                                  );
+                                  if (val.isEmpty &&
+                                      product.type != 'codes' &&
+                                      !isOptional) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       SnackBar(
                                         content: Text(
@@ -309,6 +372,9 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                                     return;
                                   }
                                   accountInput[entry.key] = val;
+                                }
+                                for (final entry in quantityValues.entries) {
+                                  accountInput[entry.key] = entry.value;
                                 }
 
                                 final result = await catalog.purchaseProduct(
@@ -327,6 +393,10 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
 
                                   _showPurchaseSuccessDialog(result);
                                 } else if (context.mounted) {
+                                  // A failed attempt is refunded server-side, but the
+                                  // balance may have been resynced — refresh before reporting
+                                  await auth.refreshProfile();
+                                  if (!context.mounted) return;
                                   ScaffoldMessenger.of(context).showSnackBar(
                                     SnackBar(
                                       content: Text(
@@ -354,7 +424,9 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                                 ),
                               )
                             : Text(
-                                hasEnough
+                                unavailable
+                                    ? 'الخدمة غير متاحة حالياً'
+                                    : hasEnough
                                     ? 'تأكيد الشراء (\$${product.salePrice.toStringAsFixed(2)})'
                                     : 'رصيد غير كافٍ (\$${product.salePrice.toStringAsFixed(2)})',
                                 style: const TextStyle(
@@ -371,6 +443,66 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
           },
         );
       },
+    );
+  }
+
+  IconData _fieldIcon(String type) {
+    switch (type) {
+      case 'phone':
+        return Icons.phone_outlined;
+      case 'name':
+        return Icons.person_outline;
+      case 'email':
+        return Icons.email_outlined;
+      case 'password':
+        return Icons.lock_outline;
+      case 'player_id':
+        return Icons.badge_outlined;
+      default:
+        return Icons.edit_outlined;
+    }
+  }
+
+  Widget _buildQuantityField(
+    ServiceFieldDef field,
+    Map<String, int> values,
+    void Function(void Function()) setSheetState,
+  ) {
+    final qty = values[field.label] ?? 1;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              field.label,
+              style: const TextStyle(
+                fontSize: 14,
+                color: AppColors.onSurfaceVariant,
+              ),
+            ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.remove_circle_outline),
+            onPressed: qty > 1
+                ? () => setSheetState(() => values[field.label] = qty - 1)
+                : null,
+          ),
+          Text(
+            '$qty',
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          IconButton(
+            icon: const Icon(Icons.add_circle_outline),
+            onPressed: () => setSheetState(() => values[field.label] = qty + 1),
+          ),
+        ],
+      ),
     );
   }
 
@@ -458,6 +590,8 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
   Widget build(BuildContext context) {
     final catalog = Provider.of<AppCatalogProvider>(context);
     final auth = Provider.of<AuthProvider>(context);
+    // تجميع الباقات حسب الفئة التفصيلية (كمية / باقة / فئة مخصصة)
+    final groups = _groupProducts(catalog.currentProducts);
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -480,13 +614,27 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
           ),
         ],
       ),
-      body: catalog.isLoading
+      body: catalog.isLoading && catalog.currentProducts.isEmpty
           ? const Center(
               child: CircularProgressIndicator(color: AppColors.primaryBlue),
             )
-          : catalog.currentProducts.isEmpty
+          : groups.isEmpty
           ? _buildEmptyState()
-          : _buildProductsList(context, catalog.currentProducts),
+          : Column(
+              children: [
+                if (groups.length > 1) _buildKindFilterBar(groups),
+                Expanded(
+                  child: RefreshIndicator(
+                    color: AppColors.primaryBlue,
+                    onRefresh: () => catalog.fetchProductsByApp(
+                      widget.app.id,
+                      forceRefresh: true,
+                    ),
+                    child: _buildProductsList(context, groups),
+                  ),
+                ),
+              ],
+            ),
     );
   }
 
@@ -520,37 +668,170 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
   // LIST VIEW (كروت الباقات المستطيلة بعرض الشاشة مع تدرج اللون الأصفر للسعر)
   // ---------------------------------------------------------------------------
 
-  Widget _buildProductsList(BuildContext context, List<ProductModel> products) {
-    final marginProvider = Provider.of<MarginProvider>(context);
+  // ---------------------------------------------------------------------------
+  // التجميع حسب الفئة التفصيلية (كمية / باقة / فئة مخصصة)
+  // ---------------------------------------------------------------------------
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      itemCount: products.length,
-      itemBuilder: (context, index) {
-        final product = products[index];
+  List<_ProductKindGroup> _groupProducts(List<ProductModel> products) {
+    final Map<String, List<ProductModel>> grouped = {};
+    for (final product in products) {
+      final kind = normalizeProductKind(product.kind);
+      grouped.putIfAbsent(kind, () => []).add(product);
+    }
+    final groups = grouped.entries
+        .map((e) => _ProductKindGroup(kind: e.key, products: e.value))
+        .toList();
+    // الفئات المدمجة (كمية ثم باقة) أولاً ثم الفئات المخصصة
+    groups.sort(
+      (a, b) =>
+          productKindSortIndex(a.kind).compareTo(productKindSortIndex(b.kind)),
+    );
+    return groups;
+  }
+
+  Widget _buildKindFilterBar(List<_ProductKindGroup> groups) {
+    final total = groups.fold<int>(0, (sum, g) => sum + g.products.length);
+    // صف أفقي بارتفاع طبيعي (بدون ارتفاع ثابت) لتفادي أي قص للشرائح
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(14, 8, 14, 2),
+      child: Row(
+        children: [
+          _buildKindChip('all', 'الكل ($total)'),
+          for (final group in groups) ...[
+            const SizedBox(width: 8),
+            _buildKindChip(
+              group.kind,
+              '${productKindLabel(group.kind)} (${group.products.length})',
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKindChip(String key, String label) {
+    final selected = _kindFilter == key;
+    return ChoiceChip(
+      label: Text(label),
+      avatar: Icon(
+        key == 'all' ? Icons.apps_rounded : productKindIcon(key),
+        size: 15,
+        color: selected ? AppColors.primary : AppColors.slate500,
+      ),
+      selected: selected,
+      selectedColor: AppColors.primaryContainer.withValues(alpha: 0.18),
+      labelStyle: TextStyle(
+        fontSize: 12,
+        fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+        color: selected ? AppColors.primary : AppColors.slate600,
+      ),
+      side: BorderSide(color: selected ? AppColors.primary : AppColors.outline),
+      onSelected: (_) => setState(() => _kindFilter = key),
+    );
+  }
+
+  Widget _buildKindSectionHeader(_ProductKindGroup group) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4, bottom: 10, right: 2, left: 2),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(7),
+            decoration: BoxDecoration(
+              color: AppColors.primaryContainer.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(
+              productKindIcon(group.kind),
+              size: 15,
+              color: AppColors.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            productKindLabel(group.kind),
+            style: AppTypography.cairo(
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              color: AppColors.slate900,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(7),
+            ),
+            child: Text(
+              '${group.products.length}',
+              style: AppTypography.cairo(
+                fontSize: 10.5,
+                fontWeight: FontWeight.bold,
+                color: AppColors.slate600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildProductsList(
+    BuildContext context,
+    List<_ProductKindGroup> groups,
+  ) {
+    final marginProvider = Provider.of<MarginProvider>(context);
+    final auth = Provider.of<AuthProvider>(context);
+    final rates = Provider.of<ExchangeRateProvider>(context);
+    final bool hasMargin =
+        marginProvider.isEnabled && marginProvider.marginPercent > 0;
+
+    final visibleGroups = _kindFilter == 'all'
+        ? groups
+        : groups.where((g) => g.kind == _kindFilter).toList();
+    // احتياط: إذا كانت الفئة المختارة لم تعد موجودة نعرض كل الفئات
+    final displayGroups = visibleGroups.isEmpty ? groups : visibleGroups;
+    final showHeaders = groups.length > 1;
+
+    final List<Widget> children = [];
+    for (final group in displayGroups) {
+      if (showHeaders) children.add(_buildKindSectionHeader(group));
+      for (final product in group.products) {
         final double customerPrice = marginProvider.calculateCustomerPrice(
           product.salePrice,
         );
-        final bool hasMargin =
-            marginProvider.isEnabled && marginProvider.marginPercent > 0;
-        final String? marginText = hasMargin
-            ? '+${marginProvider.marginPercent.toStringAsFixed(0)}% للزبون'
-            : null;
-
-        final passItem = DigitalPassItem.fromProduct(
-          product,
-          widget.app,
-          customerPrice: customerPrice,
+        children.add(
+          ProductListCard(
+            product: product,
+            displayPrice: customerPrice,
+            // سعر التكلفة قبل نسبة الوكيل — يظهر بجانب سعر البيع عند تفعيلها
+            costPrice: hasMargin ? product.salePrice : null,
+            balance: auth.currentUser?.balance,
+            // المقابل التقريبي بالليرة السورية تحت السعر بالدولار
+            sypPriceText: rates.sypText(customerPrice),
+            marginText: hasMargin
+                ? '+${marginProvider.marginPercent.toStringAsFixed(0)}% للزبون'
+                : null,
+            onTap: () => _openPurchaseDialog(product),
+          ),
         );
+      }
+    }
 
-        return HorizontalDigitalPassCardWidget(
-          item: passItem,
-          product: product,
-          displayPrice: customerPrice,
-          marginText: marginText,
-          onTapCharge: () => _openPurchaseDialog(product),
-        );
-      },
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      children: children,
     );
   }
+}
+
+/// مجموعة باقات تنتمي لفئة تفصيلية واحدة (كمية / باقة / فئة مخصصة)
+class _ProductKindGroup {
+  final String kind;
+  final List<ProductModel> products;
+
+  const _ProductKindGroup({required this.kind, required this.products});
 }

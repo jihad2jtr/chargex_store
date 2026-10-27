@@ -138,6 +138,8 @@ let CodesService = class CodesService {
             amount: code.amount,
             description: `شحن عبر كود رقمي: ${code.code}`,
             adminId: userId,
+            referenceType: 'ShippingCode',
+            referenceId: code._id.toString(),
         });
         return {
             message: `تم شحن رصيدك بنجاح بمبلغ $${code.amount.toFixed(2)}`,

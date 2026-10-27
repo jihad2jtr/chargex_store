@@ -27,7 +27,9 @@ class WalletProvider extends ChangeNotifier {
   Future<void> fetchBalance() async {
     try {
       final res = await _api.get(ApiConstants.walletBalance);
-      _balance = (res['balance'] is num) ? (res['balance'] as num).toDouble() : 0.0;
+      _balance = (res['balance'] is num)
+          ? (res['balance'] as num).toDouble()
+          : 0.0;
       notifyListeners();
     } catch (_) {}
   }
@@ -49,14 +51,24 @@ class WalletProvider extends ChangeNotifier {
 
   Future<void> fetchPaymentAccounts() async {
     try {
-      final resSham = await _api.get(ApiConstants.topupAccounts, queryParams: {'type': 'sham_cash'});
+      final resSham = await _api.get(
+        ApiConstants.topupAccounts,
+        queryParams: {'type': 'sham_cash'},
+      );
       if (resSham is List) {
-        _shamCashAccounts = resSham.map((e) => PaymentAccountModel.fromJson(e)).toList();
+        _shamCashAccounts = resSham
+            .map((e) => PaymentAccountModel.fromJson(e))
+            .toList();
       }
 
-      final resBinance = await _api.get(ApiConstants.topupAccounts, queryParams: {'type': 'binance'});
+      final resBinance = await _api.get(
+        ApiConstants.topupAccounts,
+        queryParams: {'type': 'binance'},
+      );
       if (resBinance is List) {
-        _binanceAccounts = resBinance.map((e) => PaymentAccountModel.fromJson(e)).toList();
+        _binanceAccounts = resBinance
+            .map((e) => PaymentAccountModel.fromJson(e))
+            .toList();
       }
       notifyListeners();
     } catch (_) {}
@@ -66,7 +78,9 @@ class WalletProvider extends ChangeNotifier {
     try {
       final res = await _api.get(ApiConstants.topupMyRequests);
       if (res is List) {
-        _myTopupRequests = res.map((e) => ManualOrderModel.fromJson(e)).toList();
+        _myTopupRequests = res
+            .map((e) => ManualOrderModel.fromJson(e))
+            .toList();
         notifyListeners();
       }
     } catch (_) {}
@@ -79,10 +93,15 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.post(ApiConstants.codesVerify, body: {'code': code.trim().toUpperCase()});
+      final res = await _api.post(
+        ApiConstants.codesVerify,
+        body: {'code': code.trim().toUpperCase()},
+      );
       _isLoading = false;
       notifyListeners();
-      return (res is Map<String, dynamic>) ? res : Map<String, dynamic>.from(res);
+      return (res is Map<String, dynamic>)
+          ? res
+          : Map<String, dynamic>.from(res);
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
@@ -94,7 +113,10 @@ class WalletProvider extends ChangeNotifier {
   // Upload receipt image
   Future<String?> uploadReceiptImage(String base64Data) async {
     try {
-      final res = await _api.post(ApiConstants.uploadImage, body: {'base64': base64Data});
+      final res = await _api.post(
+        ApiConstants.uploadImage,
+        body: {'base64': base64Data},
+      );
       return res['url'] ?? res['secure_url'];
     } catch (e) {
       _errorMessage = e.toString();
@@ -109,9 +131,14 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.post(ApiConstants.codesRedeem, body: {'code': code.trim().toUpperCase()});
+      final res = await _api.post(
+        ApiConstants.codesRedeem,
+        body: {'code': code.trim().toUpperCase()},
+      );
       await fetchBalance();
       await fetchTransactions();
+      // الشحن بالكود يُسجّل على الكود نفسه، فيُحدَّث سجل «طلباتي الأخيرة» هنا
+      await fetchMyTopupRequests();
       _isLoading = false;
       notifyListeners();
       return res['message'] ?? 'تم شحن الرصيد بنجاح';
@@ -135,12 +162,15 @@ class WalletProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _api.post(ApiConstants.topupRequest, body: {
-        'type': type,
-        'amount': amount,
-        'details': details,
-        'receiptImageUrl': receiptImageUrl,
-      });
+      await _api.post(
+        ApiConstants.topupRequest,
+        body: {
+          'type': type,
+          'amount': amount,
+          'details': details,
+          'receiptImageUrl': receiptImageUrl,
+        },
+      );
       await fetchMyTopupRequests();
       _isLoading = false;
       notifyListeners();

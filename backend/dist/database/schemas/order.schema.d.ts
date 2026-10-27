@@ -222,6 +222,7 @@ export declare class Order {
     deliveredCode?: string;
     providerReference?: string;
     providerResponse?: Record<string, any>;
+    providerSettledAt?: Date;
     assignedSupervisorId?: Types.ObjectId;
     estimatedMinutes?: number;
     deadlineAt?: Date;
@@ -382,6 +383,15 @@ export declare const OrderSchema: import("mongoose").Schema<Order, import("mongo
         id: string;
     }>> | undefined;
     providerResponse?: import("mongoose").SchemaDefinitionProperty<Record<string, any> | undefined, Order, Document<unknown, {}, Order, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    providerSettledAt?: import("mongoose").SchemaDefinitionProperty<Date | undefined, Order, Document<unknown, {}, Order, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
         _id: Types.ObjectId;

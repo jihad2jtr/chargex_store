@@ -43,6 +43,7 @@ dependencies:
   firebase_messaging: ^17.0.0
   share_plus: ^12.0.2
   barcode_widget: ^2.0.4
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:
@@ -69,7 +70,8 @@ flutter:
   assets:
     - assets/
     - assets/cards/
-    - assets/sections/
+    - assets/brands/
+    - assets/icons/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

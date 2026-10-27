@@ -78,7 +78,7 @@ let AuthService = AuthService_1 = class AuthService {
             const mm = String(now.getMonth() + 1).padStart(2, '0');
             const dd = String(now.getDate()).padStart(2, '0');
             const rand = Math.floor(10000 + Math.random() * 90000);
-            userId = `chx${yy}${mm}${dd}${rand}`;
+            userId = `jgo${yy}${mm}${dd}${rand}`;
             const existing = await this.userModel.findOne({ userId });
             if (!existing) {
                 unique = true;
@@ -93,7 +93,7 @@ let AuthService = AuthService_1 = class AuthService {
                     { userId: { $exists: false } },
                     { userId: null },
                     { userId: '' },
-                    { userId: { $not: /^chx\d{11}$/i } },
+                    { userId: { $not: /^(jgo|chx)\d{11}$/i } },
                 ],
             });
             for (const u of usersToMigrate) {
@@ -110,8 +110,10 @@ let AuthService = AuthService_1 = class AuthService {
         try {
             const adminExists = await this.userModel.findOne({ role: role_enum_1.Role.ADMIN });
             if (!adminExists) {
-                const adminEmail = this.configService.get('ADMIN_DEFAULT_EMAIL') || 'admin@chargex.com';
-                const adminPass = this.configService.get('ADMIN_DEFAULT_PASSWORD') || 'Z@@lka1994';
+                const adminEmail = this.configService.get('ADMIN_DEFAULT_EMAIL') ||
+                    'admin@chargex.com';
+                const adminPass = this.configService.get('ADMIN_DEFAULT_PASSWORD') ||
+                    'Z@@lka1994';
                 const hashedPassword = await bcrypt.hash(adminPass, 10);
                 const adminUserId = await this.generateUniqueUserId();
                 await this.userModel.create({
@@ -133,7 +135,9 @@ let AuthService = AuthService_1 = class AuthService {
     async seedSupervisor() {
         try {
             const supervisorEmail = 'supervisor@chargex.com';
-            const supervisorExists = await this.userModel.findOne({ email: supervisorEmail });
+            const supervisorExists = await this.userModel.findOne({
+                email: supervisorEmail,
+            });
             if (!supervisorExists) {
                 const supervisorPass = 'Z@@lka1994';
                 const hashedPassword = await bcrypt.hash(supervisorPass, 10);
@@ -201,7 +205,9 @@ let AuthService = AuthService_1 = class AuthService {
                 });
                 this.logger.log(`Default Agent created successfully: ${agentEmail} (ID: ${agentUserId})`);
             }
-            const demoUser = await this.userModel.findOne({ email: 'user@chargex.com' });
+            const demoUser = await this.userModel.findOne({
+                email: 'user@chargex.com',
+            });
             if (demoUser && !demoUser.parentAgentId && agent) {
                 demoUser.parentAgentId = agent._id;
                 await demoUser.save();
@@ -213,7 +219,9 @@ let AuthService = AuthService_1 = class AuthService {
         }
     }
     async register(registerDto) {
-        const existing = await this.userModel.findOne({ email: registerDto.email.toLowerCase() });
+        const existing = await this.userModel.findOne({
+            email: registerDto.email.toLowerCase(),
+        });
         if (existing) {
             throw new common_1.BadRequestException('البريد الإلكتروني مسجل مسبقاً');
         }
@@ -243,13 +251,17 @@ let AuthService = AuthService_1 = class AuthService {
         };
     }
     async login(loginDto) {
-        const user = await this.userModel.findOne({ email: loginDto.email.toLowerCase() });
+        const user = await this.userModel.findOne({
+            email: loginDto.email.toLowerCase(),
+        });
         if (!user) {
             throw new common_1.UnauthorizedException('بيانات الدخول غير صحيحة');
         }
         if (!user.isActive) {
             if (user.deactivatedByAgent) {
-                const reason = user.agentDeactivationReason ? ` (${user.agentDeactivationReason})` : '';
+                const reason = user.agentDeactivationReason
+                    ? ` (${user.agentDeactivationReason})`
+                    : '';
                 throw new common_1.UnauthorizedException(`تم إيقاف حسابك من قبل الوكيل المعتمد${reason}. يرجى مراجعة الوكيل لتسوية الحساب.`);
             }
             throw new common_1.UnauthorizedException('تم تعطيل هذا الحساب، يرجى مراجعة الإدارة');
@@ -276,7 +288,8 @@ let AuthService = AuthService_1 = class AuthService {
     async refreshToken(dto) {
         try {
             const payload = this.jwtService.verify(dto.refreshToken, {
-                secret: this.configService.get('JWT_REFRESH_SECRET') || 'default_refresh_secret',
+                secret: this.configService.get('JWT_REFRESH_SECRET') ||
+                    'default_refresh_secret',
             });
             const user = await this.userModel.findById(payload.sub);
             if (!user || user.refreshToken !== dto.refreshToken) {
@@ -296,21 +309,58 @@ let AuthService = AuthService_1 = class AuthService {
         return { message: 'تم تسجيل الخروج بنجاح' };
     }
     async getMe(userId) {
-        const user = await this.userModel.findById(userId).select('-password -refreshToken');
+        const user = await this.userModel
+            .findById(userId)
+            .select('-password -refreshToken');
         if (!user) {
             throw new common_1.UnauthorizedException('المستخدم غير موجود');
         }
         return user;
     }
+    async updateProfile(userId, dto) {
+        const user = await this.userModel.findById(userId);
+        if (!user) {
+            throw new common_1.UnauthorizedException('المستخدم غير موجود');
+        }
+        if (dto.name !== undefined) {
+            const name = dto.name.trim();
+            if (name.length < 2) {
+                throw new common_1.BadRequestException('الاسم يجب أن يكون حرفين على الأقل');
+            }
+            user.name = name;
+        }
+        if (dto.phone !== undefined) {
+            const phone = dto.phone.trim();
+            if (phone && !/^[\d+\-\s()]{6,25}$/.test(phone)) {
+                throw new common_1.BadRequestException('رقم الهاتف غير صالح');
+            }
+            user.phone = phone || undefined;
+        }
+        if (dto.avatar !== undefined) {
+            const avatar = dto.avatar.trim();
+            if (avatar && !/^(https?:\/\/|\/uploads\/)/i.test(avatar)) {
+                throw new common_1.BadRequestException('رابط الصورة غير صالح');
+            }
+            user.avatar = avatar || undefined;
+        }
+        await user.save();
+        const userObj = user.toObject();
+        delete userObj.password;
+        delete userObj.refreshToken;
+        return userObj;
+    }
     async generateTokens(userId, email, role) {
         const payload = { sub: userId, email, role };
         const accessToken = this.jwtService.sign(payload, {
             secret: this.configService.get('JWT_SECRET') || 'default_secret',
-            expiresIn: (this.configService.get('JWT_EXPIRATION') || '7d'),
+            expiresIn: (this.configService.get('JWT_EXPIRATION') ||
+                '7d'),
         });
         const refreshToken = this.jwtService.sign(payload, {
-            secret: this.configService.get('JWT_REFRESH_SECRET') || 'default_refresh_secret',
-            expiresIn: (this.configService.get('JWT_REFRESH_EXPIRATION') || '30d'),
+            secret: this.configService.get('JWT_REFRESH_SECRET') ||
+                'default_refresh_secret',
+            expiresIn: (this.configService.get('JWT_REFRESH_EXPIRATION') ||
+                '30d'),
         });
         return { accessToken, refreshToken };
     }

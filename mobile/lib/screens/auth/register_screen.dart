@@ -37,7 +37,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('يرجى ملء جميع الحقول المطلوبة', style: AppTypography.cairo(fontSize: 13, color: Colors.white)),
+          content: Text(
+            'يرجى ملء جميع الحقول المطلوبة',
+            style: AppTypography.cairo(fontSize: 13, color: Colors.white),
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -62,7 +65,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(auth.errorMessage ?? 'فشل إنشاء الحساب', style: AppTypography.cairo(fontSize: 13, color: Colors.white)),
+          content: Text(
+            auth.errorMessage ?? 'فشل إنشاء الحساب',
+            style: AppTypography.cairo(fontSize: 13, color: Colors.white),
+          ),
           backgroundColor: AppColors.error,
         ),
       );
@@ -80,7 +86,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         elevation: 0,
         title: Text(
           'فتح حساب جديد',
-          style: AppTypography.cairo(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.textPrimary),
+          style: AppTypography.cairo(
+            fontSize: 16,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+          ),
         ),
       ),
       body: SafeArea(
@@ -100,7 +110,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       border: Border.all(color: AppColors.outline),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFF0F172A).withValues(alpha: 0.04),
+                          color: const Color(
+                            0xFF0F172A,
+                          ).withValues(alpha: 0.04),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
@@ -133,7 +145,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         const SizedBox(height: 6),
                         Text(
                           'سجل حسابك لشحن الخدمات الرقمية والألعاب فورياً بأفضل الأسعار المباشرة',
-                          style: AppTypography.cairo(fontSize: 12.5, color: AppColors.textSecondary),
+                          style: AppTypography.cairo(
+                            fontSize: 12.5,
+                            color: AppColors.textSecondary,
+                          ),
                         ),
                         const SizedBox(height: 22),
 
@@ -147,8 +162,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           decoration: InputDecoration(
                             labelText: 'الاسم الكامل',
-                            labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.textSecondary),
-                            prefixIcon: const Icon(Icons.person_outline_rounded, color: AppColors.primaryBlue),
+                            labelStyle: AppTypography.cairo(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.person_outline_rounded,
+                              color: AppColors.primaryBlue,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -164,8 +185,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           decoration: InputDecoration(
                             labelText: 'البريد الإلكتروني',
-                            labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.textSecondary),
-                            prefixIcon: const Icon(Icons.email_outlined, color: AppColors.primaryBlue),
+                            labelStyle: AppTypography.cairo(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.email_outlined,
+                              color: AppColors.primaryBlue,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -181,8 +208,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           decoration: InputDecoration(
                             labelText: 'رقم الهاتف أو الواتساب (اختياري)',
-                            labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.textSecondary),
-                            prefixIcon: const Icon(Icons.phone_outlined, color: AppColors.primaryBlue),
+                            labelStyle: AppTypography.cairo(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.phone_outlined,
+                              color: AppColors.primaryBlue,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 14),
@@ -198,11 +231,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           ),
                           decoration: InputDecoration(
                             labelText: 'كلمة المرور',
-                            labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.textSecondary),
-                            prefixIcon: const Icon(Icons.lock_outline_rounded, color: AppColors.primaryBlue),
+                            labelStyle: AppTypography.cairo(
+                              fontSize: 13,
+                              color: AppColors.textSecondary,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.lock_outline_rounded,
+                              color: AppColors.primaryBlue,
+                            ),
                             suffixIcon: IconButton(
                               icon: Icon(
-                                _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                                _obscurePassword
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
                                 color: AppColors.textSecondary,
                                 size: 20,
                               ),
@@ -224,7 +265,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                             borderRadius: BorderRadius.circular(14),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.ticketAmber.withValues(alpha: 0.35),
+                                color: AppColors.ticketAmber.withValues(
+                                  alpha: 0.35,
+                                ),
                                 blurRadius: 10,
                                 offset: const Offset(0, 3),
                               ),
@@ -240,12 +283,20 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                     ? const SizedBox(
                                         width: 22,
                                         height: 22,
-                                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
                                       )
                                     : Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         children: [
-                                          const Icon(Icons.check_circle_rounded, color: Colors.white, size: 19),
+                                          const Icon(
+                                            Icons.check_circle_rounded,
+                                            color: Colors.white,
+                                            size: 19,
+                                          ),
                                           const SizedBox(width: 8),
                                           Text(
                                             'تأكيد وإنشاء الحساب',
@@ -272,4 +323,3 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
-

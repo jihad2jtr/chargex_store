@@ -50,16 +50,20 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.post(ApiConstants.authLogin, body: {
-        'email': email.trim(),
-        'password': password,
-      });
+      final res = await _api.post(
+        ApiConstants.authLogin,
+        body: {'email': email.trim(), 'password': password},
+      );
 
       final accessToken = res['accessToken'] as String;
       final refreshToken = res['refreshToken'] as String?;
       final userData = res['user'] as Map<String, dynamic>;
 
-      _currentUser = UserModel.fromJson(userData, token: accessToken, refreshToken: refreshToken);
+      _currentUser = UserModel.fromJson(
+        userData,
+        token: accessToken,
+        refreshToken: refreshToken,
+      );
       _api.setToken(accessToken);
       FcmService.instance.syncTokenWithBackend();
 
@@ -80,24 +84,36 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> register({required String name, required String email, required String password, String? phone}) async {
+  Future<bool> register({
+    required String name,
+    required String email,
+    required String password,
+    String? phone,
+  }) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final res = await _api.post(ApiConstants.authRegister, body: {
-        'name': name.trim(),
-        'email': email.trim(),
-        'password': password,
-        'phone': phone?.trim(),
-      });
+      final res = await _api.post(
+        ApiConstants.authRegister,
+        body: {
+          'name': name.trim(),
+          'email': email.trim(),
+          'password': password,
+          'phone': phone?.trim(),
+        },
+      );
 
       final accessToken = res['accessToken'] as String;
       final refreshToken = res['refreshToken'] as String?;
       final userData = res['user'] as Map<String, dynamic>;
 
-      _currentUser = UserModel.fromJson(userData, token: accessToken, refreshToken: refreshToken);
+      _currentUser = UserModel.fromJson(
+        userData,
+        token: accessToken,
+        refreshToken: refreshToken,
+      );
       _api.setToken(accessToken);
       FcmService.instance.syncTokenWithBackend();
 
@@ -121,14 +137,69 @@ class AuthProvider extends ChangeNotifier {
   Future<void> refreshProfile() async {
     try {
       final res = await _api.get(ApiConstants.authMe);
-      _currentUser = _currentUser?.copyWith(
-        balance: (res['balance'] is num) ? (res['balance'] as num).toDouble() : _currentUser?.balance,
-        name: res['name'] ?? _currentUser?.name,
-        role: res['role'] ?? _currentUser?.role,
-        userId: res['userId'] ?? _currentUser?.userId,
+      _currentUser = UserModel.fromJson(
+        res,
+        token: _currentUser?.token,
+        refreshToken: _currentUser?.refreshToken,
       );
       notifyListeners();
     } catch (_) {}
+  }
+
+  /// تحديث بيانات الملف الشخصي (الاسم/الهاتف/الصورة الشخصية) لصاحب الحساب
+  /// تمرير avatar فارغة يعني حذف الصورة الحالية
+  Future<bool> updateProfile({
+    String? name,
+    String? phone,
+    String? avatar,
+  }) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final res = await _api.patch(
+        ApiConstants.authMe,
+        body: {
+          if (name != null) 'name': name.trim(),
+          if (phone != null) 'phone': phone.trim(),
+          if (avatar != null) 'avatar': avatar.trim(),
+        },
+      );
+      _currentUser = UserModel.fromJson(
+        res,
+        token: _currentUser?.token,
+        refreshToken: _currentUser?.refreshToken,
+      );
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// رفع صورة إلى مسار الرفع العام وإرجاع رابطها العام (أو null عند الفشل)
+  Future<String?> uploadImage(List<int> bytes, String fileName) async {
+    try {
+      final res = await _api.postMultipart(
+        ApiConstants.uploadImage,
+        fileBytes: bytes,
+        fileName: fileName,
+      );
+      if (res is Map) {
+        final url = (res['url'] ?? res['secure_url'] ?? '').toString().trim();
+        if (url.isNotEmpty) return url;
+      }
+      _errorMessage = 'لم يُرجع الخادم رابطاً للصورة';
+      return null;
+    } catch (e) {
+      _errorMessage = e.toString();
+      return null;
+    }
   }
 
   void updateBalanceLocally(double newBalance) {

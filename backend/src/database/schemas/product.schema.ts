@@ -22,6 +22,18 @@ export class Product {
   @Prop({ required: true, trim: true })
   name: string;
 
+  @Prop({ type: Types.ObjectId, ref: 'ServiceTemplate', index: true })
+  serviceTemplateId?: Types.ObjectId; // نوع العملية: قالب الخدمة المرتبط بالمنتج
+
+  @Prop({ trim: true, default: '' })
+  quantityLabel: string; // حجم الكمية الوصفي للمنتج (مثال: 60 UC)
+
+  // الفئة التفصيلية داخل التطبيق/اللعبة (كمية / باقة / أي فئة مخصصة تضيفها الإدارة)
+  // تُخزَّن كنص حر لتفادي ربط الميزة بقائمة ثابتة: القيم المدمجة quantity و package
+  // وأي قيمة أخرى تُعرض كما هي في واجهة المتجر
+  @Prop({ trim: true, default: 'quantity', index: true })
+  kind: string;
+
   @Prop({ trim: true })
   description?: string;
 

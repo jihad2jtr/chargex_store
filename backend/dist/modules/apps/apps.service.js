@@ -35,7 +35,23 @@ let AppsService = class AppsService {
             throw new common_1.NotFoundException('الخدمة / التطبيق غير موجود');
         return app;
     }
+    async assertUniqueName(name, excludeId) {
+        const trimmed = (name || '').trim();
+        if (!trimmed)
+            throw new common_1.BadRequestException('اسم التطبيق مطلوب');
+        const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const query = {
+            name: { $regex: `^\\s*${escaped}\\s*$`, $options: 'i' },
+        };
+        if (excludeId)
+            query._id = { $ne: excludeId };
+        const existing = await this.appModel.exists(query);
+        if (existing) {
+            throw new common_1.BadRequestException('يوجد تطبيق مسجّل بنفس الاسم بالفعل — لا يُسمح بالتكرار');
+        }
+    }
     async create(createDto) {
+        await this.assertUniqueName(createDto.name);
         const app = new this.appModel({
             ...createDto,
             isActive: createDto.isActive !== undefined ? createDto.isActive : true,
@@ -44,6 +60,9 @@ let AppsService = class AppsService {
         return app.save();
     }
     async update(id, updateDto) {
+        if (updateDto?.name !== undefined) {
+            await this.assertUniqueName(updateDto.name, id);
+        }
         const app = await this.appModel.findByIdAndUpdate(id, updateDto, { new: true });
         if (!app)
             throw new common_1.NotFoundException('الخدمة / التطبيق غير موجود');

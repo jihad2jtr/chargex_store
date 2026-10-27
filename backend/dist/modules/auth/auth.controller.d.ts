@@ -2,6 +2,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { UpdateProfileDto } from './dto/update-profile.dto';
 import { UserDocument } from '../../database/schemas/user.schema';
 export declare class AuthController {
     private readonly authService;
@@ -29,6 +30,7 @@ export declare class AuthController {
     } & {
         id: string;
     }>;
+    updateProfile(user: UserDocument, updateProfileDto: UpdateProfileDto): Promise<any>;
     logout(user: UserDocument): Promise<{
         message: string;
     }>;

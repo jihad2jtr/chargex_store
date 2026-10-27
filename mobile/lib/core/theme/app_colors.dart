@@ -14,7 +14,9 @@ class AppColors {
   static const Color primaryFixed = Color(0xFFBAE6FD);
 
   // Ticket Gold & Amber
-  static const Color ticketAmber = Color(0xFFF59E0B); // Classic Ticket Gold / Amber
+  static const Color ticketAmber = Color(
+    0xFFF59E0B,
+  ); // Classic Ticket Gold / Amber
   static const Color ticketAmberLight = Color(0xFFFDE68A); // Amber soft
   static const Color secondary = ticketAmber;
   static const Color secondaryBright = Color(0xFFD97706);
@@ -23,7 +25,9 @@ class AppColors {
   static const Color onSecondaryContainer = Color(0xFF78350F);
 
   // Active / Settlement Emerald Green
-  static const Color accentGreen = Color(0xFF10B981); // Online / Active Node Green
+  static const Color accentGreen = Color(
+    0xFF10B981,
+  ); // Online / Active Node Green
   static const Color tertiary = accentGreen;
   static const Color tertiaryLight = Color(0xFF059669);
   static const Color tertiaryContainer = Color(0xFFD1FAE5);
@@ -45,7 +49,9 @@ class AppColors {
   static const Color surfaceContainerLow = Color(0xFFF8FAFC);
   static const Color surfaceCard = Color(0xFFFFFFFF); // Pure Card Surface
   static const Color surfaceContainer = surfaceCard;
-  static const Color surfaceSecondary = Color(0xFFF1F5F9); // Bento Slot Background
+  static const Color surfaceSecondary = Color(
+    0xFFF1F5F9,
+  ); // Bento Slot Background
   static const Color surfaceContainerHigh = surfaceSecondary;
   static const Color surfaceContainerHighest = Color(0xFFE2E8F0);
   static const Color surfaceVariant = Color(0xFFF1F5F9);
@@ -98,11 +104,7 @@ class AppColors {
   static const LinearGradient cardOverlayGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: [
-      Colors.transparent,
-      Color(0xCC090D16),
-      Color(0xF5090D16),
-    ],
+    colors: [Colors.transparent, Color(0xCC090D16), Color(0xF5090D16)],
     stops: [0.25, 0.70, 1.0],
   );
 
@@ -127,21 +129,13 @@ class AppColors {
   );
 
   static const LinearGradient holographicCardGradient = LinearGradient(
-    colors: [
-      Color(0xFFF1F5F9),
-      Color(0xFFE2E8F0),
-      Color(0xFFF8FAFC),
-    ],
+    colors: [Color(0xFFF1F5F9), Color(0xFFE2E8F0), Color(0xFFF8FAFC)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
 
   static const LinearGradient cardGlowGradient = LinearGradient(
-    colors: [
-      Color(0xFFFFFFFF),
-      Color(0xFFF8FAFC),
-      Color(0xFFF1F5F9),
-    ],
+    colors: [Color(0xFFFFFFFF), Color(0xFFF8FAFC), Color(0xFFF1F5F9)],
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );

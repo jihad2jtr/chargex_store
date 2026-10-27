@@ -270,6 +270,70 @@ const List<BuiltinCardAsset> kBuiltinCardAssets = [
   ),
 ];
 
+/// الأيقونة المربعة المرفقة المطابقة لبطاقة الكتالوج.
+/// كل منتج له صورتان بنفس الاسم: بطاقة أفقية في assets/cards/ وأيقونة
+/// مربعة 256×256 في assets/icons/، لذا يُشتق مسار الأيقونة من مسار البطاقة.
+/// مثال: 'assets/cards/pubg-mobile.png' -> 'assets/icons/pubg-mobile.png'
+String? builtinIconAssetForCard(String? cardAssetPath) {
+  final String path = cardAssetPath?.trim() ?? '';
+  if (!path.startsWith('assets/cards/')) return null;
+  final String file = path.split('/').last;
+  if (file.isEmpty || !file.endsWith('.png')) return null;
+  return 'assets/icons/$file';
+}
+
+/// بطاقة الكتالوج المقابلة لمسار أيقونة مربعة، أو null إن لم توجد بطاقة.
+/// مثال: 'assets/icons/pubg-mobile.png' -> 'assets/cards/pubg-mobile.png'
+/// تُستعمل كي تعرض البطاقة العريضة فنّها الأفقي حتى لو اختار الأدمن الأيقونة.
+String? builtinCardAssetForIcon(String? iconAssetPath) {
+  final String path = iconAssetPath?.trim() ?? '';
+  if (!path.startsWith('assets/icons/')) return null;
+  final String file = path.split('/').last;
+  if (file.isEmpty || !file.endsWith('.png')) return null;
+  final String candidate = 'assets/cards/$file';
+  return kBuiltinCardAssets.any((c) => c.assetPath == candidate)
+      ? candidate
+      : null;
+}
+
+/// بطاقة الكتالوج المطابقة لاسم منتج أو slug ملف، مطابقة تامة ثم جزئية.
+/// يقبل: 'ببجي موبايل'، 'PUBG Mobile'، 'pubg-mobile'، 'assets/cards/pubg-mobile.png'
+BuiltinCardAsset? builtinCardEntryForQuery(String query) {
+  final String q = query.trim().toLowerCase();
+  if (q.length < 4) return null;
+
+  for (final asset in kBuiltinCardAssets) {
+    if (q == cardSlugOf(asset) ||
+        q == asset.nameEn.toLowerCase() ||
+        q == asset.nameAr.toLowerCase()) {
+      return asset;
+    }
+  }
+
+  for (final asset in kBuiltinCardAssets) {
+    final String file = cardSlugOf(asset);
+    final String en = asset.nameEn.toLowerCase();
+    final String ar = asset.nameAr.toLowerCase();
+    if (q.contains(file) ||
+        q.contains(en) ||
+        en.contains(q) ||
+        q.contains(ar)) {
+      return asset;
+    }
+  }
+  return null;
+}
+
+/// slug اسم الملف بدون مسار أو امتداد: 'assets/cards/pubg-mobile.png' -> 'pubg-mobile'
+String cardSlugOf(BuiltinCardAsset asset) => asset.assetPath
+    .split('/')
+    .last
+    .replaceAll(RegExp(r'\.(png|jpe?g|webp)$'), '');
+
+/// المسار من الدالة أعلاه (استعمال القوائم والاختبارات)
+String? builtinCardAssetForQuery(String query) =>
+    builtinCardEntryForQuery(query)?.assetPath;
+
 /// Smart image loader that supports both local asset paths (assets/cards/...)
 /// and remote URLs (https://...).
 Widget buildSmartAppImage(
@@ -280,12 +344,17 @@ Widget buildSmartAppImage(
   BorderRadius? borderRadius,
   Widget? fallback,
 }) {
-  final fallbackWidget = fallback ??
+  final fallbackWidget =
+      fallback ??
       Container(
         width: width,
         height: height,
         color: AppColors.surfaceContainerHigh,
-        child: const Icon(Icons.apps_rounded, size: 24, color: AppColors.primaryBlue),
+        child: const Icon(
+          Icons.apps_rounded,
+          size: 24,
+          color: AppColors.primaryBlue,
+        ),
       );
 
   if (urlOrAsset == null || urlOrAsset.trim().isEmpty) {
@@ -328,8 +397,8 @@ Widget buildSmartAppImage(
         );
       },
     );
-  } else {
-    // If it's a card name like "pubg-mobile.png" without "assets/cards/"
+  } else if (!trimmed.contains('/')) {
+    // اسم ملف بطاقة مجرّد مثل "pubg-mobile.png" بدون مجلد
     final inferredAsset = 'assets/cards/$trimmed';
     imageWidget = Image.asset(
       inferredAsset,
@@ -338,6 +407,11 @@ Widget buildSmartAppImage(
       fit: fit,
       errorBuilder: (ctx, err, stack) => fallbackWidget,
     );
+  } else {
+    // مسار لا يمكن تحميله (مثل /uploads/... دون رابط كامل): يُترك البديل
+    return borderRadius != null
+        ? ClipRRect(borderRadius: borderRadius, child: fallbackWidget)
+        : fallbackWidget;
   }
 
   if (borderRadius != null) {

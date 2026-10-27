@@ -6,6 +6,7 @@ class UserModel {
   final String role; // 'admin' | 'user'
   final double balance;
   final String? phone;
+  final String? avatar; // رابط الصورة الشخصية (فارغة = بلا صورة)
   final String? token;
   final String? refreshToken;
   final DateTime? createdAt;
@@ -18,6 +19,7 @@ class UserModel {
     required this.role,
     this.balance = 0.0,
     this.phone,
+    this.avatar,
     this.token,
     this.refreshToken,
     this.createdAt,
@@ -30,18 +32,33 @@ class UserModel {
   /// Returns the unique custom userId if present, otherwise falls back to MongoDB id
   String get displayId => (userId != null && userId!.isNotEmpty) ? userId! : id;
 
-  factory UserModel.fromJson(Map<String, dynamic> json, {String? token, String? refreshToken}) {
+  /// أول حرف من الاسم عند غياب الصورة الشخصية
+  String get initial =>
+      name.trim().isNotEmpty ? name.trim()[0].toUpperCase() : 'U';
+
+  factory UserModel.fromJson(
+    Map<String, dynamic> json, {
+    String? token,
+    String? refreshToken,
+  }) {
     return UserModel(
       id: json['_id'] ?? json['id'] ?? '',
       userId: json['userId'] ?? json['customUserId'],
       name: json['name'] ?? '',
       email: json['email'] ?? '',
       role: json['role'] ?? 'user',
-      balance: (json['balance'] is num) ? (json['balance'] as num).toDouble() : 0.0,
+      balance: (json['balance'] is num)
+          ? (json['balance'] as num).toDouble()
+          : 0.0,
       phone: json['phone'],
+      avatar: (json['avatar'] ?? '').toString().trim().isEmpty
+          ? null
+          : json['avatar'].toString().trim(),
       token: token ?? json['token'],
       refreshToken: refreshToken ?? json['refreshToken'],
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
     );
   }
 
@@ -54,6 +71,7 @@ class UserModel {
       'role': role,
       'balance': balance,
       'phone': phone,
+      'avatar': avatar,
       'token': token,
       'refreshToken': refreshToken,
       'createdAt': createdAt?.toIso8601String(),
@@ -68,6 +86,7 @@ class UserModel {
     String? role,
     double? balance,
     String? phone,
+    String? avatar,
     String? token,
     String? refreshToken,
     DateTime? createdAt,
@@ -80,6 +99,7 @@ class UserModel {
       role: role ?? this.role,
       balance: balance ?? this.balance,
       phone: phone ?? this.phone,
+      avatar: avatar ?? this.avatar,
       token: token ?? this.token,
       refreshToken: refreshToken ?? this.refreshToken,
       createdAt: createdAt ?? this.createdAt,

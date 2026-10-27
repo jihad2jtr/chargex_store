@@ -5,8 +5,10 @@ import '../../models/app_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_catalog_provider.dart';
+import '../../providers/exchange_rate_provider.dart';
 import '../../widgets/billboard_ad_carousel.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/app_icon_tile.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 import 'app_products_screen.dart';
@@ -22,7 +24,10 @@ class UserMainScreen extends StatefulWidget {
 
 class _UserMainScreenState extends State<UserMainScreen> {
   int _currentIndex =
-      0; // 0 = التطبيقات, 1 = الألعاب, 2 = طلباتي, 3 = خدمات, 4 = المحفظة
+      0; // 0 = التطبيقات, 1 = الألعاب, 2 = طلباتي, 3 = خدمات, 4 = الاشتراكات
+
+  // طريقة عرض الكتالوج: أيقونات بنمط شاشة الهاتف (افتراضي) أو بطاقات التذاكر
+  bool _catalogIconView = true;
 
   @override
   void initState() {
@@ -31,6 +36,8 @@ class _UserMainScreenState extends State<UserMainScreen> {
       Provider.of<AppCatalogProvider>(context, listen: false).fetchApps();
       Provider.of<AppCatalogProvider>(context, listen: false).fetchMyOrders();
       Provider.of<AuthProvider>(context, listen: false).refreshProfile();
+      // سعر الصرف يحدّثه الخادم يومياً — التطبيق يقرأه ويعرضه
+      Provider.of<ExchangeRateProvider>(context, listen: false).ensureLoaded();
     });
   }
 
@@ -47,7 +54,10 @@ class _UserMainScreenState extends State<UserMainScreen> {
               _buildCatalogTab(context, categoryType: 'games'), // 1: الألعاب
               _buildOrdersTab(context), // 2: طلباتي (في الوسط)
               _buildCatalogTab(context, categoryType: 'services'), // 3: خدمات
-              _buildWalletTab(context), // 4: المحفظة
+              _buildCatalogTab(
+                context,
+                categoryType: 'subscriptions',
+              ), // 4: الاشتراكات
             ],
           ),
 
@@ -81,6 +91,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
   }) {
     final catalog = Provider.of<AppCatalogProvider>(context);
     final auth = Provider.of<AuthProvider>(context);
+    final rates = Provider.of<ExchangeRateProvider>(context);
     final user = auth.currentUser;
 
     return SafeArea(
@@ -91,6 +102,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
           await catalog.fetchBanners();
           await auth.refreshProfile();
           await catalog.fetchMyOrders();
+          await rates.fetch(force: true);
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -100,47 +112,41 @@ class _UserMainScreenState extends State<UserMainScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 6),
+                const SizedBox(height: 9),
                 _buildTactileHeader(context, user),
-                const SizedBox(height: 10),
-                _buildExchangeRateBar(),
-                const SizedBox(height: 12),
+
                 if (categoryType == 'games' || categoryType == 'apps') ...[
                   if (catalog.banners.isNotEmpty)
-                    BillboardAdCarousel(
-                      banners: catalog.banners,
-                      onTopupTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const TopupScreen(),
-                          ),
-                        );
-                      },
-                    )
+                    // الإعلان بعرض أقل من كامل الشاشة — يبقى داخل حشوة الصفحة (14px)
+                    BillboardAdCarousel(banners: catalog.banners)
                   else
                     HeroTicketBanner(
                       onTap: () {
-                        final pubg = catalog.apps.firstWhere(
-                          (a) =>
-                              a.name.toLowerCase().contains('pubg') ||
-                              a.name.contains('ببجي'),
-                          orElse: () => catalog.apps.isNotEmpty
-                              ? catalog.apps.first
-                              : AppItemModel(
-                                  id: 'pubg-promo',
-                                  name: 'ببجي موبايل',
-                                  iconUrl: '',
-                                ),
-                        );
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => AppProductsScreen(app: pubg),
-                          ),
-                        );
+                        final pubgList = catalog.apps
+                            .where(
+                              (a) =>
+                                  a.name.toLowerCase().contains('pubg') ||
+                                  a.name.contains('ببجي'),
+                            )
+                            .toList();
+                        if (pubgList.isNotEmpty) {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  AppProductsScreen(app: pubgList.first),
+                            ),
+                          );
+                        } else {
+                          Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const TopupScreen(),
+                            ),
+                          );
+                        }
                       },
                     ),
-                  const SizedBox(height: 14),
                 ],
+                const SizedBox(height: 20),
                 _buildSectionHeader(
                   context,
                   catalog,
@@ -176,81 +182,8 @@ class _UserMainScreenState extends State<UserMainScreen> {
   // ---------------------------------------------------------------------------
 
   // ---------------------------------------------------------------------------
-  // 4. DIGITAL FINANCIAL PASSPORT (سعر الصرف اليوم)
+  // 4. DIGITAL FINANCIAL PASSPORT (سعر الصرف اليوم — يُعرض الآن في شاشة الشحن)
   // ---------------------------------------------------------------------------
-
-  Widget _buildExchangeRateBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFCBD5E1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: const BoxDecoration(
-          borderRadius: BorderRadius.all(Radius.circular(15)),
-          gradient: LinearGradient(
-            colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF082F49)],
-            begin: Alignment.centerRight,
-            end: Alignment.centerLeft,
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                const Icon(
-                  Icons.airplane_ticket,
-                  size: 17,
-                  color: Color(0xFFFBBF24),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  "سعر الصرف اليوم 1 دولار  =  13800 ل.س",
-                  style: AppTypography.cairo(
-                    fontSize: 11,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFFE2E8F0),
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                Container(
-                  width: 5,
-                  height: 5,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF34D399),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  "VERIFIED",
-                  style: AppTypography.technicalCode(
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
-                    color: const Color(0xFF34D399),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ---------------------------------------------------------------------------
   // 6. SECTION TITLE: VOUCHER CATALOG
@@ -261,58 +194,166 @@ class _UserMainScreenState extends State<UserMainScreen> {
     AppCatalogProvider catalog, {
     String categoryType = 'apps',
   }) {
-    String titleText = "تطبيقات الشحن والخدمات الرقمية";
-    String badgeText = "APPS CATALOG";
+    String titleText = "تطبيقات الشحن والخدمات";
+    String badgeText = "APPS ";
 
     if (categoryType == 'games') {
-      titleText = "شحن الألعاب والشدات والعملات";
-      badgeText = "ROYALE GAMES";
+      titleText = "شحن الألعاب والعملات";
+      badgeText = " GAMES";
     } else if (categoryType == 'services') {
-      titleText = "البطاقات والاشتراكات والخدمات";
+      titleText = "البطاقات والخدمات ";
       badgeText = "DIGITAL SERVICES";
+    } else if (categoryType == 'subscriptions') {
+      titleText = "اشتراكات المنصات";
+      badgeText = "SUBSCRIPTIONS";
     }
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Row(
-          children: [
-            Container(
-              width: 5,
-              height: 16,
-              decoration: BoxDecoration(
-                color: const Color(0xFF0F172A),
-                borderRadius: BorderRadius.circular(3),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              titleText,
-              style: AppTypography.cairo(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: const Color(0xFF0F172A),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFFE2E8F0),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                badgeText,
-                style: AppTypography.plusJakartaSans(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF334155),
+        Expanded(
+          child: Row(
+            children: [
+              Container(
+                width: 5,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F172A),
+                  borderRadius: BorderRadius.circular(3),
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  titleText,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.cairo(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF0F172A),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE2E8F0),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  badgeText,
+                  style: AppTypography.plusJakartaSans(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.bold,
+                    color: const Color(0xFF334155),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
+        // صفحتا الخدمات والاشتراكات تُعرضان دائماً كبطاقات فقط
+        if (!_isCardOnlyCategory(categoryType)) ...[
+          const SizedBox(width: 8),
+          _buildCatalogViewToggle(),
+        ],
       ],
+    );
+  }
+
+  // صفحات تُعرض كبطاقات تذاكر دائماً ولا تقبل نمط الأيقونات
+  bool _isCardOnlyCategory(String categoryType) =>
+      categoryType == 'services' || categoryType == 'subscriptions';
+
+  // كلمات وماركات تدل على أن العنصر اشتراك رقمي متجدد
+  static const List<String> _subscriptionHints = [
+    'اشتراك',
+    'اشتراكات',
+    'subscription',
+    'premium',
+    'بريميوم',
+    'netflix',
+    'نتفليكس',
+    'shahid',
+    'شاهد',
+    'osn',
+    'spotify',
+    'سبوتيفاي',
+    'anghami',
+    'أنغامي',
+    'youtube',
+    'يوتيوب',
+    'icloud',
+    'chatgpt',
+    'openai',
+    'canva',
+    'microsoft 365',
+    'مايكروسوفت',
+    'أوفيس',
+    'آي كلاود',
+    'office 365',
+    'disney',
+    'prime video',
+    'amazon prime',
+    'apple music',
+    'nitro',
+    'workspace',
+    'game pass',
+    'ps plus',
+    'playstation plus',
+    'crunchyroll',
+    'viu',
+    'adobe',
+  ];
+
+  bool _isSubscriptionItem(AppItemModel app) {
+    final haystack =
+        '${app.name} ${app.nameAr ?? ''} ${app.nameEn ?? ''} ${app.category ?? ''}'
+            .toLowerCase();
+    return _subscriptionHints.any(haystack.contains);
+  }
+
+  /// نوع العنصر الفعلي: «النوع الرئيسي» القادم من لوحة الإدارة، وإن لم يكن
+  /// محدداً (بيانات قديمة) نستنتجه من اسم العنصر حتى لا يختفي من كل الصفحات.
+  String _effectiveAppType(AppItemModel app) {
+    final type = app.appType.trim().toLowerCase();
+    if (type == 'game' ||
+        type == 'app' ||
+        type == 'service' ||
+        type == 'subscription') {
+      return type;
+    }
+    if (_isSubscriptionItem(app)) return 'subscription';
+    return 'service';
+  }
+
+  // ---------------------------------------------------------------------------
+  // 6.b CATALOG VIEW MODE TOGGLE (أيقونات / بطاقات)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildCatalogViewToggle() {
+    final bool iconMode = _catalogIconView;
+
+    return Tooltip(
+      message: iconMode ? 'عرض كبطاقات' : 'عرض كأيقونات',
+      child: Material(
+        color: const Color(0xFFE2E8F0),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: () => setState(() => _catalogIconView = !iconMode),
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.all(6),
+            child: Icon(
+              iconMode ? Icons.view_agenda_rounded : Icons.grid_view_rounded,
+              size: 18,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
@@ -334,7 +375,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
     if (width >= 1250) return 1.65;
     if (width >= 900) return 1.60;
     if (width >= 600) return 1.55;
-    return 1.48;
+    return 1.50;
   }
 
   Widget _buildDigitalPassesGrid(
@@ -349,131 +390,96 @@ class _UserMainScreenState extends State<UserMainScreen> {
       );
     }
 
-    List<AppItemModel> filteredApps = catalog.apps;
-    if (categoryType == 'games') {
-      filteredApps = catalog.apps.where((a) {
-        final n = a.name.toLowerCase();
-        final c = (a.category ?? '').toLowerCase();
-        return n.contains('pubg') ||
-            n.contains('ببجي') ||
-            n.contains('fire') ||
-            n.contains('فاير') ||
-            n.contains('game') ||
-            n.contains('لعب') ||
-            n.contains('steam') ||
-            n.contains('roblox') ||
-            n.contains('fortnite') ||
-            n.contains('cod') ||
-            c.contains('game') ||
-            c.contains('لعب');
-      }).toList();
-      if (filteredApps.isEmpty) {
-        final sampleGames = samplePasses
-            .where(
-              (p) =>
-                  p.tktCode.contains('PUBG') ||
-                  p.tktCode.contains('FF') ||
-                  p.title.contains('ببجي') ||
-                  p.title.contains('فاير'),
-            )
-            .toList();
-        return _buildPassesListGrid(
-          context,
-          sampleGames.isNotEmpty ? sampleGames : samplePasses,
-        );
-      }
-    } else if (categoryType == 'services') {
-      filteredApps = catalog.apps.where((a) {
-        final n = a.name.toLowerCase();
-        final c = (a.category ?? '').toLowerCase();
-        return n.contains('card') ||
-            n.contains('بطاق') ||
-            n.contains('itunes') ||
-            n.contains('play') ||
-            n.contains('net') ||
-            n.contains('اشتراك') ||
-            n.contains('خدم') ||
-            c.contains('بطاق') ||
-            c.contains('اشتراك') ||
-            c.contains('خدم');
-      }).toList();
-      if (filteredApps.isEmpty) {
-        final sampleServices = samplePasses
-            .where(
-              (p) =>
-                  !p.tktCode.contains('PUBG') &&
-                  !p.tktCode.contains('FF') &&
-                  !p.title.contains('ببجي') &&
-                  !p.title.contains('فاير'),
-            )
-            .toList();
-        return _buildPassesListGrid(
-          context,
-          sampleServices.isNotEmpty ? sampleServices : samplePasses,
-        );
-      }
-    } else if (categoryType == 'apps') {
-      filteredApps = catalog.apps.where((a) {
-        final n = a.name.toLowerCase();
-        final c = (a.category ?? '').toLowerCase();
-        final isGame =
-            n.contains('pubg') ||
-            n.contains('ببجي') ||
-            n.contains('fire') ||
-            n.contains('فاير') ||
-            n.contains('steam') ||
-            n.contains('roblox') ||
-            c.contains('game') ||
-            c.contains('لعب');
-        return !isGame;
-      }).toList();
-      if (filteredApps.isEmpty) {
-        filteredApps = catalog.apps;
-      }
-    }
-
-    final int crossAxisCount = _getResponsiveCrossAxisCount(context);
-    final double childAspectRatio = _getResponsiveChildAspectRatio(context);
-    final double spacing = MediaQuery.of(context).size.width >= 900 ? 14 : 12;
-
-    if (filteredApps.isNotEmpty) {
-      return GridView.builder(
-        physics: const NeverScrollableScrollPhysics(),
-        shrinkWrap: true,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: crossAxisCount,
-          childAspectRatio: childAspectRatio,
-          crossAxisSpacing: spacing,
-          mainAxisSpacing: spacing,
+    if (catalog.apps.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.storefront_outlined,
+                size: 44,
+                color: Color(0xFF94A3B8),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'لا توجد عناصر متاحة حالياً',
+                style: AppTypography.cairo(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
         ),
-        itemCount: filteredApps.length,
-        itemBuilder: (context, index) {
-          final app = filteredApps[index];
-          final passItem = DigitalPassItem.fromApp(app);
-
-          return DigitalPassCardWidget(
-            item: passItem,
-            imageOnly: true,
-            onTapCharge: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => AppProductsScreen(app: app)),
-              );
-            },
-          );
-        },
       );
     }
 
-    return _buildPassesListGrid(context, samplePasses);
-  }
+    // الصفحة التي يظهر فيها العنصر يحددها «النوع الرئيسي» من لوحة الإدارة:
+    // لعبة ← صفحة الألعاب، تطبيق ← صفحة التطبيقات، خدمة ← صفحة الخدمات،
+    // اشتراك ← صفحة الاشتراكات. لا تظهر البطاقة إلا في صفحة نوعها.
+    const typeByPage = {
+      'apps': 'app',
+      'games': 'game',
+      'services': 'service',
+      'subscriptions': 'subscription',
+    };
+    final pageType = typeByPage[categoryType];
+    final filteredApps = pageType == null
+        ? catalog.apps
+        : catalog.apps.where((a) => _effectiveAppType(a) == pageType).toList();
 
-  Widget _buildPassesListGrid(
-    BuildContext context,
-    List<DigitalPassItem> passes,
-  ) {
+    if (filteredApps.isEmpty) {
+      String emptyMessage = 'لا توجد عناصر متاحة حالياً';
+      IconData emptyIcon = Icons.inbox_outlined;
+      if (categoryType == 'subscriptions') {
+        emptyMessage = 'لا توجد اشتراكات متاحة حالياً';
+        emptyIcon = Icons.card_membership_rounded;
+      } else if (categoryType == 'services') {
+        emptyMessage = 'لا توجد خدمات متاحة حالياً';
+        emptyIcon = Icons.miscellaneous_services_rounded;
+      } else if (categoryType == 'games') {
+        emptyMessage = 'لا توجد ألعاب متاحة حالياً';
+        emptyIcon = Icons.sports_esports_rounded;
+      } else if (categoryType == 'apps') {
+        emptyMessage = 'لا توجد تطبيقات متاحة حالياً';
+        emptyIcon = Icons.apps_rounded;
+      }
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 40),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(emptyIcon, size: 44, color: const Color(0xFF94A3B8)),
+              const SizedBox(height: 12),
+              Text(
+                emptyMessage,
+                style: AppTypography.cairo(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF64748B),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // الخدمات والاشتراكات تُعرض كبطاقات دائماً
+    if (_catalogIconView && !_isCardOnlyCategory(categoryType)) {
+      return _buildAppIconsGrid(context, filteredApps);
+    }
+
     final int crossAxisCount = _getResponsiveCrossAxisCount(context);
     final double childAspectRatio = _getResponsiveChildAspectRatio(context);
-    final double spacing = MediaQuery.of(context).size.width >= 900 ? 14 : 12;
+    final double spacing = MediaQuery.of(context).size.width >= 900
+        ? 14
+        : (MediaQuery.of(context).size.width >= 600 ? 12 : 9);
 
     return GridView.builder(
       physics: const NeverScrollableScrollPhysics(),
@@ -484,31 +490,68 @@ class _UserMainScreenState extends State<UserMainScreen> {
         crossAxisSpacing: spacing,
         mainAxisSpacing: spacing,
       ),
-      itemCount: passes.length,
+      itemCount: filteredApps.length,
       itemBuilder: (context, index) {
-        final passItem = passes[index];
+        final app = filteredApps[index];
+        final passItem = DigitalPassItem.fromApp(app);
+
         return DigitalPassCardWidget(
           item: passItem,
           imageOnly: true,
           onTapCharge: () {
-            final catalog = Provider.of<AppCatalogProvider>(
-              context,
-              listen: false,
-            );
-            final app = catalog.apps.isNotEmpty
-                ? catalog.apps.firstWhere(
-                    (a) =>
-                        a.name.toLowerCase() == passItem.title.toLowerCase() ||
-                        a.name.contains(passItem.title),
-                    orElse: () => catalog.apps.first,
-                  )
-                : AppItemModel(
-                    id: passItem.id,
-                    name: passItem.title,
-                    iconUrl: passItem.imageUrl,
-                  );
             Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => AppProductsScreen(app: app)),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 7.b APP ICONS GRID (شبكة أيقونات بنمط شاشة الهاتف)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildAppIconsGrid(BuildContext context, List<AppItemModel> apps) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double spacing = screenWidth >= 900
+        ? 18
+        : (screenWidth >= 600 ? 14 : 10);
+    final double targetCell = screenWidth >= 900 ? 96 : 84;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double availableWidth = constraints.maxWidth;
+        final int crossAxisCount =
+            ((availableWidth + spacing) / (targetCell + spacing))
+                .round()
+                .clamp(4, 14)
+                .toInt();
+        final double cellWidth =
+            (availableWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
+
+        return GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing + 6,
+            mainAxisExtent: AppIconTile.tileHeightFor(cellWidth),
+          ),
+          itemCount: apps.length,
+          itemBuilder: (context, index) {
+            final app = apps[index];
+            return AppIconTile(
+              app: app,
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => AppProductsScreen(app: app),
+                  ),
+                );
+              },
             );
           },
         );
@@ -606,56 +649,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
           children: [
             const SizedBox(height: 6),
             _buildTactileHeader(context, user),
-            const SizedBox(height: 10),
-            // Orders Header Strip
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.receipt_long_rounded,
-                        size: 18,
-                        color: Color(0xFFF59E0B),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'طلباتي وتذاكر الشحن // MY ORDERS',
-                        style: AppTypography.cairo(
-                          fontWeight: FontWeight.w800,
-                          fontSize: 13,
-                          color: const Color(0xFF0F172A),
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.refresh_rounded,
-                      color: Color(0xFF0F172A),
-                      size: 20,
-                    ),
-                    tooltip: 'تحديث الطلبات',
-                    constraints: const BoxConstraints(),
-                    padding: EdgeInsets.zero,
-                    onPressed: () {
-                      Provider.of<AppCatalogProvider>(
-                        context,
-                        listen: false,
-                      ).fetchMyOrders();
-                    },
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             const Expanded(
               child: Padding(
                 padding: EdgeInsets.only(bottom: 90),
@@ -669,37 +663,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 10. WALLET TAB VIEW (UNIFIED TOP HEADER)
-  // ---------------------------------------------------------------------------
-
-  Widget _buildWalletTab(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
-    final user = auth.currentUser;
-
-    return SafeArea(
-      bottom: false,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 6),
-            _buildTactileHeader(context, user),
-            const SizedBox(height: 10),
-            const Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: 90),
-                child: TopupScreen(showAppBar: false),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ---------------------------------------------------------------------------
-  // 11. FLOATING TICKET COUNTER / DOCK (التطبيقات - الألعاب - في الوسط طلباتي - خدمات - المحفظة)
+  // 11. FLOATING TICKET COUNTER / DOCK (التطبيقات - الألعاب - في الوسط طلباتي - خدمات - الاشتراكات)
   // ---------------------------------------------------------------------------
 
   Widget _buildFloatingDockNavBar(BuildContext context) {
@@ -767,7 +731,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
                           centerWidth +
                           (tabWidth - pillWidth) / 2;
                       break;
-                    case 4: // المحفظة (Left side in RTL)
+                    case 4: // الاشتراكات (Left side in RTL)
                       startPos =
                           3 * tabWidth +
                           centerWidth +
@@ -871,14 +835,13 @@ class _UserMainScreenState extends State<UserMainScreen> {
                             ),
                           ),
 
-                          // Tab 4: المحفظة (Left side in RTL)
+                          // Tab 4: الاشتراكات (Left side in RTL)
                           Expanded(
                             child: _buildDockItem(
                               index: 4,
-                              label: "المحفظة",
-                              iconActive: Icons.account_balance_wallet_rounded,
-                              iconInactive:
-                                  Icons.account_balance_wallet_outlined,
+                              label: "الاشتراكات",
+                              iconActive: Icons.subscriptions_rounded,
+                              iconInactive: Icons.subscriptions_outlined,
                             ),
                           ),
                         ],
@@ -1036,7 +999,12 @@ class _UserMainScreenState extends State<UserMainScreen> {
                       ? const Color(0xFF020617)
                       : const Color(0xFF94A3B8),
                 ),
-                child: Text(label),
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
               ),
             ],
           ),

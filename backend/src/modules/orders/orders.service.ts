@@ -9,6 +9,7 @@ import { User, UserDocument } from '../../database/schemas/user.schema';
 import { WalletTransaction, WalletTransactionDocument, TransactionType, TransactionStatus } from '../../database/schemas/wallet-transaction.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProvidersService } from '../providers/providers.service';
+import { UsersService } from '../users/users.service';
 import { CryptoUtil } from '../../common/utils/crypto.util';
 
 @Injectable()
@@ -23,6 +24,7 @@ export class OrdersService {
     @InjectModel(WalletTransaction.name) private transactionModel: Model<WalletTransactionDocument>,
     private notificationsService: NotificationsService,
     private providersService: ProvidersService,
+    private usersService: UsersService,
   ) {}
 
   private generateOrderNumber(): string {
@@ -40,7 +42,9 @@ export class OrdersService {
     const user = await this.userModel.findById(params.userId);
     if (!user) throw new NotFoundException('المستخدم غير موجود');
 
-    const product = await this.productModel.findById(params.productId);
+    const product = await this.productModel
+      .findById(params.productId)
+      .populate('serviceTemplateId');
     if (!product || !product.isActive) {
       throw new BadRequestException('المنتج غير متاح حالياً');
     }
@@ -50,12 +54,76 @@ export class OrdersService {
       throw new BadRequestException('هذه الخدمة معطلة حالياً');
     }
 
+    // الحقول المطلوبة والحساسة: تُشتق من قالب الخدمة المرتبط (المصدر الموثوق)،
+    // مع الرجوع إلى حقول المنتج كخطة بديلة للخدمات غير المرتبطة بقالب.
+    const template = (product as any).serviceTemplateId as
+      | { fields?: Array<{ label: string; required?: boolean; isSensitive?: boolean; type?: string }> }
+      | null
+      | undefined;
+    const templateFields = template?.fields || [];
+
+    const effectiveRequiredFields =
+      templateFields.length > 0
+        ? templateFields.filter((f) => f.required).map((f) => f.label)
+        : product.requiredFields || [];
+
+    const effectiveSensitiveFields = Array.from(
+      new Set([
+        ...(product.sensitiveFields || []),
+        ...templateFields
+          .filter((f) => f.isSensitive || f.type === 'password')
+          .map((f) => f.label),
+      ]),
+    );
+
+    // التحقق من اكتمال الحقول المطلوبة قبل خصم أي مبلغ من المحفظة
+    // (منتجات الأكواد تُسلَّم آلياً فلا تحتاج حقول إدخال)
+    const rawInput = params.accountInput || {};
+    if (product.type !== ProductType.CODES) {
+      const missingFields = effectiveRequiredFields.filter(
+        (label) =>
+          rawInput[label] === undefined ||
+          rawInput[label] === null ||
+          String(rawInput[label]).trim() === '',
+      );
+      if (missingFields.length > 0) {
+        throw new BadRequestException(
+          `يرجى إكمال الحقول المطلوبة: ${missingFields.join('، ')}`,
+        );
+      }
+    }
+
     const price = product.salePrice;
     if (user.balance < price) {
       throw new BadRequestException(
         `رصيدك غير كافٍ. المبلغ المطلوب: $${price.toFixed(2)}، رصيدك الحالي: $${user.balance.toFixed(2)}`,
       );
     }
+
+    // Fail fast: verify the provider is reachable and funded BEFORE touching the wallet
+    if (product.type === ProductType.DIRECT_API && product.providerId) {
+      await this.providersService.ensureReadyForOrder(product.providerId.toString(), product.costPrice || 0);
+    }
+
+    if (product.type === ProductType.CODES && (!product.inventoryCodes || product.inventoryCodes.length === 0)) {
+      throw new BadRequestException('عذراً، هذا المنتج غير متوفر في المخزون حالياً');
+    }
+
+    // Atomic debit: the `$gte` guard prevents overdraft when two orders race
+    const debited = await this.userModel.findOneAndUpdate(
+      { _id: user._id, balance: { $gte: price } },
+      { $inc: { balance: -price } },
+      { new: true },
+    );
+    if (!debited) {
+      throw new BadRequestException(
+        `رصيدك غير كافٍ. المبلغ المطلوب: $${price.toFixed(2)}، رصيدك الحالي: $${user.balance.toFixed(2)}`,
+      );
+    }
+
+    // Derived from the authoritative post-debit document, never from a stale read
+    const balanceAfter = Number(debited.balance.toFixed(2));
+    const balanceBefore = Number((balanceAfter + price).toFixed(2));
 
     // Process specific product type logic
     let deliveredCode: string | undefined = undefined;
@@ -64,22 +132,14 @@ export class OrdersService {
     const deadlineAt = new Date(Date.now() + estimatedMinutes * 60 * 1000);
     const timeline: OrderTimelineEvent[] = [];
 
-    // Deduct user balance
-    const balanceBefore = user.balance;
-    const balanceAfter = Number((balanceBefore - price).toFixed(2));
-    user.balance = balanceAfter;
-    await user.save();
-
     const orderNumber = this.generateOrderNumber();
     const profit = Number((price - product.costPrice).toFixed(2));
 
     // Handle Sensitive Fields in Customer Input
     const sanitizedInput: Record<string, any> = { ...(params.accountInput || {}) };
-    if (product.isSensitive && product.sensitiveFields && product.sensitiveFields.length > 0) {
-      for (const field of product.sensitiveFields) {
-        if (sanitizedInput[field]) {
-          sanitizedInput[field] = CryptoUtil.encrypt(sanitizedInput[field]);
-        }
+    for (const field of effectiveSensitiveFields) {
+      if (sanitizedInput[field]) {
+        sanitizedInput[field] = CryptoUtil.encrypt(String(sanitizedInput[field]));
       }
     }
 
@@ -94,21 +154,68 @@ export class OrdersService {
       timestamp: new Date(),
     });
 
+    // Persist the order BEFORE calling the provider so every attempt stays auditable
+    const order = new this.orderModel({
+      orderNumber,
+      userId: user._id,
+      appId: app._id,
+      productId: product._id,
+      providerId: product.providerId,
+      type: product.type,
+      amount: price,
+      cost: product.costPrice,
+      profit,
+      status: OrderStatus.PENDING,
+      accountInput: sanitizedInput,
+      estimatedMinutes,
+      deadlineAt,
+      isSensitive: effectiveSensitiveFields.length > 0 || product.isSensitive || false,
+      sensitiveFields: effectiveSensitiveFields,
+      timeline,
+      chatMessages: [],
+    });
+    await order.save();
+
+    // PURCHASE is recorded immediately; any failure path below writes the matching REFUND
+    try {
+      await this.transactionModel.create({
+        userId: user._id,
+        type: TransactionType.PURCHASE,
+        amount: -price,
+        balanceBefore,
+        balanceAfter,
+        description: `شراء ${product.name} (${app.name})`,
+        referenceType: 'Order',
+        referenceId: order._id.toString(),
+        status: TransactionStatus.COMPLETED,
+      });
+    } catch (ledgerErr: any) {
+      // Never keep customer funds without a matching ledger entry
+      this.logger.error(`Could not record purchase transaction for ${orderNumber}: ${ledgerErr.message}`);
+      order.status = OrderStatus.REFUNDED;
+      order.rejectionReason = 'تعذر تسجيل الحركة المالية، تم إرجاع المبلغ';
+      await order.save();
+      await this.userModel.findByIdAndUpdate(user._id, { $inc: { balance: price } });
+      throw new BadRequestException('تعذر إتمام العملية، لم يتم خصم أي مبلغ. يرجى المحاولة لاحقاً');
+    }
+
     let assignedSupervisorId: Types.ObjectId | undefined = undefined;
     let assignedSupervisorUser: UserDocument | null = null;
 
     if (product.type === ProductType.CODES) {
-      if (!product.inventoryCodes || product.inventoryCodes.length === 0) {
-        // Rollback balance if inventory empty
-        user.balance = balanceBefore;
-        await user.save();
-        throw new BadRequestException('عذراً، هذا المنتج غير متوفر في المخزون حالياً');
+      // Re-checked here because a concurrent order may have drained the stock
+      const code = product.inventoryCodes?.shift();
+      if (!code) {
+        return this.failPaidOrder(order, {
+          amount: price,
+          reason: 'عذراً، هذا المنتج غير متوفر في المخزون حالياً',
+        });
       }
-      deliveredCode = product.inventoryCodes.shift();
       await product.save();
+      deliveredCode = code;
       initialStatus = OrderStatus.COMPLETED;
 
-      timeline.push({
+      order.timeline.push({
         action: 'delivered',
         title: 'تم تسليم الكود تلقائياً',
         description: 'تم تسليم كود البطاقة للعميل مباشرة من المخزون',
@@ -139,29 +246,72 @@ export class OrdersService {
           (Object.values(rawInput).length > 1 ? Object.values(rawInput)[1] : undefined);
 
         if (!gameUserId) {
-          // Rollback customer balance
-          user.balance = balanceBefore;
-          await user.save();
-          throw new BadRequestException('يرجى إدخال معرف اللاعب (Player ID) المطلوب للشحن');
+          // Refund the customer atomically and keep the attempt on record
+          return this.failPaidOrder(order, {
+            amount: price,
+            reason: 'يرجى إدخال معرف اللاعب (Player ID) المطلوب للشحن',
+          });
         }
 
-        const providerResult = await this.providersService.executeOrder(product.providerId.toString(), {
-          productCode: product.providerProductCode || '',
-          gameUserId: String(gameUserId),
-          gameZoneId: gameZoneId ? String(gameZoneId) : undefined,
-          reference: orderNumber,
-        });
+        let providerResult: Awaited<ReturnType<ProvidersService['executeOrder']>>;
+        try {
+          providerResult = await this.providersService.executeOrder(product.providerId.toString(), {
+            productCode: product.providerProductCode || '',
+            gameUserId: String(gameUserId),
+            gameZoneId: gameZoneId ? String(gameZoneId) : undefined,
+            reference: orderNumber,
+          });
+        } catch (err: any) {
+          // An unexpected transport/execution throw must never cost the customer money
+          providerResult = {
+            success: false,
+            message: err?.message || 'تعذر الاتصال بمزوّد الخدمة',
+          };
+        }
 
         if (!providerResult.success) {
-          // Rollback customer balance so no funds are deducted
-          user.balance = balanceBefore;
-          await user.save();
           this.logger.error(`Provider direct execution failed for ${orderNumber}: ${providerResult.message}`);
-          throw new BadRequestException(`تعذر إتمام الشحن عبر المزود: ${providerResult.message}`);
+
+          // Surface the incident to the provider record and to the admins
+          await this.providersService.markProviderFailure(
+            product.providerId.toString(),
+            providerResult.message,
+          );
+          try {
+            await this.notificationsService.createNotification({
+              forRole: 'admin',
+              title: 'فشل تنفيذ طلب لدى المزوّد',
+              body: `تعذّر تنفيذ الطلب #${orderNumber} (${product.name}) عبر المزوّد: ${providerResult.message}. تم إرجاع المبلغ للعميل تلقائياً.`,
+              type: 'provider_failure',
+              data: {
+                orderId: order._id.toString(),
+                orderNumber,
+                productId: product._id.toString(),
+                providerId: product.providerId.toString(),
+              },
+            });
+          } catch (notifyErr: any) {
+            this.logger.warn(`Could not notify admins about provider failure: ${notifyErr.message}`);
+          }
+
+          // No funds are kept: the customer is refunded atomically
+          return this.failPaidOrder(order, {
+            amount: price,
+            reason: `تعذر إتمام الشحن عبر المزود: ${providerResult.message}`,
+            providerRaw: providerResult.raw,
+          });
         }
 
+        if (providerResult.raw?.items?.[0]?.externalData?.length) {
+          deliveredCode = providerResult.raw.items[0].externalData.join(', ');
+        }
+
+        // Kept for later reconciliation against the provider
+        order.providerReference = providerResult.transactionId || orderNumber;
+        order.providerResponse = providerResult.raw as Record<string, any>;
+
         initialStatus = OrderStatus.COMPLETED;
-        timeline.push({
+        order.timeline.push({
           action: 'delivered',
           title: 'تم تنفيذ الشحن عبر المزود الآلي بنجاح',
           description: `تم إرسال الطلب وتنفيذه بنجاح عبر مزود الخدمة (المرجع: ${providerResult.transactionId || orderNumber})`,
@@ -171,7 +321,7 @@ export class OrdersService {
         });
       } else {
         initialStatus = OrderStatus.COMPLETED;
-        timeline.push({
+        order.timeline.push({
           action: 'delivered',
           title: 'تم تنفيذ الشحن عبر المزود الآلي',
           description: 'تم إرسال الشحن وتنفيذه بنجاح عبر مزود الخدمة',
@@ -187,7 +337,7 @@ export class OrdersService {
         assignedSupervisorUser = await this.userModel.findById(assignedSupervisorId);
         initialStatus = OrderStatus.ASSIGNED;
 
-        timeline.push({
+        order.timeline.push({
           action: 'assigned',
           title: `تم إسناد الطلب للمشرف (${assignedSupervisorUser?.name || 'المشرف المسؤول'})`,
           description: `تم إسناد الطلب تلقائياً، والوقت المتوقع للتنفيذ: ${estimatedMinutes} دقيقة`,
@@ -197,7 +347,7 @@ export class OrdersService {
         });
       } else {
         initialStatus = OrderStatus.PENDING;
-        timeline.push({
+        order.timeline.push({
           action: 'pending_assignment',
           title: 'بانتظار إسناد المشرف',
           description: 'الطلب بانتظار قيام الإدارة بتعيين مشرف للتنفيذ',
@@ -208,43 +358,13 @@ export class OrdersService {
       }
     }
 
-    const order = new this.orderModel({
-      orderNumber,
-      userId: user._id,
-      appId: app._id,
-      productId: product._id,
-      providerId: product.providerId,
-      type: product.type,
-      amount: price,
-      cost: product.costPrice,
-      profit,
-      status: initialStatus,
-      accountInput: sanitizedInput,
-      deliveredCode,
-      completedAt: initialStatus === OrderStatus.COMPLETED ? new Date() : undefined,
-      assignedSupervisorId,
-      estimatedMinutes,
-      deadlineAt,
-      isSensitive: product.isSensitive || false,
-      sensitiveFields: product.sensitiveFields || [],
-      timeline,
-      chatMessages: [],
-    });
+    // Finalize the order shell created before the provider call
+    order.status = initialStatus;
+    order.deliveredCode = deliveredCode;
+    order.assignedSupervisorId = assignedSupervisorId;
+    order.rejectionReason = undefined;
+    order.completedAt = initialStatus === OrderStatus.COMPLETED ? new Date() : undefined;
     await order.save();
-
-    // Record wallet transaction
-    const transaction = new this.transactionModel({
-      userId: user._id,
-      type: TransactionType.PURCHASE,
-      amount: -price,
-      balanceBefore,
-      balanceAfter,
-      description: `شراء ${product.name} (${app.name})`,
-      referenceType: 'Order',
-      referenceId: order._id.toString(),
-      status: TransactionStatus.COMPLETED,
-    });
-    await transaction.save();
 
     // Notify Supervisor if assigned
     if (assignedSupervisorId && assignedSupervisorUser) {
@@ -294,8 +414,284 @@ export class OrdersService {
           ? 'تم استلام طلبك وجاري تحويله للمشرف المختص لبدء التنفيذ'
           : 'تم إرسال طلب الشحن بنجاح وهو قيد المراجعة',
       order: await this.getOrderById(order._id.toString()),
-      newBalance: user.balance,
+      newBalance: balanceAfter,
       deliveredCode,
+    };
+  }
+
+  // Atomically refund a paid-but-unfulfilled order while keeping the paper trail intact
+  private async failPaidOrder(
+    order: OrderDocument,
+    params: { amount: number; reason: string; providerRaw?: any },
+  ): Promise<never> {
+    const refunded = await this.userModel.findByIdAndUpdate(
+      order.userId,
+      { $inc: { balance: params.amount } },
+      { new: true },
+    );
+
+    const balanceAfter = Number((refunded?.balance ?? params.amount).toFixed(2));
+    const balanceBefore = Number((balanceAfter - params.amount).toFixed(2));
+
+    order.status = OrderStatus.REFUNDED;
+    order.rejectionReason = params.reason;
+    // The provider references orders by this same number, so keep it for later checks
+    order.providerReference = order.providerReference || order.orderNumber;
+    if (params.providerRaw !== undefined) {
+      order.providerResponse = params.providerRaw as Record<string, any>;
+    }
+    order.timeline.push({
+      action: 'auto_refunded',
+      title: 'تعذّر تنفيذ الطلب وتم إرجاع المبلغ تلقائياً',
+      description: params.reason,
+      performerName: 'النظام الآلي',
+      performerRole: 'system',
+      timestamp: new Date(),
+    });
+    await order.save();
+
+    // Matches the PURCHASE entry so the wallet ledger always balances
+    await this.transactionModel.create({
+      userId: order.userId,
+      type: TransactionType.REFUND,
+      amount: params.amount,
+      balanceBefore,
+      balanceAfter,
+      description: `إرجاع تلقائي لطلب متعذر #${order.orderNumber}`,
+      referenceType: 'Order',
+      referenceId: order._id.toString(),
+      status: TransactionStatus.COMPLETED,
+    });
+
+    throw new BadRequestException(`${params.reason} (رقم الطلب: ${order.orderNumber})`);
+  }
+
+  // Refunds a paid order atomically and records the matching ledger entry
+  private async autoRefundOrder(order: OrderDocument, reason: string, title: string) {
+    const refundedUser = await this.userModel.findByIdAndUpdate(
+      order.userId,
+      { $inc: { balance: order.amount } },
+      { new: true },
+    );
+    const balanceAfter = Number((refundedUser?.balance ?? order.amount).toFixed(2));
+
+    order.status = OrderStatus.REFUNDED;
+    order.rejectionReason = reason;
+    order.timeline.push({
+      action: 'auto_refunded',
+      title,
+      description: reason,
+      performerName: 'المصالحة الآلية',
+      performerRole: 'system',
+      timestamp: new Date(),
+    });
+    await order.save();
+
+    await this.transactionModel.create({
+      userId: order.userId,
+      type: TransactionType.REFUND,
+      amount: order.amount,
+      balanceBefore: Number((balanceAfter - order.amount).toFixed(2)),
+      balanceAfter,
+      description: `إرجاع تلقائي (مصالحة) لطلب #${order.orderNumber}`,
+      referenceType: 'Order',
+      referenceId: order._id.toString(),
+      status: TransactionStatus.COMPLETED,
+    });
+
+    await this.notificationsService.createNotification({
+      userId: order.userId.toString(),
+      title: 'تم إرجاع مبلغ طلبك إلى المحفظة',
+      body: `تعذّر تنفيذ الطلب #${order.orderNumber} لدى مزود الخدمة، وتم إرجاع $${order.amount.toFixed(2)} إلى محفظتك.`,
+      type: 'order_refunded',
+      data: { orderId: order._id.toString(), amount: order.amount, reason },
+    });
+  }
+
+  // Re-checks provider-executed orders that were marked completed without an actual delivery
+  async reconcileProviderOrders(limit = 20) {
+    const orders = await this.orderModel
+      .find({
+        type: ProductType.DIRECT_API,
+        providerId: { $ne: null },
+        providerReference: { $exists: true, $ne: null },
+        providerSettledAt: { $exists: false },
+        status: OrderStatus.COMPLETED,
+        $or: [{ deliveredCode: { $exists: false } }, { deliveredCode: null }, { deliveredCode: '' }],
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    let settled = 0;
+    let refunded = 0;
+    let pending = 0;
+
+    for (const order of orders) {
+      const providerId = order.providerId?.toString();
+      if (!providerId || !order.providerReference) continue;
+
+      let inspection: Awaited<ReturnType<ProvidersService['inspectOrderStatus']>>;
+      try {
+        inspection = await this.providersService.inspectOrderStatus(providerId, order.providerReference);
+      } catch (err: any) {
+        this.logger.warn(`Reconciliation failed for order ${order.orderNumber}: ${err.message}`);
+        continue;
+      }
+
+      if (inspection.state === 'delivered') {
+        order.deliveredCode = inspection.codes?.length ? inspection.codes.join(', ') : order.deliveredCode;
+        order.providerSettledAt = new Date();
+        order.timeline.push({
+          action: 'provider_settled',
+          title: 'تم تأكيد تنفيذ الطلب لدى المزوّد',
+          description: inspection.message || 'أكد المزوّد تنفيذ الطلب',
+          performerName: 'المصالحة الآلية',
+          performerRole: 'system',
+          timestamp: new Date(),
+        });
+        await order.save();
+        settled++;
+        continue;
+      }
+
+      if (inspection.state === 'failed') {
+        const reason = `أبلغ المزوّد عن فشل تنفيذ الطلب: ${inspection.message || 'سبب غير محدد'}`;
+        order.providerResponse = inspection.raw as Record<string, any>;
+        order.providerSettledAt = new Date();
+        await this.autoRefundOrder(order, reason, 'تم استرجاع المبلغ تلقائياً بعد فشل المزوّد');
+        refunded++;
+        continue;
+      }
+
+      pending++;
+    }
+
+    // Second pass: refunded attempts the provider may actually have executed (timeout cases)
+    let flagged = 0;
+    const refundedOrders = await this.orderModel
+      .find({
+        type: ProductType.DIRECT_API,
+        providerId: { $ne: null },
+        providerReference: { $exists: true, $ne: null },
+        providerSettledAt: { $exists: false },
+        status: OrderStatus.REFUNDED,
+        createdAt: { $lte: new Date(Date.now() - 5 * 60 * 1000) },
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    for (const order of refundedOrders) {
+      const providerId = order.providerId?.toString();
+      if (!providerId || !order.providerReference) continue;
+
+      try {
+        const inspection = await this.providersService.inspectOrderStatus(providerId, order.providerReference);
+        if (inspection.state !== 'delivered') continue;
+
+        // We refunded but the provider delivered — a human must reconcile this one
+        order.providerSettledAt = new Date();
+        order.timeline.push({
+          action: 'provider_mismatch',
+          title: 'تنبيه: المزوّد يعتبر الطلب منفذاً بعد استرجاعه',
+          description: inspection.message || 'تأكد المزوّد من تنفيذ الطلب رغم إرجاع المبلغ للعميل',
+          performerName: 'المصالحة الآلية',
+          performerRole: 'system',
+          timestamp: new Date(),
+        });
+        await order.save();
+        flagged++;
+
+        await this.notificationsService.createNotification({
+          forRole: 'admin',
+          title: 'تنبيه مالي: طلب مسترجع لكن المزوّد نفّذه',
+          body: `الطلب #${order.orderNumber} تم إرجاع مبلغه للعميل، لكن المزوّد يؤكد تنفيذه. يرجى المراجعة اليدوية.`,
+          type: 'provider_mismatch',
+          data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
+        });
+      } catch (err: any) {
+        this.logger.warn(`Reverse reconciliation failed for order ${order.orderNumber}: ${err.message}`);
+      }
+    }
+
+    // Third pass: orders orphaned mid-flight (e.g. the platform killed the function
+    // while the provider call was still running) — the customer was charged but the
+    // order never reached a final state
+    let recovered = 0;
+    const orphanedOrders = await this.orderModel
+      .find({
+        type: ProductType.DIRECT_API,
+        providerId: { $ne: null },
+        providerSettledAt: { $exists: false },
+        status: OrderStatus.PENDING,
+        createdAt: { $lte: new Date(Date.now() - 3 * 60 * 1000) },
+      })
+      .sort({ createdAt: -1 })
+      .limit(limit);
+
+    for (const order of orphanedOrders) {
+      const providerId = order.providerId?.toString();
+      const reference = order.providerReference || order.orderNumber;
+      if (!providerId || !reference) continue;
+
+      let inspection: Awaited<ReturnType<ProvidersService['inspectOrderStatus']>>;
+      try {
+        inspection = await this.providersService.inspectOrderStatus(providerId, reference);
+      } catch (err: any) {
+        this.logger.warn(`Orphan reconciliation failed for order ${order.orderNumber}: ${err.message}`);
+        continue;
+      }
+
+      if (inspection.state === 'delivered') {
+        order.status = OrderStatus.COMPLETED;
+        order.deliveredCode = inspection.codes?.length ? inspection.codes.join(', ') : order.deliveredCode;
+        order.providerReference = reference;
+        order.providerResponse = inspection.raw as Record<string, any>;
+        order.providerSettledAt = new Date();
+        order.completedAt = new Date();
+        order.timeline.push({
+          action: 'provider_settled',
+          title: 'تم تأكيد تنفيذ الطلب لدى المزوّد',
+          description: inspection.message || 'أكد المزوّد تنفيذ الطلب',
+          performerName: 'المصالحة الآلية',
+          performerRole: 'system',
+          timestamp: new Date(),
+        });
+        await order.save();
+        recovered++;
+
+        await this.notificationsService.createNotification({
+          userId: order.userId.toString(),
+          title: 'تم تنفيذ طلبك بنجاح',
+          body: `تم تأكيد تنفيذ الطلب #${order.orderNumber} لدى مزود الخدمة.`,
+          type: 'order_status',
+          data: { orderId: order._id.toString(), deliveredCode: order.deliveredCode },
+        });
+        continue;
+      }
+
+      if (inspection.state === 'failed') {
+        order.providerResponse = inspection.raw as Record<string, any>;
+        order.providerSettledAt = new Date();
+        await this.autoRefundOrder(
+          order,
+          `أبلغ المزوّد عن فشل تنفيذ الطلب: ${inspection.message || 'سبب غير محدد'}`,
+          'تم استرجاع المبلغ تلقائياً بعد فشل المزوّد',
+        );
+        refunded++;
+        continue;
+      }
+
+      pending++;
+    }
+
+    return {
+      checked: orders.length + refundedOrders.length + orphanedOrders.length,
+      settled,
+      refunded,
+      pending,
+      flagged,
+      recovered,
+      message: `تمت مراجعة ${orders.length + refundedOrders.length + orphanedOrders.length} طلباً: ${settled} مؤكد، ${recovered} مُستعاد، ${refunded} مسترجع، ${pending} قيد الانتظار، ${flagged} بحاجة مراجعة يدوية`,
     };
   }
 
@@ -314,7 +710,11 @@ export class OrdersService {
       .findById(id)
       .populate('userId', 'name email phone balance userId')
       .populate('appId', 'name iconUrl')
-      .populate('productId', 'name type costPrice salePrice isSensitive instructions')
+      .populate({
+        path: 'productId',
+        select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
+        populate: { path: 'serviceTemplateId', select: 'name fields' },
+      })
       .populate('assignedSupervisorId', 'name email phone role userId');
     if (!order) throw new NotFoundException('الطلب غير موجود');
     return order;
@@ -331,7 +731,11 @@ export class OrdersService {
       .find(query)
       .populate('userId', 'name email phone userId')
       .populate('appId', 'name iconUrl')
-      .populate('productId', 'name type costPrice salePrice isSensitive instructions')
+      .populate({
+        path: 'productId',
+        select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
+        populate: { path: 'serviceTemplateId', select: 'name fields' },
+      })
       .sort({ createdAt: -1 });
 
     const now = new Date();
@@ -373,22 +777,24 @@ export class OrdersService {
 
     const orders = await this.orderModel
       .find(query)
+      .select('-chatMessages -timeline')
       .populate('userId', 'name email phone balance userId')
       .populate('appId', 'name iconUrl')
       .populate('productId', 'name type costPrice salePrice isSensitive')
       .populate('assignedSupervisorId', 'name email phone role userId')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
+    // القوائم لا تُحمّل المحادثات وسجل الأحداث (تُجلب عند فتح الطلب فقط) لتسريع الاستجابة
     const now = new Date();
-    return orders.map((o) => {
-      const obj = o.toObject();
+    return orders.map((o: any) => {
       const isDelayed =
-        o.deadlineAt &&
-        now > o.deadlineAt &&
+        !!o.deadlineAt &&
+        now > new Date(o.deadlineAt) &&
         o.status !== OrderStatus.COMPLETED &&
         o.status !== OrderStatus.REFUNDED;
       return {
-        ...obj,
+        ...o,
         isDelayed,
       };
     });
@@ -468,6 +874,9 @@ export class OrdersService {
     });
 
     await order.save();
+
+    // الاعتذار عن التنفيذ يُخرج الطلب من قائمة المشرف؛ فقد يعود عميلاً إن لم يبقَ لديه إسناد
+    await this.usersService.reconcileSupervisorRole(supervisor._id);
 
     // Notify Admins that order was rejected and requires reassignment
     await this.notificationsService.createNotification({
@@ -810,8 +1219,8 @@ export class OrdersService {
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     const newSupervisor = await this.userModel.findById(newSupervisorId);
-    if (!newSupervisor || (newSupervisor.role !== 'supervisor' && newSupervisor.role !== 'admin')) {
-      throw new BadRequestException('المشرف المختار غير صالح');
+    if (!newSupervisor || newSupervisor.isActive === false) {
+      throw new BadRequestException('المستخدم المختار غير صالح');
     }
 
     const previousSupervisorId = order.assignedSupervisorId;
@@ -834,6 +1243,12 @@ export class OrdersService {
     });
 
     await order.save();
+
+    // مزامنة الرتب: المشرف الجديد يُرقّى، والسابق يعود عميلاً إن لم يبقَ لديه أي إسناد
+    if (previousSupervisorId && previousSupervisorId.toString() !== newSupervisor._id.toString()) {
+      await this.usersService.reconcileSupervisorRole(previousSupervisorId);
+    }
+    await this.usersService.reconcileSupervisorRole(newSupervisor._id);
 
     // Notify new supervisor
     await this.notificationsService.createNotification({
@@ -1022,6 +1437,39 @@ export class OrdersService {
     return {
       isPurged: false,
       credentials: decrypted,
+    };
+  }
+
+  // يفك تشفير مدخلات العميل (accountInput) للمشرف المسند أو الأدمن فقط
+  async getOrderDecryptedInput(orderId: string, user: UserDocument) {
+    const order = await this.orderModel.findById(orderId);
+    if (!order) throw new NotFoundException('الطلب غير موجود');
+
+    const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+    const isAdmin = user.role === 'admin';
+
+    if (!isSupervisor && !isAdmin) {
+      throw new ForbiddenException('غير مصرح لك باستعراض بيانات هذا الطلب');
+    }
+
+    const sensitiveFields = order.sensitiveFields || [];
+    const input = order.accountInput || {};
+    const decryptedInput: Record<string, any> = {};
+
+    for (const [key, value] of Object.entries(input)) {
+      if (sensitiveFields.includes(key) && typeof value === 'string' && value.includes(':')) {
+        decryptedInput[key] = CryptoUtil.decrypt(value) ?? value;
+      } else {
+        decryptedInput[key] = value;
+      }
+    }
+
+    return {
+      orderId: order._id.toString(),
+      orderNumber: order.orderNumber,
+      isSensitive: order.isSensitive || false,
+      sensitiveFields,
+      accountInput: decryptedInput,
     };
   }
 

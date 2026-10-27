@@ -42,12 +42,20 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                   color: AppColors.primaryBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.confirmation_number_outlined, color: AppColors.primaryBlue, size: 20),
+                child: const Icon(
+                  Icons.confirmation_number_outlined,
+                  color: AppColors.primaryBlue,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               Text(
                 'توليد قسائم شحن رقمية',
-                style: AppTypography.cairo(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.slate900),
+                style: AppTypography.cairo(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate900,
+                ),
               ),
             ],
           ),
@@ -56,33 +64,77 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
             children: [
               TextField(
                 controller: amountCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                style: AppTypography.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                style: AppTypography.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
                 decoration: InputDecoration(
                   labelText: 'قيمة كل كود بالدولار (USD \$)',
-                  labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.slate600),
-                  prefixIcon: const Icon(Icons.attach_money, color: AppColors.slate600),
+                  labelStyle: AppTypography.cairo(
+                    fontSize: 13,
+                    color: AppColors.slate600,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.attach_money,
+                    color: AppColors.slate600,
+                  ),
                   filled: true,
                   fillColor: AppColors.paper,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.outline)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.outline)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primaryBlue, width: 1.5)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryBlue,
+                      width: 1.5,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 14),
               TextField(
                 controller: countCtrl,
                 keyboardType: TextInputType.number,
-                style: AppTypography.plusJakartaSans(fontSize: 14, fontWeight: FontWeight.w700),
+                style: AppTypography.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                ),
                 decoration: InputDecoration(
                   labelText: 'عدد الأكواد المراد إنشاؤها (1 - 50)',
-                  labelStyle: AppTypography.cairo(fontSize: 13, color: AppColors.slate600),
-                  prefixIcon: const Icon(Icons.pin_outlined, color: AppColors.slate600),
+                  labelStyle: AppTypography.cairo(
+                    fontSize: 13,
+                    color: AppColors.slate600,
+                  ),
+                  prefixIcon: const Icon(
+                    Icons.pin_outlined,
+                    color: AppColors.slate600,
+                  ),
                   filled: true,
                   fillColor: AppColors.paper,
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.outline)),
-                  enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.outline)),
-                  focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primaryBlue, width: 1.5)),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.outline),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryBlue,
+                      width: 1.5,
+                    ),
+                  ),
                 ),
               ),
             ],
@@ -90,14 +142,26 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: Text('إلغاء', style: AppTypography.cairo(fontSize: 13, color: AppColors.slate600, fontWeight: FontWeight.w600)),
+              child: Text(
+                'إلغاء',
+                style: AppTypography.cairo(
+                  fontSize: 13,
+                  color: AppColors.slate600,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue,
                 foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
                 elevation: 0,
               ),
               onPressed: () async {
@@ -107,26 +171,43 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                 if (amount <= 0 || count <= 0) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('يرجى إدخال قيم صحيحة', style: AppTypography.cairo()),
+                      content: Text(
+                        'يرجى إدخال قيم صحيحة',
+                        style: AppTypography.cairo(),
+                      ),
                     ),
                   );
                   return;
                 }
 
-                final admin = Provider.of<AdminProvider>(context, listen: false);
+                final admin = Provider.of<AdminProvider>(
+                  context,
+                  listen: false,
+                );
                 final ok = await admin.generateShippingCodes(amount, count);
                 if (ctx.mounted) Navigator.of(ctx).pop();
 
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(ok ? 'تم إنشاء $count قسيمة بنجاح' : 'حدث خطأ أثناء الإنشاء', style: AppTypography.cairo()),
+                      content: Text(
+                        ok
+                            ? 'تم إنشاء $count قسيمة بنجاح'
+                            : 'حدث خطأ أثناء الإنشاء',
+                        style: AppTypography.cairo(),
+                      ),
                       backgroundColor: ok ? AppColors.emerald : AppColors.rose,
                     ),
                   );
                 }
               },
-              child: Text('توليد القسائم', style: AppTypography.cairo(fontSize: 13, fontWeight: FontWeight.w700)),
+              child: Text(
+                'توليد القسائم',
+                style: AppTypography.cairo(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
             ),
           ],
         );
@@ -140,7 +221,10 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
     final codes = admin.shippingCodes;
     final availableCodes = codes.where((c) => !c.isUsed).toList();
     final usedCodes = codes.where((c) => c.isUsed).toList();
-    final totalValue = availableCodes.fold<double>(0.0, (sum, c) => sum + c.amount);
+    final totalValue = availableCodes.fold<double>(
+      0.0,
+      (sum, c) => sum + c.amount,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -150,7 +234,11 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
         centerTitle: false,
         title: Text(
           'قسائم الشحن المسبق',
-          style: AppTypography.cairo(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.slate900),
+          style: AppTypography.cairo(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+          ),
         ),
         actions: [
           IconButton(
@@ -167,7 +255,9 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
         ],
       ),
       body: admin.isLoading && codes.isEmpty
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
+          ? const Center(
+              child: CircularProgressIndicator(color: AppColors.primaryBlue),
+            )
           : RefreshIndicator(
               onRefresh: () => admin.fetchShippingCodes(),
               color: AppColors.primaryBlue,
@@ -201,7 +291,11 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                                     color: Colors.white.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(10),
                                   ),
-                                  child: const Icon(Icons.confirmation_number_outlined, color: AppColors.ticketAmber, size: 20),
+                                  child: const Icon(
+                                    Icons.confirmation_number_outlined,
+                                    color: AppColors.ticketAmber,
+                                    size: 20,
+                                  ),
                                 ),
                                 const SizedBox(width: 10),
                                 Column(
@@ -209,31 +303,56 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                                   children: [
                                     Text(
                                       'خزينة القسائم الرقمية',
-                                      style: AppTypography.cairo(fontSize: 14, fontWeight: FontWeight.w800, color: Colors.white),
+                                      style: AppTypography.cairo(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                      ),
                                     ),
                                     Text(
                                       'VOUCHERS & PASS VAULT',
-                                      style: AppTypography.technicalCode(fontSize: 10, color: Colors.white60),
+                                      style: AppTypography.technicalCode(
+                                        fontSize: 10,
+                                        color: Colors.white60,
+                                      ),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: AppColors.emerald.withValues(alpha: 0.2),
                                 borderRadius: BorderRadius.circular(20),
-                                border: Border.all(color: AppColors.emerald.withValues(alpha: 0.5)),
+                                border: Border.all(
+                                  color: AppColors.emerald.withValues(
+                                    alpha: 0.5,
+                                  ),
+                                ),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Container(width: 6, height: 6, decoration: const BoxDecoration(color: AppColors.emerald, shape: BoxShape.circle)),
+                                  Container(
+                                    width: 6,
+                                    height: 6,
+                                    decoration: const BoxDecoration(
+                                      color: AppColors.emerald,
+                                      shape: BoxShape.circle,
+                                    ),
+                                  ),
                                   const SizedBox(width: 6),
                                   Text(
                                     '${availableCodes.length} متاحة',
-                                    style: AppTypography.cairo(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.emerald),
+                                    style: AppTypography.cairo(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.emerald,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -241,7 +360,10 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                           ],
                         ),
                         const SizedBox(height: 16),
-                        Container(height: 1, color: Colors.white.withValues(alpha: 0.1)),
+                        Container(
+                          height: 1,
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
                         const SizedBox(height: 14),
                         Row(
                           children: [
@@ -252,14 +374,22 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                                 isPrice: true,
                               ),
                             ),
-                            Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.1)),
+                            Container(
+                              width: 1,
+                              height: 36,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
                             Expanded(
                               child: _buildBannerStat(
                                 label: 'القسائم النشطة',
                                 value: '${availableCodes.length}',
                               ),
                             ),
-                            Container(width: 1, height: 36, color: Colors.white.withValues(alpha: 0.1)),
+                            Container(
+                              width: 1,
+                              height: 36,
+                              color: Colors.white.withValues(alpha: 0.1),
+                            ),
                             Expanded(
                               child: _buildBannerStat(
                                 label: 'المستخدمة',
@@ -279,12 +409,27 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                     children: [
                       Text(
                         'قائمة القسائم (${codes.length})',
-                        style: AppTypography.cairo(fontSize: 15, fontWeight: FontWeight.w800, color: AppColors.slate900),
+                        style: AppTypography.cairo(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.slate900,
+                        ),
                       ),
                       TextButton.icon(
                         onPressed: _openGenerateDialog,
-                        icon: const Icon(Icons.add, size: 16, color: AppColors.primaryBlue),
-                        label: Text('توليد دفعة', style: AppTypography.cairo(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primaryBlue)),
+                        icon: const Icon(
+                          Icons.add,
+                          size: 16,
+                          color: AppColors.primaryBlue,
+                        ),
+                        label: Text(
+                          'توليد دفعة',
+                          style: AppTypography.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primaryBlue,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -297,18 +442,36 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                         padding: const EdgeInsets.symmetric(vertical: 40),
                         child: Column(
                           children: [
-                            Icon(Icons.confirmation_number_outlined, size: 54, color: AppColors.slate600.withValues(alpha: 0.4)),
+                            Icon(
+                              Icons.confirmation_number_outlined,
+                              size: 54,
+                              color: AppColors.slate600.withValues(alpha: 0.4),
+                            ),
                             const SizedBox(height: 12),
-                            Text('لا توجد قسائم شحن مسجلة', style: AppTypography.cairo(fontSize: 14, color: AppColors.slate600)),
+                            Text(
+                              'لا توجد قسائم شحن مسجلة',
+                              style: AppTypography.cairo(
+                                fontSize: 14,
+                                color: AppColors.slate600,
+                              ),
+                            ),
                             const SizedBox(height: 14),
                             ElevatedButton.icon(
                               onPressed: _openGenerateDialog,
                               icon: const Icon(Icons.add, size: 16),
-                              label: Text('توليد أول دفعة', style: AppTypography.cairo(fontSize: 13, fontWeight: FontWeight.w700)),
+                              label: Text(
+                                'توليد أول دفعة',
+                                style: AppTypography.cairo(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: AppColors.primaryBlue,
                                 foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                               ),
                             ),
                           ],
@@ -325,14 +488,22 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
     );
   }
 
-  Widget _buildBannerStat({required String label, required String value, bool isPrice = false}) {
+  Widget _buildBannerStat({
+    required String label,
+    required String value,
+    bool isPrice = false,
+  }) {
     return Column(
       children: [
         Text(
           value,
           style: isPrice
               ? AppTypography.price(fontSize: 18, color: AppColors.ticketAmber)
-              : AppTypography.plusJakartaSans(fontSize: 18, fontWeight: FontWeight.w800, color: Colors.white),
+              : AppTypography.plusJakartaSans(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: Colors.white,
+                ),
         ),
         const SizedBox(height: 2),
         Text(
@@ -352,7 +523,11 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: isUsed ? AppColors.outline.withValues(alpha: 0.6) : AppColors.outline),
+        border: Border.all(
+          color: isUsed
+              ? AppColors.outline.withValues(alpha: 0.6)
+              : AppColors.outline,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.02),
@@ -369,11 +544,15 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: isUsed ? AppColors.paper : AppColors.ticketAmber.withValues(alpha: 0.12),
+                color: isUsed
+                    ? AppColors.paper
+                    : AppColors.ticketAmber.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Icon(
-                isUsed ? Icons.check_circle_outline : Icons.confirmation_number_outlined,
+                isUsed
+                    ? Icons.check_circle_outline
+                    : Icons.confirmation_number_outlined,
                 color: isUsed ? AppColors.slate600 : AppColors.ticketAmber,
                 size: 24,
               ),
@@ -392,7 +571,9 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                         style: AppTypography.spaceMono(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
-                          color: isUsed ? AppColors.slate600 : AppColors.slate900,
+                          color: isUsed
+                              ? AppColors.slate600
+                              : AppColors.slate900,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -401,7 +582,10 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                           Clipboard.setData(ClipboardData(text: code.code));
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('تم نسخ كود القسيمة بنجاح', style: AppTypography.cairo()),
+                              content: Text(
+                                'تم نسخ كود القسيمة بنجاح',
+                                style: AppTypography.cairo(),
+                              ),
                               duration: const Duration(seconds: 1),
                             ),
                           );
@@ -409,7 +593,11 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                         borderRadius: BorderRadius.circular(6),
                         child: const Padding(
                           padding: EdgeInsets.all(4),
-                          child: Icon(Icons.copy, size: 15, color: AppColors.slate600),
+                          child: Icon(
+                            Icons.copy,
+                            size: 15,
+                            color: AppColors.slate600,
+                          ),
                         ),
                       ),
                     ],
@@ -447,19 +635,28 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: isUsed ? AppColors.paper : AppColors.primaryBlue.withValues(alpha: 0.08),
+                    color: isUsed
+                        ? AppColors.paper
+                        : AppColors.primaryBlue.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: isUsed ? AppColors.outline : AppColors.primaryBlue.withValues(alpha: 0.3),
+                      color: isUsed
+                          ? AppColors.outline
+                          : AppColors.primaryBlue.withValues(alpha: 0.3),
                     ),
                   ),
                   child: Text(
                     '\$${code.amount.toStringAsFixed(2)}',
                     style: AppTypography.price(
                       fontSize: 15,
-                      color: isUsed ? AppColors.slate600 : AppColors.primaryBlue,
+                      color: isUsed
+                          ? AppColors.slate600
+                          : AppColors.primaryBlue,
                     ),
                   ),
                 ),
@@ -468,10 +665,17 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                   InkWell(
                     onTap: () => admin.deleteShippingCode(code.id),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 4,
+                        vertical: 2,
+                      ),
                       child: Text(
                         'حذف',
-                        style: AppTypography.cairo(fontSize: 11, color: AppColors.rose, fontWeight: FontWeight.bold),
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          color: AppColors.rose,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),

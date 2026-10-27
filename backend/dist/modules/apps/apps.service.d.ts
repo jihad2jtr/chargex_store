@@ -26,6 +26,7 @@ export declare class AppsService {
     } & {
         id: string;
     }>;
+    private assertUniqueName;
     create(createDto: {
         name: string;
         iconUrl: string;

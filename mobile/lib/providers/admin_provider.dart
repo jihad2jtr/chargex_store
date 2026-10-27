@@ -9,6 +9,9 @@ import '../models/payment_account_model.dart';
 import '../models/shipping_code_model.dart';
 import '../models/manual_order_model.dart';
 import '../models/banner_model.dart';
+import '../models/service_template_model.dart';
+import '../models/dashboard_stats_model.dart';
+import '../core/services/cache_service.dart';
 
 class AdminProvider extends ChangeNotifier {
   List<ProviderModel> _providers = [];
@@ -17,11 +20,16 @@ class AdminProvider extends ChangeNotifier {
   List<ProductModel> _currentAppProducts = [];
   String? _currentAppId;
   List<BannerModel> _adminBanners = [];
+  List<ServiceTemplateModel> _serviceTemplates = [];
   List<OrderModel> _adminOrders = [];
   List<OrderModel> _manualOrders = [];
   List<PaymentAccountModel> _paymentAccounts = [];
   List<ShippingCodeModel> _shippingCodes = [];
   List<ManualOrderModel> _manualTopupRequests = [];
+  DashboardStatsModel? _dashboardStats;
+  DateTime? _statsFetchedAt;
+  int _pendingOrdersCount = 0;
+  int _pendingTopupsCount = 0;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -31,8 +39,11 @@ class AdminProvider extends ChangeNotifier {
   List<ProductModel> get adminProducts => _adminProducts;
   List<ProductModel> get currentAppProducts => _currentAppProducts.isNotEmpty
       ? _currentAppProducts
-      : (_currentAppId != null ? _adminProducts.where((p) => p.appId == _currentAppId).toList() : _adminProducts);
+      : (_currentAppId != null
+            ? _adminProducts.where((p) => p.appId == _currentAppId).toList()
+            : _adminProducts);
   List<BannerModel> get adminBanners => _adminBanners;
+  List<ServiceTemplateModel> get serviceTemplates => _serviceTemplates;
   List<OrderModel> get adminOrders => _adminOrders;
   List<OrderModel> get manualOrders => _manualOrders.isNotEmpty
       ? _manualOrders
@@ -40,22 +51,66 @@ class AdminProvider extends ChangeNotifier {
   List<PaymentAccountModel> get paymentAccounts => _paymentAccounts;
   List<ShippingCodeModel> get shippingCodes => _shippingCodes;
   List<ManualOrderModel> get manualTopupRequests => _manualTopupRequests;
+  DashboardStatsModel? get dashboardStats => _dashboardStats;
+  DateTime? get statsFetchedAt => _statsFetchedAt;
+  int get pendingOrdersCount => _pendingOrdersCount;
+  int get pendingTopupsCount => _pendingTopupsCount;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
   final ApiClient _api = ApiClient();
 
+  AdminProvider() {
+    _loadFromCache();
+  }
+
+  void _loadFromCache() {
+    final cachedProviders = CacheService.instance.getList(
+      'admin_providers',
+      ProviderModel.fromJson,
+    );
+    if (cachedProviders != null && cachedProviders.isNotEmpty) {
+      _providers = cachedProviders;
+    }
+    final cachedApps = CacheService.instance.getList(
+      'admin_apps',
+      AppItemModel.fromJson,
+    );
+    if (cachedApps != null && cachedApps.isNotEmpty) {
+      _adminApps = cachedApps;
+    }
+    final cachedProducts = CacheService.instance.getList(
+      'admin_products',
+      ProductModel.fromJson,
+    );
+    if (cachedProducts != null && cachedProducts.isNotEmpty) {
+      _adminProducts = cachedProducts;
+    }
+  }
+
   // === Providers ===
-  Future<void> fetchProviders() async {
-    _isLoading = true;
-    notifyListeners();
+  Future<void> fetchProviders({bool forceRefresh = false}) async {
+    if (_providers.isEmpty) {
+      _loadFromCache();
+    }
+    if (_providers.isEmpty || forceRefresh) {
+      _isLoading = true;
+      notifyListeners();
+    }
     try {
       final res = await _api.get(ApiConstants.providers);
       if (res is List) {
         _providers = res.map((e) => ProviderModel.fromJson(e)).toList();
+        CacheService.instance.setList(
+          'admin_providers',
+          _providers,
+          (p) => p.toJson(),
+        );
       }
     } catch (e) {
-      _errorMessage = e.toString();
+      if (_providers.isEmpty) {
+        _errorMessage = e.toString();
+      }
     }
     _isLoading = false;
     notifyListeners();
@@ -109,28 +164,56 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  Future<List<dynamic>> fetchProviderProducts(String id) async {
+  Future<List<dynamic>> fetchProviderProducts(
+    String id, {
+    bool forceRefresh = false,
+  }) async {
+    final cached = CacheService.instance.getRawList('provider_products_$id');
+    if (cached != null && cached.isNotEmpty && !forceRefresh) {
+      // Revalidate in background silently
+      _api
+          .get('${ApiConstants.providers}/$id/products')
+          .then((res) {
+            if (res is List) {
+              CacheService.instance.setRawList('provider_products_$id', res);
+            }
+          })
+          .catchError((_) {});
+      return cached;
+    }
+
     try {
       final res = await _api.get('${ApiConstants.providers}/$id/products');
-      if (res is List) return res;
-      return [];
+      if (res is List) {
+        CacheService.instance.setRawList('provider_products_$id', res);
+        return res;
+      }
+      return cached ?? [];
     } catch (_) {
-      return [];
+      return cached ?? [];
     }
   }
 
-  Future<Map<String, dynamic>?> syncProviderProducts(String id, [List<String>? gameCodes]) async {
+  Future<Map<String, dynamic>?> syncProviderProducts(
+    String id, [
+    List<String>? gameCodes,
+  ]) async {
     _isLoading = true;
     notifyListeners();
     try {
       final res = await _api.post(
         '${ApiConstants.providers}/$id/sync',
-        body: gameCodes != null && gameCodes.isNotEmpty ? {'gameCodes': gameCodes} : {},
+        body: gameCodes != null && gameCodes.isNotEmpty
+            ? {'gameCodes': gameCodes}
+            : {},
       );
-      await fetchProviders();
+      await CacheService.instance.remove('provider_products_$id');
+      await fetchProviders(forceRefresh: true);
       _isLoading = false;
       notifyListeners();
-      return res is Map<String, dynamic> ? res : {'message': 'تمت المزامنة بنجاح'};
+      return res is Map<String, dynamic>
+          ? res
+          : {'message': 'تمت المزامنة بنجاح'};
     } catch (e) {
       _errorMessage = e.toString();
       _isLoading = false;
@@ -153,16 +236,23 @@ class AdminProvider extends ChangeNotifier {
     required String providerId,
     required String providerProductId,
     required String appId,
-    String marginType = 'percentage',
-    double marginValue = 0.0, // No markup at import; set from dashboard later
+    String? name,
+    String? serviceTemplateId,
+    String? quantityLabel,
   }) async {
     try {
-      await _api.post('${ApiConstants.providers}/$providerId/import-product', body: {
-        'providerProductId': providerProductId,
-        'appId': appId,
-        'marginType': marginType,
-        'marginValue': marginValue,
-      });
+      await _api.post(
+        '${ApiConstants.providers}/$providerId/import-product',
+        body: {
+          'providerProductId': providerProductId,
+          'appId': appId,
+          if (name != null && name.isNotEmpty) 'name': name,
+          if (serviceTemplateId != null && serviceTemplateId.isNotEmpty)
+            'serviceTemplateId': serviceTemplateId,
+          if (quantityLabel != null && quantityLabel.isNotEmpty)
+            'quantityLabel': quantityLabel,
+        },
+      );
       await fetchAdminProducts();
       return true;
     } catch (e) {
@@ -176,16 +266,23 @@ class AdminProvider extends ChangeNotifier {
     required String providerId,
     required List<String> providerProductIds,
     required String appId,
-    String marginType = 'percentage',
-    double marginValue = 0.0, // No markup at import; set from dashboard later
+    String? name,
+    String? serviceTemplateId,
+    String? quantityLabel,
   }) async {
     try {
-      await _api.post('${ApiConstants.providers}/$providerId/batch-import', body: {
-        'providerProductIds': providerProductIds,
-        'appId': appId,
-        'marginType': marginType,
-        'marginValue': marginValue,
-      });
+      await _api.post(
+        '${ApiConstants.providers}/$providerId/batch-import',
+        body: {
+          'providerProductIds': providerProductIds,
+          'appId': appId,
+          if (name != null && name.isNotEmpty) 'name': name,
+          if (serviceTemplateId != null && serviceTemplateId.isNotEmpty)
+            'serviceTemplateId': serviceTemplateId,
+          if (quantityLabel != null && quantityLabel.isNotEmpty)
+            'quantityLabel': quantityLabel,
+        },
+      );
       await fetchAdminProducts();
       return true;
     } catch (e) {
@@ -199,16 +296,28 @@ class AdminProvider extends ChangeNotifier {
   Future<bool> createAdminApp(Map<String, dynamic> data) => createApp(data);
 
   // === Apps ===
-  Future<void> fetchAdminApps() async {
-    _isLoading = true;
-    notifyListeners();
+  Future<void> fetchAdminApps({bool forceRefresh = false}) async {
+    if (_adminApps.isEmpty) {
+      _loadFromCache();
+    }
+    if (_adminApps.isEmpty || forceRefresh) {
+      _isLoading = true;
+      notifyListeners();
+    }
     try {
       final res = await _api.get(ApiConstants.adminApps);
       if (res is List) {
         _adminApps = res.map((e) => AppItemModel.fromJson(e)).toList();
+        CacheService.instance.setList(
+          'admin_apps',
+          _adminApps,
+          (a) => a.toJson(),
+        );
       }
     } catch (e) {
-      _errorMessage = e.toString();
+      if (_adminApps.isEmpty) {
+        _errorMessage = e.toString();
+      }
     }
     _isLoading = false;
     notifyListeners();
@@ -283,7 +392,9 @@ class AdminProvider extends ChangeNotifier {
       if (res is List) {
         _adminProducts = res.map((e) => ProductModel.fromJson(e)).toList();
         if (_currentAppId != null) {
-          _currentAppProducts = _adminProducts.where((p) => p.appId == _currentAppId).toList();
+          _currentAppProducts = _adminProducts
+              .where((p) => p.appId == _currentAppId)
+              .toList();
         }
       }
     } catch (e) {
@@ -304,7 +415,10 @@ class AdminProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
     try {
-      final res = await _api.get(ApiConstants.adminProducts, queryParams: {'appId': appId});
+      final res = await _api.get(
+        ApiConstants.adminProducts,
+        queryParams: {'appId': appId},
+      );
       if (res is List) {
         _currentAppProducts = res.map((e) => ProductModel.fromJson(e)).toList();
         // Sync these items into master _adminProducts list without dropping other apps' products
@@ -440,7 +554,9 @@ class AdminProvider extends ChangeNotifier {
     try {
       final res = await _api.get(ApiConstants.adminTopupAccounts);
       if (res is List) {
-        _paymentAccounts = res.map((e) => PaymentAccountModel.fromJson(e)).toList();
+        _paymentAccounts = res
+            .map((e) => PaymentAccountModel.fromJson(e))
+            .toList();
       }
     } catch (e) {
       _errorMessage = e.toString();
@@ -461,7 +577,10 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> updatePaymentAccount(String id, Map<String, dynamic> data) async {
+  Future<bool> updatePaymentAccount(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
     try {
       await _api.put('${ApiConstants.adminTopupAccounts}/$id', body: data);
       await fetchPaymentAccounts();
@@ -510,10 +629,10 @@ class AdminProvider extends ChangeNotifier {
 
   Future<bool> generateShippingCodes(double amount, int count) async {
     try {
-      await _api.post(ApiConstants.adminCodesGenerate, body: {
-        'amount': amount,
-        'count': count,
-      });
+      await _api.post(
+        ApiConstants.adminCodesGenerate,
+        body: {'amount': amount, 'count': count},
+      );
       await fetchShippingCodes();
       return true;
     } catch (e) {
@@ -525,14 +644,18 @@ class AdminProvider extends ChangeNotifier {
 
   Future<void> toggleShippingCode(String id) async {
     try {
-      await _api.patch('${ApiConstants.adminCodes.replaceAll('/all', '')}/$id/toggle');
+      await _api.patch(
+        '${ApiConstants.adminCodes.replaceAll('/all', '')}/$id/toggle',
+      );
       await fetchShippingCodes();
     } catch (_) {}
   }
 
   Future<bool> deleteShippingCode(String id) async {
     try {
-      await _api.delete('${ApiConstants.adminCodes.replaceAll('/all', '')}/$id');
+      await _api.delete(
+        '${ApiConstants.adminCodes.replaceAll('/all', '')}/$id',
+      );
       await fetchShippingCodes();
       return true;
     } catch (e) {
@@ -543,7 +666,11 @@ class AdminProvider extends ChangeNotifier {
   }
 
   // === Orders & Manual Reviews ===
-  Future<void> fetchAdminOrders({String? status, String? type, bool silent = false}) async {
+  Future<void> fetchAdminOrders({
+    String? status,
+    String? type,
+    bool silent = false,
+  }) async {
     if (type == 'manual') {
       await fetchManualOrders(silent: silent);
       return;
@@ -556,7 +683,10 @@ class AdminProvider extends ChangeNotifier {
       final query = <String, dynamic>{};
       if (status != null && status.isNotEmpty) query['status'] = status;
 
-      final res = await _api.get(ApiConstants.adminOrders, queryParams: query.isNotEmpty ? query : null);
+      final res = await _api.get(
+        ApiConstants.adminOrders,
+        queryParams: query.isNotEmpty ? query : null,
+      );
       if (res is List) {
         final parsed = res.map((e) => OrderModel.fromJson(e)).toList();
         if (status != null && status.isNotEmpty) {
@@ -572,7 +702,9 @@ class AdminProvider extends ChangeNotifier {
         } else {
           _adminOrders = parsed;
         }
-        _manualOrders = _adminOrders.where((o) => o.productType == 'manual').toList();
+        _manualOrders = _adminOrders
+            .where((o) => o.productType == 'manual')
+            .toList();
       }
     } catch (e) {
       if (!silent) _errorMessage = e.toString();
@@ -583,13 +715,52 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// إحصاءات لوحة التحكم (اليوم/الأمس، المعلّق، المتأخر، آخر 7 أيام، صحة النظام)
+  Future<void> fetchDashboardStats({bool silent = false}) async {
+    try {
+      final res = await _api.get(ApiConstants.adminDashboardStats);
+      if (res is Map) {
+        _dashboardStats = DashboardStatsModel.fromJson(
+          Map<String, dynamic>.from(res),
+        );
+        _statsFetchedAt = DateTime.now();
+        notifyListeners();
+      }
+    } catch (e) {
+      if (!silent) {
+        _errorMessage = e.toString();
+        notifyListeners();
+      }
+    }
+  }
+
+  /// عدّادات خفيفة (طلبات وإيداعات معلّقة) لتحديث اللوحة دون تحميل القوائم الكاملة
+  Future<void> fetchPendingCounts({bool silent = false}) async {
+    try {
+      final res = await _api.get(ApiConstants.adminDashboardPendingCounts);
+      if (res is Map) {
+        _pendingOrdersCount = (res['ordersPending'] as num?)?.toInt() ?? 0;
+        _pendingTopupsCount = (res['topupsPending'] as num?)?.toInt() ?? 0;
+        notifyListeners();
+      }
+    } catch (e) {
+      if (!silent) {
+        _errorMessage = e.toString();
+        notifyListeners();
+      }
+    }
+  }
+
   Future<void> fetchManualOrders({bool silent = false}) async {
     if (!silent) {
       _isLoading = true;
       notifyListeners();
     }
     try {
-      final res = await _api.get(ApiConstants.adminOrders, queryParams: {'type': 'manual'});
+      final res = await _api.get(
+        ApiConstants.adminOrders,
+        queryParams: {'type': 'manual'},
+      );
       if (res is List) {
         _manualOrders = res.map((e) => OrderModel.fromJson(e)).toList();
         // Update master _adminOrders list without clearing direct_api and voucher orders
@@ -637,24 +808,35 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  // === Topup Requests ===
-  Future<void> fetchManualTopupRequests([String? status]) async {
+  // === Topup Log ===
+  /// سجل شحن الرصيد الموحّد: شام كاش / Binance / كود شحن / شحن بالآيدي.
+  /// يأتي من الخادم مدموجاً ومرتّباً زمنياً، والفلترة بالنوع تتم في الواجهة.
+  Future<void> fetchTopupLog() async {
     try {
-      final res = await _api.get(ApiConstants.adminTopupRequests, queryParams: status != null ? {'status': status} : null);
+      final res = await _api.get(ApiConstants.adminTopupLog);
       if (res is List) {
-        _manualTopupRequests = res.map((e) => ManualOrderModel.fromJson(e)).toList();
+        _manualTopupRequests = res
+            .map((e) => ManualOrderModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
         notifyListeners();
       }
     } catch (_) {}
   }
 
-  Future<bool> approveTopupRequest(String id, {double? approvedAmount, String? notes}) async {
+  /// اسم قديم مُبقى للتوافق (إشعارات FCM)
+  Future<void> fetchManualTopupRequests() => fetchTopupLog();
+
+  Future<bool> approveTopupRequest(
+    String id, {
+    double? approvedAmount,
+    String? notes,
+  }) async {
     try {
-      await _api.post('${ApiConstants.adminTopupRequests}/$id/approve', body: {
-        'approvedAmount': approvedAmount,
-        'notes': notes,
-      });
-      await fetchManualTopupRequests();
+      await _api.post(
+        '${ApiConstants.adminTopupRequests}/$id/approve',
+        body: {'approvedAmount': approvedAmount, 'notes': notes},
+      );
+      await fetchTopupLog();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -665,10 +847,11 @@ class AdminProvider extends ChangeNotifier {
 
   Future<bool> rejectTopupRequest(String id, String notes) async {
     try {
-      await _api.post('${ApiConstants.adminTopupRequests}/$id/reject', body: {
-        'notes': notes,
-      });
-      await fetchManualTopupRequests();
+      await _api.post(
+        '${ApiConstants.adminTopupRequests}/$id/reject',
+        body: {'notes': notes},
+      );
+      await fetchTopupLog();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
@@ -677,17 +860,23 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  // Admin ID Top-up
-  Future<bool> adjustUserBalance(String userId, double amount, String description) async {
+  // Admin ID Top-up — يُسجَّل في سجل الشحن كعملية مستقلة
+  // يُقبل رقم العميل (JGO...) أو مُعرِّفه، والمبلغ السالب = خصم رصيد
+  Future<bool> adjustUserBalance(
+    String userId,
+    double amount,
+    String description,
+  ) async {
     try {
-      await _api.post(ApiConstants.adminAdjustBalance, body: {
-        'userId': userId,
-        'amount': amount,
-        'description': description,
-      });
+      await _api.post(
+        ApiConstants.adminIdTopup,
+        body: {'userId': userId, 'amount': amount, 'description': description},
+      );
+      // تحديث سجل الشحن وقائمة المستخدمين معاً ليظهر الرصيد الجديد فوراً
+      await Future.wait([fetchTopupLog(), fetchAllUsers(silent: true)]);
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = _failMessage(e);
       notifyListeners();
       return false;
     }
@@ -700,7 +889,9 @@ class AdminProvider extends ChangeNotifier {
     try {
       final res = await _api.get(ApiConstants.adminBanners);
       if (res is List) {
-        _adminBanners = res.map((e) => BannerModel.fromJson(Map<String, dynamic>.from(e))).toList();
+        _adminBanners = res
+            .map((e) => BannerModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
       }
     } catch (e) {
       _errorMessage = e.toString();
@@ -785,57 +976,167 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
-  // === Supervisors & Manual Services Management ===
-  List<Map<String, dynamic>> _supervisors = [];
-  List<Map<String, dynamic>> get supervisors => _supervisors;
-
-  Future<void> fetchSupervisors() async {
+  // === Service Templates (أنواع قوالب الخدمة) ===
+  Future<void> fetchServiceTemplates() async {
+    _isLoading = true;
+    notifyListeners();
     try {
-      final res = await _api.get(ApiConstants.supervisorsList);
+      final res = await _api.get(ApiConstants.adminServiceTemplates);
       if (res is List) {
-        _supervisors = res.map((e) => Map<String, dynamic>.from(e)).toList();
-        notifyListeners();
+        _serviceTemplates = res
+            .map(
+              (e) =>
+                  ServiceTemplateModel.fromJson(Map<String, dynamic>.from(e)),
+            )
+            .toList();
       }
     } catch (e) {
       _errorMessage = e.toString();
-      notifyListeners();
     }
+    _isLoading = false;
+    notifyListeners();
   }
 
-  Future<bool> createSupervisor({
-    required String name,
-    required String email,
-    required String password,
-    String? phone,
-  }) async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  Future<bool> createServiceTemplate(Map<String, dynamic> data) async {
     try {
-      await _api.post(ApiConstants.createSupervisor, body: {
-        'name': name.trim(),
-        'email': email.trim(),
-        'password': password,
-        'phone': phone?.trim(),
-      });
-      await fetchSupervisors();
-      _isLoading = false;
-      notifyListeners();
+      await _api.post(ApiConstants.serviceTemplates, body: data);
+      await fetchServiceTemplates();
       return true;
     } catch (e) {
       _errorMessage = e.toString();
-      _isLoading = false;
       notifyListeners();
       return false;
     }
   }
 
-  Future<bool> reassignOrderSupervisor(String orderId, String newSupervisorId, [String? reason]) async {
+  Future<bool> updateServiceTemplate(
+    String id,
+    Map<String, dynamic> data,
+  ) async {
     try {
-      await _api.post('${ApiConstants.orders}/$orderId/admin-reassign', body: {
-        'newSupervisorId': newSupervisorId,
-        'reason': reason,
-      });
+      await _api.put('${ApiConstants.serviceTemplates}/$id', body: data);
+      await fetchServiceTemplates();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> toggleServiceTemplateActive(String id) async {
+    try {
+      await _api.patch('${ApiConstants.serviceTemplates}/$id/toggle-active');
+      await fetchServiceTemplates();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> deleteServiceTemplate(String id) async {
+    try {
+      await _api.delete('${ApiConstants.serviceTemplates}/$id');
+      await fetchServiceTemplates();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // === Users Management ===
+  List<Map<String, dynamic>> _allUsers = [];
+
+  /// رسالة مفهومة للوحة بدلاً من نص الاستثناء الخام ("Exception: ...")
+  String _failMessage(Object error) =>
+      error is ApiException ? error.message : error.toString();
+
+  /// كل المستخدمين القابلين للإسناد (كل العملاء + المشرفين + الأدمن)
+  List<Map<String, dynamic>> get allUsers => _allUsers;
+
+  Future<void> fetchAllUsers({bool silent = false}) async {
+    if (!silent) {
+      _isLoading = true;
+      notifyListeners();
+    }
+    try {
+      final res = await _api.get(ApiConstants.usersList);
+      if (res is List) {
+        _allUsers = res.map((e) => Map<String, dynamic>.from(e)).toList();
+      }
+    } catch (e) {
+      if (!silent) _errorMessage = e.toString();
+    }
+    if (!silent) {
+      _isLoading = false;
+    }
+    notifyListeners();
+  }
+
+  /// ترقية/إرجاع مستخدم (عميل ↔ مشرف ↔ وكيل) يدوياً من صفحة إدارة المستخدمين
+  Future<bool> updateUserRole(String userId, String role) async {
+    try {
+      await _api.patch(
+        '${ApiConstants.usersList}/$userId/role',
+        body: {'role': role},
+      );
+      await fetchAllUsers(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = _failMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> toggleUserActive(String userId) async {
+    try {
+      await _api.patch('${ApiConstants.usersList}/$userId/toggle-active');
+      await fetchAllUsers(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  /// تعديل بيانات المستخدم الأساسية (الاسم / البريد / الهاتف)
+  Future<bool> updateUserDetails(
+    String userId, {
+    String? name,
+    String? email,
+    String? phone,
+  }) async {
+    try {
+      final body = <String, dynamic>{};
+      if (name != null) body['name'] = name;
+      if (email != null) body['email'] = email;
+      if (phone != null) body['phone'] = phone;
+      await _api.patch('${ApiConstants.usersList}/$userId/details', body: body);
+      await fetchAllUsers(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> reassignOrderSupervisor(
+    String orderId,
+    String newSupervisorId, [
+    String? reason,
+  ]) async {
+    try {
+      await _api.post(
+        '${ApiConstants.orders}/$orderId/admin-reassign',
+        body: {'newSupervisorId': newSupervisorId, 'reason': reason},
+      );
       await fetchAdminOrders(silent: true);
       await fetchManualOrders(silent: true);
       return true;
@@ -848,9 +1149,10 @@ class AdminProvider extends ChangeNotifier {
 
   Future<bool> refundOrderAdmin(String orderId, String reason) async {
     try {
-      await _api.post('${ApiConstants.orders}/$orderId/admin-refund', body: {
-        'reason': reason,
-      });
+      await _api.post(
+        '${ApiConstants.orders}/$orderId/admin-refund',
+        body: {'reason': reason},
+      );
       await fetchAdminOrders(silent: true);
       await fetchManualOrders(silent: true);
       return true;

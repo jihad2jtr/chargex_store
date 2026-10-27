@@ -59,3 +59,8 @@ Thumbs.db
 **/android/app/profile
 **/android/app/release
 JGO-Store-release.apk
+
+# مجلد حزم مؤقت لتشغيل mobile/scripts/fetch-app-icons.js ومخرجات فحص الصور
+.icons-tmp/
+mobile/test/previews/
+mobile/test/failures/

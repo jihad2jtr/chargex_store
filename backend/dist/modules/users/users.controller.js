@@ -29,14 +29,11 @@ let UsersController = class UsersController {
     async search(query) {
         return this.usersService.search(query || '');
     }
-    async findSupervisors() {
-        return this.usersService.findSupervisors();
-    }
-    async createSupervisor(body) {
-        return this.usersService.createSupervisor(body);
-    }
     async updateRole(id, role) {
         return this.usersService.updateRole(id, role);
+    }
+    async updateDetails(id, body) {
+        return this.usersService.updateDetails(id, body);
     }
     async findOne(id) {
         return this.usersService.findOne(id);
@@ -60,19 +57,6 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "search", null);
 __decorate([
-    (0, common_1.Get)('supervisors'),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
-    __metadata("design:returntype", Promise)
-], UsersController.prototype, "findSupervisors", null);
-__decorate([
-    (0, common_1.Post)('create-supervisor'),
-    __param(0, (0, common_1.Body)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
-    __metadata("design:returntype", Promise)
-], UsersController.prototype, "createSupervisor", null);
-__decorate([
     (0, common_1.Patch)(':id/role'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, common_1.Body)('role')),
@@ -80,6 +64,14 @@ __decorate([
     __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", Promise)
 ], UsersController.prototype, "updateRole", null);
+__decorate([
+    (0, common_1.Patch)(':id/details'),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], UsersController.prototype, "updateDetails", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

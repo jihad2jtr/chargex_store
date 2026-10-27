@@ -30,12 +30,16 @@ class ManualOrderModel {
   factory ManualOrderModel.fromJson(Map<String, dynamic> json) {
     return ManualOrderModel(
       id: json['_id'] ?? json['id'] ?? '',
-      userId: json['userId'] is Map ? (json['userId']['userId'] ?? json['userId']['_id'] ?? '') : (json['userId'] ?? ''),
+      userId: json['userId'] is Map
+          ? (json['userId']['userId'] ?? json['userId']['_id'] ?? '')
+          : (json['userId'] ?? ''),
       userName: json['userId'] is Map ? json['userId']['name'] : null,
       userEmail: json['userId'] is Map ? json['userId']['email'] : null,
       userPhone: json['userId'] is Map ? json['userId']['phone'] : null,
       type: json['type'] ?? 'sham_cash',
-      amount: (json['amount'] is num) ? (json['amount'] as num).toDouble() : 0.0,
+      amount: (json['amount'] is num)
+          ? (json['amount'] as num).toDouble()
+          : 0.0,
       details: (json['details'] as Map<String, dynamic>?) ?? {},
       receiptImageUrl: json['receiptImageUrl'],
       status: json['status'] ?? 'pending',

@@ -145,6 +145,13 @@ export class OrdersController {
     return this.ordersService.getOrderDecryptedResult(id, user);
   }
 
+  @Get(':id/input')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPERVISOR, Role.ADMIN)
+  async getOrderDecryptedInput(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+    return this.ordersService.getOrderDecryptedInput(id, user);
+  }
+
   // --- 4. Admin Management Endpoints ---
   @Get('admin/all')
   @UseGuards(RolesGuard)
@@ -163,6 +170,16 @@ export class OrdersController {
       isDelayed: isDelayed === 'true',
       search,
     });
+  }
+
+  @Post('admin/reconcile-providers')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async reconcileProviderOrders(@Query('limit') limit?: string) {
+    const parsed = Number(limit);
+    return this.ordersService.reconcileProviderOrders(
+      Number.isFinite(parsed) && parsed > 0 ? Math.min(parsed, 100) : 20,
+    );
   }
 
   @Post(':id/admin-reassign')

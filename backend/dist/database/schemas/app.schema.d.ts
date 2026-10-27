@@ -3,7 +3,8 @@ export type AppDocument = App & Document;
 export declare enum AppType {
     GAME = "game",
     APP = "app",
-    SERVICE = "service"
+    SERVICE = "service",
+    SUBSCRIPTION = "subscription"
 }
 export declare class App {
     name: string;

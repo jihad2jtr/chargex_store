@@ -65,4 +65,5 @@ exports.ManualOrder = ManualOrder = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], ManualOrder);
 exports.ManualOrderSchema = mongoose_1.SchemaFactory.createForClass(ManualOrder);
+exports.ManualOrderSchema.index({ status: 1, createdAt: -1 });
 //# sourceMappingURL=manual-order.schema.js.map

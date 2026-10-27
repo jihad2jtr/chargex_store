@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Post, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Patch, Body, Query, UseGuards } from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -21,19 +21,17 @@ export class UsersController {
     return this.usersService.search(query || '');
   }
 
-  @Get('supervisors')
-  async findSupervisors() {
-    return this.usersService.findSupervisors();
-  }
-
-  @Post('create-supervisor')
-  async createSupervisor(@Body() body: { name: string; email: string; password: string; phone?: string }) {
-    return this.usersService.createSupervisor(body);
-  }
-
   @Patch(':id/role')
   async updateRole(@Param('id') id: string, @Body('role') role: string) {
     return this.usersService.updateRole(id, role);
+  }
+
+  @Patch(':id/details')
+  async updateDetails(
+    @Param('id') id: string,
+    @Body() body: { name?: string; email?: string; phone?: string },
+  ) {
+    return this.usersService.updateDetails(id, body);
   }
 
   @Get(':id')

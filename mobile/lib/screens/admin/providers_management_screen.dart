@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/provider_model.dart';
 import '../../providers/admin_provider.dart';
@@ -11,10 +11,13 @@ class ProvidersManagementScreen extends StatefulWidget {
   const ProvidersManagementScreen({super.key});
 
   @override
-  State<ProvidersManagementScreen> createState() => _ProvidersManagementScreenState();
+  State<ProvidersManagementScreen> createState() =>
+      _ProvidersManagementScreenState();
 }
 
 class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
+  bool _isCheckingAll = false;
+
   @override
   void initState() {
     super.initState();
@@ -23,49 +26,210 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     });
   }
 
+  Future<void> _checkAllProviders() async {
+    setState(() => _isCheckingAll = true);
+    final admin = Provider.of<AdminProvider>(context, listen: false);
+    for (final p in admin.providers) {
+      await admin.checkProviderStatus(p.id);
+    }
+    if (mounted) {
+      setState(() => _isCheckingAll = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'تم الانتهاء من فحص اتصال جميع المزودين وتحديث الأرصدة بنجاح ✅',
+            style: AppTypography.cairo(),
+          ),
+          backgroundColor: const Color(0xFF059669),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
   void _openAddEditDialog([ProviderModel? provider]) {
     final nameCtrl = TextEditingController(text: provider?.name ?? '');
     final urlCtrl = TextEditingController(text: provider?.baseUrl ?? '');
     final keyCtrl = TextEditingController(text: provider?.apiKey ?? '');
     final secretCtrl = TextEditingController(text: provider?.apiSecret ?? '');
+    final marginCtrl = TextEditingController(
+      text: (provider?.profitMarginValue ?? 10.0).toString(),
+    );
 
     showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
-          title: Text(provider == null ? 'إضافة مزود جديد' : 'تعديل المزود'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: 'اسم المزود (مثال: Smile One, SEAGM)'),
+          backgroundColor: const Color(0xFF0F172A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(22),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+          contentPadding: const EdgeInsets.fromLTRB(20, 16, 20, 10),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF6366F1).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: const Color(0xFF818CF8).withValues(alpha: 0.4),
+                  ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: urlCtrl,
-                  decoration: const InputDecoration(labelText: 'Base URL رابط الـ API'),
+                child: const Icon(
+                  Icons.hub_rounded,
+                  color: Color(0xFF818CF8),
+                  size: 20,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: keyCtrl,
-                  decoration: const InputDecoration(labelText: 'API Key'),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                provider == null ? 'إضافة مزود جديد' : 'تعديل بيانات المزود',
+                style: AppTypography.cairo(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: secretCtrl,
-                  decoration: const InputDecoration(labelText: 'API Secret (اختياري)'),
-                ),
-              ],
+              ),
+            ],
+          ),
+          content: SizedBox(
+            width: 360,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'بيانات الربط عبر API المباشر لجلب المنتجات والأسعار',
+                    style: AppTypography.cairo(
+                      color: Colors.white60,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: [
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.flash_on_rounded,
+                          size: 14,
+                          color: Color(0xFFF59E0B),
+                        ),
+                        label: Text(
+                          'Fox Reload',
+                          style: AppTypography.cairo(
+                            color: Colors.white,
+                            fontSize: 11,
+                          ),
+                        ),
+                        backgroundColor: const Color(0xFF1E293B),
+                        side: BorderSide(
+                          color: const Color(0xFFF59E0B).withValues(alpha: 0.4),
+                        ),
+                        onPressed: () {
+                          nameCtrl.text = 'Fox Reload';
+                          urlCtrl.text = 'https://public-api.foxreload.com';
+                        },
+                      ),
+                      ActionChip(
+                        avatar: const Icon(
+                          Icons.games_rounded,
+                          size: 14,
+                          color: Color(0xFF6366F1),
+                        ),
+                        label: Text(
+                          'Bay2Game',
+                          style: AppTypography.cairo(
+                            color: Colors.white,
+                            fontSize: 11,
+                          ),
+                        ),
+                        backgroundColor: const Color(0xFF1E293B),
+                        side: BorderSide(
+                          color: const Color(0xFF6366F1).withValues(alpha: 0.4),
+                        ),
+                        onPressed: () {
+                          nameCtrl.text = 'Bay2Game';
+                          urlCtrl.text = 'https://bay2game.com/api';
+                        },
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+
+                  _buildDialogTextField(
+                    controller: nameCtrl,
+                    label: 'اسم المزود (مثال: Smile One, SEAGM)',
+                    icon: Icons.business_rounded,
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildDialogTextField(
+                    controller: urlCtrl,
+                    label: 'Base URL رابط الـ API الرئيسي',
+                    icon: Icons.link_rounded,
+                    isUrl: true,
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildDialogTextField(
+                    controller: keyCtrl,
+                    label: 'API Key المفتاح البرمجي',
+                    icon: Icons.key_rounded,
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildDialogTextField(
+                    controller: secretCtrl,
+                    label: 'API Secret (اختياري)',
+                    icon: Icons.lock_outline_rounded,
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildDialogTextField(
+                    controller: marginCtrl,
+                    label: 'نسبة الربح % المطبّقة على كل منتجات المزود',
+                    icon: Icons.trending_up_rounded,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'تُحدَّد نسبة الربح هنا لكل منتجات هذا المزود، وليست لكل منتج على حدة.\nأي تعديل هنا يعيد حساب أسعار بيع منتجاته تلقائياً.',
+                    style: AppTypography.cairo(
+                      color: Colors.white38,
+                      fontSize: 10.5,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('إلغاء'),
+              child: Text(
+                'إلغاء',
+                style: AppTypography.cairo(color: Colors.white60),
+              ),
             ),
             ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6366F1),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 22,
+                  vertical: 10,
+                ),
+              ),
               onPressed: () async {
                 final name = nameCtrl.text.trim();
                 final url = urlCtrl.text.trim();
@@ -73,17 +237,31 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
                 if (name.isEmpty || url.isEmpty || key.isEmpty) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('يرجى ملء جميع الحقول الأساسية')),
+                    SnackBar(
+                      content: Text(
+                        'يرجى ملء جميع الحقول الأساسية',
+                        style: AppTypography.cairo(),
+                      ),
+                      behavior: SnackBarBehavior.floating,
+                    ),
                   );
                   return;
                 }
 
-                final admin = Provider.of<AdminProvider>(context, listen: false);
+                final admin = Provider.of<AdminProvider>(
+                  context,
+                  listen: false,
+                );
+                final margin = double.tryParse(marginCtrl.text.trim()) ?? 10.0;
                 final data = {
                   'name': name,
                   'baseUrl': url,
                   'apiKey': key,
-                  'apiSecret': secretCtrl.text.trim().isNotEmpty ? secretCtrl.text.trim() : null,
+                  'apiSecret': secretCtrl.text.trim().isNotEmpty
+                      ? secretCtrl.text.trim()
+                      : null,
+                  'profitMarginType': 'percentage',
+                  'profitMarginValue': margin,
                 };
 
                 bool ok;
@@ -98,17 +276,65 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text(ok ? 'تم حفظ بيانات المزود بنجاح' : (admin.errorMessage ?? 'حدث خطأ')),
-                      backgroundColor: ok ? AppColors.tertiary : AppColors.error,
+                      content: Text(
+                        ok
+                            ? 'تم حفظ بيانات المزود بنجاح ✅'
+                            : (admin.errorMessage ?? 'حدث خطأ أثناء الحفظ'),
+                        style: AppTypography.cairo(),
+                      ),
+                      backgroundColor: ok
+                          ? const Color(0xFF059669)
+                          : const Color(0xFFDC2626),
+                      behavior: SnackBarBehavior.floating,
                     ),
                   );
                 }
               },
-              child: const Text('حفظ'),
+              child: Text(
+                'حفظ البيانات',
+                style: AppTypography.cairo(fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         );
       },
+    );
+  }
+
+  Widget _buildDialogTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isUrl = false,
+  }) {
+    return TextField(
+      controller: controller,
+      style: isUrl
+          ? AppTypography.technicalCode(color: Colors.white, fontSize: 13)
+          : AppTypography.cairo(color: Colors.white, fontSize: 13),
+      decoration: InputDecoration(
+        labelText: label,
+        labelStyle: AppTypography.cairo(color: Colors.white54, fontSize: 11.5),
+        prefixIcon: Icon(icon, color: const Color(0xFF818CF8), size: 18),
+        filled: true,
+        fillColor: Colors.white.withValues(alpha: 0.05),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFF818CF8), width: 1.5),
+        ),
+      ),
     );
   }
 
@@ -123,187 +349,780 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   @override
   Widget build(BuildContext context) {
     final admin = Provider.of<AdminProvider>(context);
+    final onlineCount = admin.providers
+        .where((p) => p.status == 'online')
+        .length;
+    final totalBalance = admin.providers.fold<double>(
+      0.0,
+      (acc, p) => acc + p.balance,
+    );
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 1,
         title: Text(
-          'إدارة المزودين والربط المباشر',
+          'إدارة المزودين',
           style: AppTypography.cairo(
-            fontSize: 16,
-            fontWeight: FontWeight.w900,
-            color: AppColors.textPrimary,
+            fontSize: 16.5,
+            fontWeight: FontWeight.w800,
+            color: const Color(0xFF0F172A),
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.add_rounded, color: AppColors.primaryBlue),
+            tooltip: 'فحص اتصال جميع المزودين',
+            icon: _isCheckingAll
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF6366F1),
+                    ),
+                  )
+                : const Icon(Icons.refresh_rounded, color: Color(0xFF6366F1)),
+            onPressed: _isCheckingAll ? null : _checkAllProviders,
+          ),
+          IconButton(
+            tooltip: 'إضافة مزود جديد',
+            icon: Container(
+              padding: const EdgeInsets.all(5),
+              decoration: BoxDecoration(
+                color: const Color(0xFF6366F1).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.add_rounded,
+                color: Color(0xFF6366F1),
+                size: 20,
+              ),
+            ),
             onPressed: () => _openAddEditDialog(),
           ),
+          const SizedBox(width: 8),
         ],
       ),
-      body: admin.isLoading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryBlue))
-          : admin.providers.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
+      body: admin.isLoading && admin.providers.isEmpty
+          ? const Center(
+              child: CircularProgressIndicator(color: Color(0xFF6366F1)),
+            )
+          : RefreshIndicator(
+              color: const Color(0xFF6366F1),
+              onRefresh: () => admin.fetchProviders(forceRefresh: true),
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. Executive Summary Banner
+                    _buildExecutiveSummaryBanner(
+                      totalProviders: admin.providers.length,
+                      onlineProviders: onlineCount,
+                      totalBalance: totalBalance,
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // Section Title
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'المزودين المربوطين بالنظام',
+                          style: AppTypography.cairo(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0F172A),
+                          ),
+                        ),
+                        Text(
+                          '${admin.providers.length} مزود مسجل',
+                          style: AppTypography.cairo(
+                            fontSize: 11.5,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 12),
+
+                    // 2. Providers List
+                    if (admin.providers.isEmpty)
+                      _buildEmptyState()
+                    else
+                      ...admin.providers.map(
+                        (provider) => _buildProviderCard(provider, admin),
+                      ),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 1. EXECUTIVE SUMMARY BANNER
+  // ---------------------------------------------------------------------------
+  Widget _buildExecutiveSummaryBanner({
+    required int totalProviders,
+    required int onlineProviders,
+    required double totalBalance,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E1B4B), Color(0xFF312E81), Color(0xFF0F172A)],
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF312E81).withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFF818CF8).withValues(alpha: 0.4),
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.hub_rounded,
+                      color: Color(0xFFA5B4FC),
+                      size: 19,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('لا يوجد مزودين مضافين حالياً', style: AppTypography.cairo(color: AppColors.textSecondary)),
-                      const SizedBox(height: 16),
-                      ElevatedButton.icon(
-                        onPressed: () => _openAddEditDialog(),
-                        icon: const Icon(Icons.add_rounded),
-                        label: Text('إضافة أول مزود', style: AppTypography.arabicButton(color: Colors.white)),
+                      Text(
+                        'بوابة الاتصال والربط المباشر',
+                        style: AppTypography.cairo(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        'مراقبة حالة السيرفرات والمزامنة التلقائية',
+                        style: AppTypography.cairo(
+                          fontSize: 10,
+                          color: Colors.white60,
+                        ),
                       ),
                     ],
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: admin.providers.length,
-                  itemBuilder: (context, index) {
-                    final provider = admin.providers[index];
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AppColors.outline),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.02),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                provider.name,
-                                style: AppTypography.cairo(
-                                  fontSize: 15.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.textPrimary,
-                                ),
-                              ),
-                              StatusPill(status: provider.status),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            provider.baseUrl,
-                            style: const TextStyle(fontSize: 12, color: AppColors.onSurfaceVariant),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                decoration: BoxDecoration(
-                                  color: AppColors.secondary.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.account_balance_wallet_outlined, size: 14, color: AppColors.secondary),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      'رصيد المزود: \$${provider.balance.toStringAsFixed(2)}',
-                                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.secondary),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              if (provider.lastCheckAt != null) ...[
-                                const SizedBox(width: 8),
-                                Text(
-                                  'آخر فحص: ${provider.lastCheckAt!.hour.toString().padLeft(2, '0')}:${provider.lastCheckAt!.minute.toString().padLeft(2, '0')}',
-                                  style: const TextStyle(fontSize: 10, color: AppColors.onSurfaceVariant),
-                                ),
-                              ],
-                            ],
-                          ),
-                          if (provider.lastError != null) ...[
-                            const SizedBox(height: 6),
-                            Text(
-                              'خطأ: ${provider.lastError}',
-                              style: const TextStyle(fontSize: 11, color: AppColors.errorLight),
-                            ),
-                          ],
-                          const Divider(height: 20, color: AppColors.outline),
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Row(
-                                children: [
-                                  // View Products button
-                                  TextButton.icon(
-                                    onPressed: () => _openProviderProducts(provider),
-                                    icon: const Icon(Icons.inventory_2_outlined, size: 16),
-                                    label: const Text('عرض المنتجات', style: TextStyle(fontSize: 12)),
-                                  ),
-                                  // Sync Products button
-                                  TextButton.icon(
-                                    onPressed: () async {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(content: Text('جاري مزامنة المنتجات والأسعار من المزود...')),
-                                      );
-                                      final res = await admin.syncProviderProducts(provider.id);
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(
-                                            content: Text(res?['message'] ?? 'تمت المزامنة بنجاح'),
-                                            backgroundColor: res != null ? AppColors.tertiary : AppColors.error,
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    icon: const Icon(Icons.sync, size: 16, color: AppColors.primary),
-                                    label: const Text('مزامنة', style: TextStyle(fontSize: 12)),
-                                  ),
-                                ],
-                              ),
-                              Row(
-                                children: [
-                                  // Test Status button
-                                  IconButton(
-                                    tooltip: 'فحص الاتصال وتحديث الرصيد',
-                                    icon: const Icon(Icons.refresh, size: 20, color: AppColors.secondary),
-                                    onPressed: () => admin.checkProviderStatus(provider.id),
-                                  ),
-                                  // Edit
-                                  IconButton(
-                                    tooltip: 'تعديل',
-                                    icon: const Icon(Icons.edit_outlined, size: 20, color: AppColors.primary),
-                                    onPressed: () => _openAddEditDialog(provider),
-                                  ),
-                                  // Delete
-                                  IconButton(
-                                    tooltip: 'حذف',
-                                    icon: const Icon(Icons.delete_outline, size: 20, color: AppColors.error),
-                                    onPressed: () => admin.deleteProvider(provider.id),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.15),
+                  ),
                 ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: onlineProviders > 0
+                            ? const Color(0xFF10B981)
+                            : const Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      '$onlineProviders / $totalProviders متصل',
+                      style: AppTypography.cairo(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          const Divider(height: 1, color: Colors.white12),
+          const SizedBox(height: 14),
+
+          // Total Combined Balance Stats
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'إجمالي أرصدة المزودين',
+                    style: AppTypography.cairo(
+                      fontSize: 11,
+                      color: Colors.white60,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '\$${totalBalance.toStringAsFixed(2)}',
+                    style: AppTypography.price(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      color: const Color(0xFF38BDF8),
+                    ),
+                  ),
+                ],
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white,
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.25)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                icon: const Icon(
+                  Icons.sync_rounded,
+                  size: 14,
+                  color: Color(0xFF38BDF8),
+                ),
+                label: Text(
+                  'فحص الأرصدة',
+                  style: AppTypography.cairo(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                onPressed: _isCheckingAll ? null : _checkAllProviders,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. MODERN PROVIDER CARD
+  // ---------------------------------------------------------------------------
+  Widget _buildProviderCard(ProviderModel provider, AdminProvider admin) {
+    final isOnline = provider.status == 'online';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: isOnline
+              ? const Color(0xFF6366F1).withValues(alpha: 0.25)
+              : const Color(0xFFE2E8F0),
+          width: 1.0,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Header info
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Provider Logo Avatar
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isOnline
+                          ? const Color(0xFF10B981)
+                          : const Color(0xFFCBD5E1),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: Text(
+                      provider.name.isNotEmpty
+                          ? provider.name.substring(0, 1).toUpperCase()
+                          : 'P',
+                      style: AppTypography.cairo(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF6366F1),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+
+                // Name and URL
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              provider.name,
+                              style: AppTypography.cairo(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF0F172A),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          StatusPill(status: provider.status),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+
+                      // Base URL Pill with copy
+                      InkWell(
+                        onTap: () {
+                          Clipboard.setData(
+                            ClipboardData(text: provider.baseUrl),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'تم نسخ رابط المزود: ${provider.baseUrl}',
+                                style: AppTypography.cairo(),
+                              ),
+                              backgroundColor: const Color(0xFF6366F1),
+                              behavior: SnackBarBehavior.floating,
+                              duration: const Duration(seconds: 2),
+                            ),
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(6),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 7,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF1F5F9),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  provider.baseUrl,
+                                  style: AppTypography.technicalCode(
+                                    fontSize: 10.5,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.copy_rounded,
+                                size: 11,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // Balance and Info Pill Row
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAFC),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.account_balance_wallet_rounded,
+                      size: 15,
+                      color: Color(0xFF10B981),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      'رصيد المزود: ',
+                      style: AppTypography.cairo(
+                        fontSize: 11.5,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                    Text(
+                      '\$${provider.balance.toStringAsFixed(2)}',
+                      style: AppTypography.technicalCode(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF0F172A),
+                      ),
+                    ),
+                  ],
+                ),
+                if (provider.lastCheckAt != null)
+                  Text(
+                    'آخر فحص: ${provider.lastCheckAt!.hour.toString().padLeft(2, '0')}:${provider.lastCheckAt!.minute.toString().padLeft(2, '0')}',
+                    style: AppTypography.cairo(
+                      fontSize: 10.5,
+                      color: const Color(0xFF94A3B8),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          // نسبة الربح المطبّقة على كل منتجات المزود
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF1F5F9),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
+            ),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.trending_up_rounded,
+                  size: 15,
+                  color: Color(0xFF6366F1),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'هامش الربح: ',
+                  style: AppTypography.cairo(
+                    fontSize: 11.5,
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+                Text(
+                  provider.profitMarginType == 'fixed'
+                      ? '\$${provider.profitMarginValue.toStringAsFixed(2)}'
+                      : '${provider.profitMarginValue.toStringAsFixed(1)}%',
+                  style: AppTypography.technicalCode(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                    color: const Color(0xFF4F46E5),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'تُطبَّق على كل المنتجات',
+                  style: AppTypography.cairo(
+                    fontSize: 10,
+                    color: const Color(0xFF94A3B8),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          if (provider.lastError != null && provider.lastError!.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 0),
+              child: Text(
+                'تنبيه: ${provider.lastError}',
+                style: AppTypography.cairo(
+                  fontSize: 10.5,
+                  color: const Color(0xFFEF4444),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+
+          // Actions Footer
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                // Prominent "View Products" Button
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF6366F1),
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  icon: const Icon(Icons.inventory_2_rounded, size: 15),
+                  label: Text(
+                    'عرض المنتجات',
+                    style: AppTypography.cairo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  onPressed: () => _openProviderProducts(provider),
+                ),
+
+                // Fast Tools (Sync, Check, Edit, Delete)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Sync
+                    IconButton(
+                      tooltip: 'مزامنة المنتجات والأسعار',
+                      icon: const Icon(
+                        Icons.sync_rounded,
+                        size: 19,
+                        color: Color(0xFF0284C7),
+                      ),
+                      onPressed: () async {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'جاري مزامنة المنتجات والأسعار من المزود...',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        final res = await admin.syncProviderProducts(
+                          provider.id,
+                        );
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                res?['message'] ?? 'تمت المزامنة بنجاح ✅',
+                              ),
+                              backgroundColor: res != null
+                                  ? const Color(0xFF059669)
+                                  : const Color(0xFFDC2626),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+
+                    // Test Status
+                    IconButton(
+                      tooltip: 'فحص الاتصال وتحديث الرصيد',
+                      icon: const Icon(
+                        Icons.flash_on_rounded,
+                        size: 19,
+                        color: Color(0xFFD97706),
+                      ),
+                      onPressed: () => admin.checkProviderStatus(provider.id),
+                    ),
+
+                    // Edit
+                    IconButton(
+                      tooltip: 'تعديل المزود',
+                      icon: const Icon(
+                        Icons.edit_rounded,
+                        size: 18,
+                        color: Color(0xFF64748B),
+                      ),
+                      onPressed: () => _openAddEditDialog(provider),
+                    ),
+
+                    // Delete
+                    IconButton(
+                      tooltip: 'حذف المزود',
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        size: 19,
+                        color: Color(0xFFEF4444),
+                      ),
+                      onPressed: () => _confirmDeleteProvider(provider, admin),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmDeleteProvider(ProviderModel provider, AdminProvider admin) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        title: Text(
+          'حذف مزود الخدمة',
+          style: AppTypography.cairo(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
+        ),
+        content: Text(
+          'هل أنت متأكد من حذف المزود "${provider.name}"؟ قد يؤثر ذلك على المنتجات المربوطة به.',
+          style: AppTypography.cairo(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(
+              'إلغاء',
+              style: AppTypography.cairo(color: Colors.white60),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              admin.deleteProvider(provider.id);
+            },
+            child: Text(
+              'تأكيد الحذف',
+              style: AppTypography.cairo(fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Container(
+      padding: const EdgeInsets.all(32),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF6366F1).withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.hub_outlined,
+              size: 40,
+              color: Color(0xFF6366F1),
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            'لا يوجد مزودين مضافين حالياً',
+            style: AppTypography.cairo(
+              fontSize: 15,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF0F172A),
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'أضف مزودين مثل Smile One أو SEAGM لجلب المنتجات والأسعار تلقائياً',
+            textAlign: TextAlign.center,
+            style: AppTypography.cairo(
+              fontSize: 12,
+              color: const Color(0xFF64748B),
+            ),
+          ),
+          const SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: () => _openAddEditDialog(),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: Text(
+              'إضافة أول مزود',
+              style: AppTypography.cairo(fontWeight: FontWeight.bold),
+            ),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF6366F1),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

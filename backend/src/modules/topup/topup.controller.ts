@@ -86,6 +86,30 @@ export class TopupController {
     return this.topupService.getManualOrders(status);
   }
 
+  // Admin: سجل موحّد لكل عمليات الشحن (شام كاش / Binance / كود / آيدي)
+  @Get('admin/log')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async getAdminTopupLog() {
+    return this.topupService.getAdminTopupLog();
+  }
+
+  // Admin: شحن رصيد مباشر بالآيدي (يُسجّل في سجل الشحن)
+  @Post('admin/id-topup')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  async createIdTopup(
+    @CurrentUser() admin: UserDocument,
+    @Body() body: { userId: string; amount: number; description?: string },
+  ) {
+    return this.topupService.createIdTopup({
+      userId: body.userId,
+      amount: Number(body.amount),
+      description: body.description,
+      adminId: admin._id.toString(),
+    });
+  }
+
   // Admin: approve request
   @Post('admin/requests/:id/approve')
   @UseGuards(JwtAuthGuard, RolesGuard)

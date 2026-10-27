@@ -7,6 +7,7 @@ export enum AppType {
   GAME = 'game',
   APP = 'app',
   SERVICE = 'service',
+  SUBSCRIPTION = 'subscription',
 }
 
 @Schema({ timestamps: true })
@@ -21,7 +22,7 @@ export class App {
   nameEn?: string; // English display name
 
   @Prop({ type: String, enum: AppType, default: AppType.GAME })
-  appType?: AppType; // Type: game / app / service
+  appType?: AppType; // Type: game / app / service / subscription
 
   @Prop({ required: true })
   iconUrl: string; // Square image URL or 'builtin:<key>'

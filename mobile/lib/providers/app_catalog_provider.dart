@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
+import '../core/services/cache_service.dart';
 import '../models/app_model.dart';
 import '../models/product_model.dart';
 import '../models/order_model.dart';
@@ -28,47 +29,109 @@ class AppCatalogProvider extends ChangeNotifier {
 
   final ApiClient _api = ApiClient();
 
+  AppCatalogProvider() {
+    _loadFromCache();
+  }
+
+  void _loadFromCache() {
+    final cachedApps = CacheService.instance.getList(
+      'catalog_apps',
+      AppItemModel.fromJson,
+    );
+    if (cachedApps != null && cachedApps.isNotEmpty) {
+      _apps = cachedApps;
+    }
+    final cachedBanners = CacheService.instance.getList(
+      'catalog_banners',
+      BannerModel.fromJson,
+    );
+    if (cachedBanners != null && cachedBanners.isNotEmpty) {
+      _banners = cachedBanners;
+    }
+    final cachedOrders = CacheService.instance.getList(
+      'my_orders',
+      OrderModel.fromJson,
+    );
+    if (cachedOrders != null && cachedOrders.isNotEmpty) {
+      _myOrders = cachedOrders;
+    }
+  }
+
   Future<void> fetchBanners() async {
     try {
       final res = await _api.get(ApiConstants.banners);
       if (res is List) {
         _banners = res.map((e) => BannerModel.fromJson(e)).toList();
+        CacheService.instance.setList(
+          'catalog_banners',
+          _banners,
+          (b) => b.toJson(),
+        );
         notifyListeners();
       }
     } catch (_) {}
   }
 
-  Future<void> fetchApps() async {
-    _isLoading = true;
-    _errorMessage = null;
-    notifyListeners();
+  Future<void> fetchApps({bool forceRefresh = false}) async {
+    if (_apps.isEmpty) {
+      _loadFromCache();
+    }
+
+    // Only show full loading spinner if cache is completely empty or explicitly forced
+    if (_apps.isEmpty || forceRefresh) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       fetchBanners(); // Load banners in parallel
       final res = await _api.get(ApiConstants.apps);
       if (res is List) {
         _apps = res.map((e) => AppItemModel.fromJson(e)).toList();
+        CacheService.instance.setList('catalog_apps', _apps, (a) => a.toJson());
       }
     } catch (e) {
-      _errorMessage = e.toString();
+      if (_apps.isEmpty) {
+        _errorMessage = e.toString();
+      }
     }
     _isLoading = false;
     notifyListeners();
   }
 
-  Future<void> fetchProductsByApp(String appId) async {
-    _isLoading = true;
-    _currentProducts = [];
-    _errorMessage = null;
-    notifyListeners();
+  Future<void> fetchProductsByApp(
+    String appId, {
+    bool forceRefresh = false,
+  }) async {
+    final cached = CacheService.instance.getList(
+      'app_products_$appId',
+      ProductModel.fromJson,
+    );
+    if (cached != null && cached.isNotEmpty) {
+      _currentProducts = cached;
+    }
+
+    if (_currentProducts.isEmpty || forceRefresh) {
+      _isLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
 
     try {
       final res = await _api.get('${ApiConstants.productsByApp}/$appId');
       if (res is List) {
         _currentProducts = res.map((e) => ProductModel.fromJson(e)).toList();
+        CacheService.instance.setList(
+          'app_products_$appId',
+          _currentProducts,
+          (p) => p.toJson(),
+        );
       }
     } catch (e) {
-      _errorMessage = e.toString();
+      if (_currentProducts.isEmpty) {
+        _errorMessage = e.toString();
+      }
     }
     _isLoading = false;
     notifyListeners();
@@ -83,16 +146,21 @@ class AppCatalogProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final res = await _api.post(ApiConstants.orders, body: {
-        'productId': productId,
-        'accountInput': accountInput ?? {},
-      });
+      final res = await _api.post(
+        ApiConstants.orders,
+        body: {'productId': productId, 'accountInput': accountInput ?? {}},
+      );
       await fetchMyOrders();
       _isOrdering = false;
       notifyListeners();
       return res;
     } catch (e) {
-      _errorMessage = e.toString();
+      // A missing status code means the server never answered (slow provider or a
+      // gateway timeout) — the order may still be running server-side
+      final isNoResponse = e is ApiException && e.statusCode == null;
+      _errorMessage = isNoResponse
+          ? 'انتهت مهلة الاتصال بالخادم. إذا تم خصم أي مبلغ فسيُعاد تلقائياً — يرجى مراجعة طلباتك بعد قليل.'
+          : e.toString();
       _isOrdering = false;
       notifyListeners();
       return null;
@@ -104,6 +172,11 @@ class AppCatalogProvider extends ChangeNotifier {
       final res = await _api.get(ApiConstants.myOrders);
       if (res is List) {
         _myOrders = res.map((e) => OrderModel.fromJson(e)).toList();
+        CacheService.instance.setList(
+          'my_orders',
+          _myOrders,
+          (o) => o.toJson(),
+        );
         notifyListeners();
       }
     } catch (_) {}

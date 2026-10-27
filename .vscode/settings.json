@@ -1,5 +1,5 @@
 {
   "typescript.tsdk": "backend/node_modules/typescript/lib",
   "typescript.enablePromptUseWorkspaceTsdk": true,
-  "cmake.sourceDirectory": "D:/project/layan-chargex/mobile/linux"
+  "cmake.sourceDirectory": "D:/project/jgo_store/mobile/linux"
 }

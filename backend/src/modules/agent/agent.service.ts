@@ -1,11 +1,27 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+  ForbiddenException,
+  Logger,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcryptjs';
 import { User, UserDocument } from '../../database/schemas/user.schema';
-import { WalletTransaction, WalletTransactionDocument, TransactionType, TransactionStatus } from '../../database/schemas/wallet-transaction.schema';
+import {
+  WalletTransaction,
+  WalletTransactionDocument,
+  TransactionType,
+  TransactionStatus,
+} from '../../database/schemas/wallet-transaction.schema';
 import { Role } from '../../common/interfaces/role.enum';
+import { generateUserId, userIdFilter } from '../../common/utils/user-id.util';
 import { NotificationsService } from '../notifications/notifications.service';
+
+// مصادر الرصيد الوارد إلى محفظة الوكيل: شحن إداري مباشر أو اعتماد طلب شحن
+// (تُسقط أكواد الشحن لأنها ليست تحويلاً من الإدارة)
+const AGENT_INCOMING_REFERENCE_TYPES = ['Admin', 'IdTopup', 'ManualOrder'];
 
 @Injectable()
 export class AgentService {
@@ -13,24 +29,16 @@ export class AgentService {
 
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(WalletTransaction.name) private transactionModel: Model<WalletTransactionDocument>,
+    @InjectModel(WalletTransaction.name)
+    private transactionModel: Model<WalletTransactionDocument>,
     private notificationsService: NotificationsService,
   ) {}
 
   private async generateUniqueUserId(): Promise<string> {
-    let unique = false;
-    let userId = '';
-    while (!unique) {
-      const now = new Date();
-      const yy = String(now.getFullYear()).slice(-2);
-      const mm = String(now.getMonth() + 1).padStart(2, '0');
-      const dd = String(now.getDate()).padStart(2, '0');
-      const rand = Math.floor(10000 + Math.random() * 90000);
-      userId = `chx${yy}${mm}${dd}${rand}`;
-      const existing = await this.userModel.findOne({ userId });
-      if (!existing) unique = true;
-    }
-    return userId;
+    // JGO + yyMMdd + 5 أرقام (أحرف كبيرة)، مع تجاوز ما هو مستخدم بالفعل
+    return generateUserId(async (candidateId) =>
+      Boolean(await this.userModel.findOne(userIdFilter(candidateId))),
+    );
   }
 
   // --- 1. Agent Dashboard Overview ---
@@ -70,8 +78,37 @@ export class AgentService {
       },
     ]);
 
-    const totalTransferred = transferAgg.length > 0 ? Number(transferAgg[0].totalAmount.toFixed(2)) : 0.0;
-    const transferCount = transferAgg.length > 0 ? transferAgg[0].totalCount : 0;
+    const totalTransferred =
+      transferAgg.length > 0
+        ? Number(transferAgg[0].totalAmount.toFixed(2))
+        : 0.0;
+    const transferCount =
+      transferAgg.length > 0 ? transferAgg[0].totalCount : 0;
+
+    // مجموع ما استلمه الوكيل من الإدارة (شحن رصيد وارد)
+    const incomingAgg = await this.transactionModel.aggregate([
+      {
+        $match: {
+          userId: new Types.ObjectId(agentId),
+          amount: { $gt: 0 },
+          referenceType: { $in: AGENT_INCOMING_REFERENCE_TYPES },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalAmount: { $sum: '$amount' },
+          totalCount: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const totalReceived =
+      incomingAgg.length > 0
+        ? Number(incomingAgg[0].totalAmount.toFixed(2))
+        : 0.0;
+    const receivedCount =
+      incomingAgg.length > 0 ? incomingAgg[0].totalCount : 0;
 
     // Recent 5 transactions
     const recentTransfers = await this.transactionModel
@@ -98,13 +135,19 @@ export class AgentService {
         suspendedSubUsers,
         totalTransferred,
         transferCount,
+        totalReceived,
+        receivedCount,
       },
       recentTransfers,
     };
   }
 
   // --- 2. List Agent's Sub-Users ---
-  async getMyUsers(agentId: string, search?: string, statusFilter?: 'all' | 'active' | 'suspended') {
+  async getMyUsers(
+    agentId: string,
+    search?: string,
+    statusFilter?: 'all' | 'active' | 'suspended',
+  ) {
     const query: any = {
       parentAgentId: new Types.ObjectId(agentId),
     };
@@ -247,7 +290,7 @@ export class AgentService {
   // --- 4. Link an Existing User to this Agent ---
   async linkUserToAgent(agentId: string, userIdentifier: string) {
     const cleanId = userIdentifier ? userIdentifier.trim() : '';
-    let target = await this.userModel.findOne({ userId: cleanId });
+    let target = await this.userModel.findOne(userIdFilter(cleanId));
     if (!target && cleanId.includes('@')) {
       target = await this.userModel.findOne({ email: cleanId.toLowerCase() });
     }
@@ -256,7 +299,9 @@ export class AgentService {
     }
 
     if (!target) {
-      throw new NotFoundException('لم يتم العثور على المستخدم (تأكد من إدخال الآيدي أو البريد بدقة)');
+      throw new NotFoundException(
+        'لم يتم العثور على المستخدم (تأكد من إدخال الآيدي أو البريد بدقة)',
+      );
     }
 
     if (target._id.toString() === agentId) {
@@ -264,7 +309,9 @@ export class AgentService {
     }
 
     if (target.role === Role.ADMIN || target.role === Role.SUPERVISOR) {
-      throw new BadRequestException('لا يمكن ربط حسابات الإدارة والمشرفين كعملاء');
+      throw new BadRequestException(
+        'لا يمكن ربط حسابات الإدارة والمشرفين كعملاء',
+      );
     }
 
     if (target.parentAgentId) {
@@ -274,7 +321,9 @@ export class AgentService {
           user: target,
         };
       }
-      throw new BadRequestException('هذا المستخدم مرتبط بوكيل معتمد آخر مسبقاً');
+      throw new BadRequestException(
+        'هذا المستخدم مرتبط بوكيل معتمد آخر مسبقاً',
+      );
     }
 
     target.parentAgentId = new Types.ObjectId(agentId) as any;
@@ -295,7 +344,12 @@ export class AgentService {
   }
 
   // --- 5. Transfer Balance to Sub-User (تحويل رصيد) ---
-  async transferBalance(agentId: string, targetUserId: string, amount: number, note?: string) {
+  async transferBalance(
+    agentId: string,
+    targetUserId: string,
+    amount: number,
+    note?: string,
+  ) {
     const transferAmount = Number(amount);
     if (!transferAmount || transferAmount <= 0) {
       throw new BadRequestException('يرجى إدخال مبلغ تحويل صالح أكبر من صفر');
@@ -311,12 +365,14 @@ export class AgentService {
     }
 
     const cleanTarget = targetUserId ? targetUserId.trim() : '';
-    let target = await this.userModel.findOne({ userId: cleanTarget });
+    let target = await this.userModel.findOne(userIdFilter(cleanTarget));
     if (!target && Types.ObjectId.isValid(cleanTarget)) {
       target = await this.userModel.findById(cleanTarget);
     }
     if (!target && cleanTarget.includes('@')) {
-      target = await this.userModel.findOne({ email: cleanTarget.toLowerCase() });
+      target = await this.userModel.findOne({
+        email: cleanTarget.toLowerCase(),
+      });
     }
 
     if (!target) {
@@ -326,12 +382,19 @@ export class AgentService {
     // Auto-link to agent if not yet linked to any other agent
     if (!target.parentAgentId) {
       target.parentAgentId = agent._id as any;
-    } else if (target.parentAgentId.toString() !== agentId && agent.role !== Role.ADMIN) {
-      throw new ForbiddenException('المستخدم المستلم يتبع لوكيل آخر، لا يمكنك التحويل إلا لعملائك التابعين لك');
+    } else if (
+      target.parentAgentId.toString() !== agentId &&
+      agent.role !== Role.ADMIN
+    ) {
+      throw new ForbiddenException(
+        'المستخدم المستلم يتبع لوكيل آخر، لا يمكنك التحويل إلا لعملائك التابعين لك',
+      );
     }
 
     if (!target.isActive) {
-      throw new BadRequestException('حساب المستخدم معطل حالياً، يرجى تفعيل الحساب أولاً قبل التحويل');
+      throw new BadRequestException(
+        'حساب المستخدم معطل حالياً، يرجى تفعيل الحساب أولاً قبل التحويل',
+      );
     }
 
     // Atomic execution
@@ -341,7 +404,9 @@ export class AgentService {
     await agent.save();
 
     const targetBalBefore = target.balance;
-    const targetBalAfter = Number((targetBalBefore + transferAmount).toFixed(2));
+    const targetBalAfter = Number(
+      (targetBalBefore + transferAmount).toFixed(2),
+    );
     target.balance = targetBalAfter;
     await target.save();
 
@@ -377,7 +442,11 @@ export class AgentService {
       title: 'شحن رصيد من الوكيل ⚡',
       body: `تم استلام تحويل رصيد بقيمة $${transferAmount.toFixed(2)} من وكيلك (${agent.name}). رصيدك الحالي: $${targetBalAfter.toFixed(2)}`,
       type: 'wallet_topup',
-      data: { amount: transferAmount, newBalance: targetBalAfter, agentName: agent.name },
+      data: {
+        amount: transferAmount,
+        newBalance: targetBalAfter,
+        agentName: agent.name,
+      },
     });
 
     return {
@@ -393,10 +462,15 @@ export class AgentService {
     };
   }
 
-  // --- 6. Toggle Sub-User Active / Suspended (إيقاف - تفعيل في حال النصب) ---
-  async toggleUserStatus(agentId: string, targetUserId: string, isActive: boolean, reason?: string) {
+  // --- 6. Toggle Sub-User Active / Suspended (إيقاف - تفعيل في حال ) ---
+  async toggleUserStatus(
+    agentId: string,
+    targetUserId: string,
+    isActive: boolean,
+    reason?: string,
+  ) {
     const cleanId = targetUserId ? targetUserId.trim() : '';
-    let target = await this.userModel.findOne({ userId: cleanId });
+    let target = await this.userModel.findOne(userIdFilter(cleanId));
     if (!target && Types.ObjectId.isValid(cleanId)) {
       target = await this.userModel.findById(cleanId);
     }
@@ -408,7 +482,9 @@ export class AgentService {
     if (!target.parentAgentId || target.parentAgentId.toString() !== agentId) {
       const agent = await this.userModel.findById(agentId);
       if (agent?.role !== Role.ADMIN) {
-        throw new ForbiddenException('لا يمكنك إدارة حالة مستخدم لا يتبع لوكالتك');
+        throw new ForbiddenException(
+          'لا يمكنك إدارة حالة مستخدم لا يتبع لوكالتك',
+        );
       }
     }
 
@@ -417,12 +493,15 @@ export class AgentService {
       target.isActive = false;
       target.deactivatedByAgent = true;
       target.agentDeactivationReason =
-        reason?.trim() || 'تم تجميد الحساب من قبل الوكيل المعتمد لعدم تسوية المستحقات المالية';
+        reason?.trim() ||
+        'تم تجميد الحساب من قبل الوكيل المعتمد لعدم تسوية المستحقات المالية';
       // Invalidate current refresh token to kick out active sessions
       target.refreshToken = undefined;
       await target.save();
 
-      this.logger.warn(`Agent ${agentId} suspended user ${target._id} (${target.email}). Reason: ${target.agentDeactivationReason}`);
+      this.logger.warn(
+        `Agent ${agentId} suspended user ${target._id} (${target.email}). Reason: ${target.agentDeactivationReason}`,
+      );
 
       return {
         message: `تم تجميد وإيقاف حساب العميل "${target.name}" فوراً ⛔ ومنعه من الشراء والدخول`,
@@ -442,7 +521,9 @@ export class AgentService {
       target.agentDeactivationReason = undefined;
       await target.save();
 
-      this.logger.log(`Agent ${agentId} reactivated user ${target._id} (${target.email})`);
+      this.logger.log(
+        `Agent ${agentId} reactivated user ${target._id} (${target.email})`,
+      );
 
       return {
         message: `تمت إعادة تفعيل حساب العميل "${target.name}" بنجاح ✅`,
@@ -458,14 +539,68 @@ export class AgentService {
     }
   }
 
-  // --- 7. Transfer History for Agent ---
+  // --- 7. Transfer History for Agent (وارد من الإدارة + صادر للعملاء) ---
   async getTransferHistory(agentId: string) {
-    return this.transactionModel
+    const agentObjectId = new Types.ObjectId(agentId);
+
+    const docs = await this.transactionModel
       .find({
-        userId: new Types.ObjectId(agentId),
-        type: TransactionType.AGENT_TRANSFER,
+        userId: agentObjectId,
+        $or: [
+          // صادر: تحويل رصيد من الوكيل إلى أحد عملائه
+          { type: TransactionType.AGENT_TRANSFER, amount: { $lt: 0 } },
+          // وارد: شحن رصيد إلى محفظة الوكيل من الإدارة
+          {
+            amount: { $gt: 0 },
+            referenceType: { $in: AGENT_INCOMING_REFERENCE_TYPES },
+          },
+        ],
       })
       .sort({ createdAt: -1 })
-      .limit(100);
+      .limit(100)
+      .lean();
+
+    // أسماء وأرقام العملاء المستقبلين لعمليات التحويل الصادرة
+    const targetIds = docs
+      .filter((doc) => doc.amount < 0 && doc.referenceId)
+      .map((doc) => String(doc.referenceId))
+      .filter((id) => Types.ObjectId.isValid(id))
+      .map((id) => new Types.ObjectId(id));
+
+    const targets = targetIds.length
+      ? await this.userModel
+          .find({ _id: { $in: targetIds } })
+          .select('name userId email')
+          .lean()
+      : [];
+
+    const targetById = new Map<string, any>(
+      targets.map((user) => [String(user._id), user]),
+    );
+
+    return docs.map((doc) => {
+      const isOutgoing = doc.amount < 0;
+      const target = isOutgoing ? targetById.get(String(doc.referenceId)) : null;
+      const counterparty = isOutgoing
+        ? {
+            name: target?.name ?? '',
+            userId: target?.userId ?? '',
+            email: target?.email ?? '',
+          }
+        : { name: 'الإدارة', userId: '', email: '' };
+
+      return {
+        _id: doc._id,
+        createdAt: (doc as any).createdAt,
+        direction: isOutgoing ? 'out' : 'in',
+        // المقدار موجَب دائماً والاتجاه يحمل الإشارة
+        amount: Math.abs(doc.amount),
+        description: doc.description,
+        referenceType: doc.referenceType ?? '',
+        counterparty,
+        // توافق خلفي مع النسخ التي تقرأ recipient
+        recipient: counterparty,
+      };
+    });
   }
 }

@@ -29,7 +29,10 @@ class MarginProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> saveMargin({required double percent, required bool enabled}) async {
+  Future<void> saveMargin({
+    required double percent,
+    required bool enabled,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       _marginPercent = percent;

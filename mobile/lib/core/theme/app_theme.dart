@@ -13,10 +13,9 @@ class AppTheme {
       scaffoldBackgroundColor: AppColors.surface,
     );
 
-    final textTheme = GoogleFonts.cairoTextTheme(base.textTheme).apply(
-      bodyColor: AppColors.onSurface,
-      displayColor: AppColors.onSurface,
-    );
+    final textTheme = GoogleFonts.cairoTextTheme(
+      base.textTheme,
+    ).apply(bodyColor: AppColors.onSurface, displayColor: AppColors.onSurface);
 
     const colorScheme = ColorScheme(
       brightness: Brightness.light,
@@ -72,10 +71,7 @@ class AppTheme {
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(
-            color: AppColors.outline,
-            width: 1,
-          ),
+          side: const BorderSide(color: AppColors.outline, width: 1),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
@@ -90,7 +86,10 @@ class AppTheme {
           fontSize: 14,
         ),
         prefixIconColor: AppColors.onSurfaceVariant,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.outline, width: 1),
@@ -101,7 +100,10 @@ class AppTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.primaryContainer, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppColors.primaryContainer,
+            width: 1.5,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),

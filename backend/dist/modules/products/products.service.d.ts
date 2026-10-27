@@ -1,17 +1,26 @@
 import { Model, Types } from 'mongoose';
 import { Product, ProductDocument, ProfitMarginType, ProductType } from '../../database/schemas/product.schema';
 import { ProviderProductDocument } from '../../database/schemas/provider-product.schema';
+import { ServiceTemplateDocument } from '../../database/schemas/service-template.schema';
+import { UsersService } from '../users/users.service';
 export declare class ProductsService {
     private productModel;
     private providerProductModel;
+    private serviceTemplateModel;
+    private readonly usersService;
     private readonly logger;
-    constructor(productModel: Model<ProductDocument>, providerProductModel: Model<ProviderProductDocument>);
+    constructor(productModel: Model<ProductDocument>, providerProductModel: Model<ProviderProductDocument>, serviceTemplateModel: Model<ServiceTemplateDocument>, usersService: UsersService);
+    private deriveFieldsFromTemplate;
     calculateSalePrice(costPrice: number, marginType: ProfitMarginType, marginValue: number): number;
     findByAppUser(appId: string): Promise<{
         availableCodesCount: number;
         inventoryCodes: undefined;
+        providerAvailable: boolean;
         appId: Types.ObjectId;
         name: string;
+        serviceTemplateId?: Types.ObjectId;
+        quantityLabel: string;
+        kind: string;
         description?: string;
         type: ProductType;
         providerId?: Types.ObjectId;
@@ -45,6 +54,9 @@ export declare class ProductsService {
         availableCodesCount: number;
         appId: Types.ObjectId;
         name: string;
+        serviceTemplateId?: Types.ObjectId;
+        quantityLabel: string;
+        kind: string;
         description?: string;
         type: ProductType;
         providerId?: Types.ObjectId;
@@ -95,6 +107,9 @@ export declare class ProductsService {
         isActive?: boolean;
         inventoryCodes?: string[];
         requiredFields?: string[];
+        serviceTemplateId?: string;
+        quantityLabel?: string;
+        kind?: string;
         assignedSupervisorId?: string;
         estimatedMinutes?: number;
         isSensitive?: boolean;
@@ -107,6 +122,7 @@ export declare class ProductsService {
     } & {
         id: string;
     }>;
+    private deriveFieldsFromTemplateById;
     update(id: string, updateDto: any): Promise<(import("mongoose").Document<unknown, {}, ProductDocument, {}, import("mongoose").DefaultSchemaOptions> & Product & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: Types.ObjectId;
     }> & {

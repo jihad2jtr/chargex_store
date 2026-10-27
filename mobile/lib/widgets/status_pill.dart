@@ -18,6 +18,7 @@ class StatusPill extends StatelessWidget {
       case 'completed':
       case 'approved':
       case 'active':
+      case 'delivered':
         bg = const Color(0xFFD1FAE5);
         fg = const Color(0xFF059669);
         if (label == null) {
@@ -25,6 +26,7 @@ class StatusPill extends StatelessWidget {
           if (status == 'completed') display = 'مكتمل';
           if (status == 'approved') display = 'تمت الموافقة';
           if (status == 'active') display = 'مفعل';
+          if (status == 'delivered') display = 'تم التسليم';
         }
         break;
       case 'pending':
@@ -81,10 +83,7 @@ class StatusPill extends StatelessWidget {
           Container(
             width: 5,
             height: 5,
-            decoration: BoxDecoration(
-              color: fg,
-              shape: BoxShape.circle,
-            ),
+            decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
           Text(
@@ -100,4 +99,3 @@ class StatusPill extends StatelessWidget {
     );
   }
 }
-

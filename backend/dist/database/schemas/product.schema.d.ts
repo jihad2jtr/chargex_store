@@ -12,6 +12,9 @@ export declare enum ProfitMarginType {
 export declare class Product {
     appId: Types.ObjectId;
     name: string;
+    serviceTemplateId?: Types.ObjectId;
+    quantityLabel: string;
+    kind: string;
     description?: string;
     type: ProductType;
     providerId?: Types.ObjectId;
@@ -54,6 +57,33 @@ export declare const ProductSchema: import("mongoose").Schema<Product, import("m
         id: string;
     }>> | undefined;
     name?: import("mongoose").SchemaDefinitionProperty<string, Product, Document<unknown, {}, Product, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Product & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    serviceTemplateId?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId | undefined, Product, Document<unknown, {}, Product, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Product & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    quantityLabel?: import("mongoose").SchemaDefinitionProperty<string, Product, Document<unknown, {}, Product, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Product & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    kind?: import("mongoose").SchemaDefinitionProperty<string, Product, Document<unknown, {}, Product, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<Product & {
         _id: Types.ObjectId;

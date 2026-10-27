@@ -15,6 +15,9 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { UploadModule } from './modules/upload/upload.module';
 import { BannersModule } from './modules/banners/banners.module';
 import { AgentModule } from './modules/agent/agent.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { ServiceTemplatesModule } from './modules/service-templates/service-templates.module';
+import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -51,6 +54,9 @@ import { AppService } from './app.service';
     UploadModule,
     BannersModule,
     AgentModule,
+    DashboardModule,
+    ServiceTemplatesModule,
+    ExchangeRatesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

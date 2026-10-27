@@ -22,6 +22,8 @@ const shipping_code_schema_1 = require("./schemas/shipping-code.schema");
 const manual_order_schema_1 = require("./schemas/manual-order.schema");
 const notification_schema_1 = require("./schemas/notification.schema");
 const banner_schema_1 = require("./schemas/banner.schema");
+const service_template_schema_1 = require("./schemas/service-template.schema");
+const exchange_rate_schema_1 = require("./schemas/exchange-rate.schema");
 const featureModels = [
     { name: user_schema_1.User.name, schema: user_schema_1.UserSchema },
     { name: provider_schema_1.Provider.name, schema: provider_schema_1.ProviderSchema },
@@ -36,6 +38,8 @@ const featureModels = [
     { name: manual_order_schema_1.ManualOrder.name, schema: manual_order_schema_1.ManualOrderSchema },
     { name: notification_schema_1.Notification.name, schema: notification_schema_1.NotificationSchema },
     { name: banner_schema_1.Banner.name, schema: banner_schema_1.BannerSchema },
+    { name: service_template_schema_1.ServiceTemplate.name, schema: service_template_schema_1.ServiceTemplateSchema },
+    { name: exchange_rate_schema_1.ExchangeRate.name, schema: exchange_rate_schema_1.ExchangeRateSchema },
 ];
 let DatabaseModule = class DatabaseModule {
 };

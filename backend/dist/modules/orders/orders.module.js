@@ -13,12 +13,13 @@ const orders_controller_1 = require("./orders.controller");
 const database_module_1 = require("../../database/database.module");
 const notifications_module_1 = require("../notifications/notifications.module");
 const providers_module_1 = require("../providers/providers.module");
+const users_module_1 = require("../users/users.module");
 let OrdersModule = class OrdersModule {
 };
 exports.OrdersModule = OrdersModule;
 exports.OrdersModule = OrdersModule = __decorate([
     (0, common_1.Module)({
-        imports: [database_module_1.DatabaseModule, notifications_module_1.NotificationsModule, providers_module_1.ProvidersModule],
+        imports: [database_module_1.DatabaseModule, notifications_module_1.NotificationsModule, providers_module_1.ProvidersModule, users_module_1.UsersModule],
         controllers: [orders_controller_1.OrdersController],
         providers: [orders_service_1.OrdersService],
         exports: [orders_service_1.OrdersService],

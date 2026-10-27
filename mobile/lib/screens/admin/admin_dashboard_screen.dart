@@ -12,10 +12,11 @@ import 'shipping_codes_screen.dart';
 import 'orders_management_screen.dart';
 import 'banners_management_screen.dart';
 import 'manual_services_management_screen.dart';
+import 'users_management_screen.dart';
+import 'service_templates_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
-import '../../widgets/digital_pass_card.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
-import '../../widgets/live_status_console.dart';
+import '../../widgets/ops_console.dart';
 import '../user/user_main_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -26,8 +27,9 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  String _selectedCategory = 'all'; // 'all' | 'catalog' | 'finance'
+  final String _selectedCategory = 'all'; // 'all' | 'catalog' | 'finance'
   Timer? _autoRefreshTimer;
+  int _statsTick = 0;
 
   @override
   void initState() {
@@ -36,12 +38,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _loadData();
     });
 
-    // Auto-refresh pending counts and critical lists silently every 15 seconds
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
+    // تحديث تلقائي خفيف: العدّادات كل 20 ثانية، والإحصاءات الأثقل كل دقيقة
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 20), (_) {
       if (mounted) {
         final admin = Provider.of<AdminProvider>(context, listen: false);
-        admin.fetchAdminOrders(silent: true);
-        admin.fetchManualTopupRequests();
+        admin.fetchPendingCounts(silent: true);
+        _statsTick++;
+        if (_statsTick % 3 == 0) admin.fetchDashboardStats(silent: true);
       }
     });
   }
@@ -52,32 +55,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     super.dispose();
   }
 
+  /// تحميل خفيف: إحصاءات مجمّعة من الخادم + عدّادات معلّقة (بدون تحميل القوائم الكاملة)
   Future<void> _loadData() async {
     final admin = Provider.of<AdminProvider>(context, listen: false);
     await Future.wait([
-      admin.fetchProviders(),
-      admin.fetchAdminApps(),
-      admin.fetchAdminProducts(),
-      admin.fetchAdminOrders(),
-      admin.fetchManualTopupRequests(),
-      admin.fetchAdminBanners(),
-      admin.fetchPaymentAccounts(),
-      admin.fetchShippingCodes(),
-      admin.fetchSupervisors(),
+      admin.fetchDashboardStats(silent: true),
+      admin.fetchPendingCounts(silent: true),
     ]);
   }
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
+    Provider.of<AuthProvider>(context);
     final admin = Provider.of<AdminProvider>(context);
 
-    final pendingOrdersCount = admin.adminOrders
-        .where((o) => o.status == 'pending')
-        .length;
-    final pendingTopupsCount = admin.manualTopupRequests
-        .where((r) => r.status == 'pending')
-        .length;
+    final pendingOrdersCount = admin.pendingOrdersCount;
+    final pendingTopupsCount = admin.pendingTopupsCount;
     final totalPending = pendingOrdersCount + pendingTopupsCount;
 
     final sections = _getSections(
@@ -109,16 +102,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   children: [
                     const UnifiedTactileHeader(isDashboard: true),
                     const SizedBox(height: 12),
-                    // Welcome Banner
-                    _buildExecutiveHeader(auth.currentUser?.name, totalPending),
-                    const SizedBox(height: 20),
 
                     // KPI Stats Grid
-                    _buildKpiSection(
-                      pendingOrdersCount,
-                      pendingTopupsCount,
-                      admin,
-                    ),
+                    _buildOpsConsole(admin),
                     const SizedBox(height: 28),
 
                     // Management Sections Header with Interactive Category Tabs
@@ -126,10 +112,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 14),
 
                     // Category Filter Tabs
-                    _buildCategoryTabs(sections),
                     const SizedBox(height: 16),
 
-                    // Management Sections Grid
+                    // Management Sections Grid (نمط أيقونات الهاتف)
                     GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
@@ -137,17 +122,17 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                         crossAxisCount:
                             MediaQuery.of(context).size.width >= 1200
-                            ? 4
+                            ? 6
                             : MediaQuery.of(context).size.width >= 700
-                            ? 3
-                            : 2,
-                        crossAxisSpacing: 14,
-                        mainAxisSpacing: 14,
-                        childAspectRatio: 1.2,
+                            ? 5
+                            : 4,
+                        crossAxisSpacing: 6,
+                        mainAxisSpacing: 10,
+                        mainAxisExtent: 126,
                       ),
                       itemBuilder: (context, index) {
                         final item = filteredSections[index];
-                        return _buildManagementCard(item);
+                        return _buildSectionTile(item);
                       },
                     ),
                     const SizedBox(height: 24),
@@ -177,192 +162,29 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     }
   }
 
-  // --- Executive Welcome Banner ---
-  Widget _buildExecutiveHeader(String? adminName, int totalPending) {
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: AppColors.darkNav,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.35),
-          width: 1.2,
+  // --- Ops Console: مؤشرات اليوم + ما يحتاج تدخلًا + صحة النظام ---
+  Widget _buildOpsConsole(AdminProvider admin) {
+    void openOrders() {
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const OrdersManagementScreen()));
+    }
+
+    void openManualServices() {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => const ManualServicesManagementScreen(),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.18),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            left: -20,
-            top: -20,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: AppColors.primaryBlue.withValues(alpha: 0.08),
-              ),
-            ),
-          ),
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1E293B),
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: AppColors.ticketAmber.withValues(alpha: 0.5),
-                  ),
-                ),
-                child: const Icon(
-                  Icons.shield_rounded,
-                  color: AppColors.ticketAmber,
-                  size: 26,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            'مرحباً، ${adminName ?? 'المدير العام'}',
-                            style: AppTypography.cairo(
-                              fontSize: 16.5,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 7,
-                            vertical: 2.5,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF065F46),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(
-                              color: AppColors.accentGreen.withValues(
-                                alpha: 0.6,
-                              ),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Container(
-                                width: 5,
-                                height: 5,
-                                decoration: const BoxDecoration(
-                                  color: AppColors.accentGreen,
-                                  shape: BoxShape.circle,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                'ONLINE ROOT',
-                                style: AppTypography.technicalCode(
-                                  color: const Color(0xFF6EE7B7),
-                                  fontSize: 8.5,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      totalPending > 0
-                          ? 'يوجد $totalPending طلب بحاجة لمراجعتك وتأكيد الشحن'
-                          : 'النظام يعمل بكفاءة تامة وجميع خوادم الـ API متصلة',
-                      style: AppTypography.cairo(
-                        fontSize: 11.5,
-                        color: totalPending > 0
-                            ? AppColors.ticketAmber
-                            : const Color(0xFF94A3B8),
-                        fontWeight: totalPending > 0
-                            ? FontWeight.bold
-                            : FontWeight.normal,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+      );
+    }
+
+    return OpsConsole(
+      stats: admin.dashboardStats,
+      updatedAt: admin.statsFetchedAt,
+      onReviewOrders: openOrders,
+      onReviewTopups: openOrders,
+      onReviewDelayed: openManualServices,
     );
-  }
-
-  // --- Live Operation Status Console (KPIs) ---
-  Widget _buildKpiSection(
-    int pendingOrders,
-    int pendingTopups,
-    AdminProvider admin,
-  ) {
-    final onlineProviders = admin.providers
-        .where((p) => p.status == 'online')
-        .length;
-    final providersTotal = admin.providers.length;
-
-    final metrics = [
-      LiveStatusMetric(
-        label: 'الطلبات المعلقة',
-        sub: 'شحن بالآيدي بانتظار التأكيد',
-        value: pendingOrders.toString(),
-        icon: Icons.hourglass_top_rounded,
-        accent: AppColors.ticketAmber,
-        statusText: pendingOrders > 0 ? 'بانتظار المراجعة' : 'مستقر',
-        isAlert: pendingOrders > 0,
-        rawValue: pendingOrders,
-      ),
-      LiveStatusMetric(
-        label: 'الرصيد المعلق',
-        sub: 'إيداعات يدوية غير معتمدة',
-        value: pendingTopups.toString(),
-        icon: Icons.account_balance_wallet_rounded,
-        accent: AppColors.primaryBlue,
-        statusText: pendingTopups > 0 ? 'يتطلب اعتماد' : 'معتمد',
-        isAlert: pendingTopups > 0,
-        rawValue: pendingTopups,
-      ),
-      LiveStatusMetric(
-        label: 'المزودين النشطين',
-        sub: '$onlineProviders من $providersTotal متصل بالـ API',
-        value: providersTotal.toString(),
-        icon: Icons.cloud_done_rounded,
-        accent: AppColors.accentGreen,
-        statusText: onlineProviders > 0 ? '$onlineProviders متصل' : 'غير متصل',
-        rawValue: onlineProviders,
-      ),
-      LiveStatusMetric(
-        label: 'المنتجات المنشورة',
-        sub: 'موزعة على ${admin.adminApps.length} تطبيق وخدمة',
-        value: admin.adminProducts.length.toString(),
-        icon: Icons.category_rounded,
-        accent: const Color(0xFF6366F1),
-        statusText: admin.adminProducts.isNotEmpty ? 'منشور' : 'فارغ',
-        rawValue: admin.adminProducts.length,
-      ),
-    ];
-
-    return LiveStatusConsole(metrics: metrics);
   }
 
   // --- Management Sections Header ---
@@ -411,102 +233,105 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- Category Filter Tabs ---
-  Widget _buildCategoryTabs(List<_AdminSectionItem> sections) {
-    final catalogCount = sections.where((s) => s.category == 'catalog').length;
-    final financeCount = sections.where((s) => s.category == 'finance').length;
+  // --- Section Tile: نمط أيقونات الهاتف (App Icon) ---
+  Widget _buildSectionTile(_AdminSectionItem item) {
+    final Color accent = item.isAlert ? const Color(0xFFEF4444) : item.color;
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
+    // شارة رقمية على غرار إشعارات التطبيقات: تُعرض فقط للأقسام التي تحتاج تدخلاً
+    final RegExpMatch? countMatch = RegExp(
+      r'^\s*(\d+)',
+    ).firstMatch(item.statusText);
+    final String? badgeCount = (item.isAlert && countMatch != null)
+        ? countMatch.group(1)
+        : null;
+
+    return InkWell(
+      onTap: item.onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          _buildFilterChip(
-            'all',
-            'جميع الأقسام (${sections.length})',
-            Icons.dashboard_rounded,
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 58,
+                height: 58,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color.lerp(accent, Colors.white, 0.30)!,
+                      accent,
+                      Color.lerp(accent, Colors.black, 0.20)!,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.34),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ],
+                ),
+                child: Icon(item.icon, color: Colors.white, size: 28),
+              ),
+              if (badgeCount != null)
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 5,
+                      vertical: 1.5,
+                    ),
+                    constraints: const BoxConstraints(minWidth: 18),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFEF4444),
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
+                    child: Text(
+                      badgeCount,
+                      textAlign: TextAlign.center,
+                      style: AppTypography.cairo(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            'catalog',
-            'الخدمات والكتالوج ($catalogCount)',
-            Icons.auto_awesome_motion_rounded,
+          const SizedBox(height: 6),
+          Text(
+            item.title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.cairo(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+            ),
           ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            'finance',
-            'المالية والعمليات ($financeCount)',
-            Icons.account_balance_rounded,
+          const SizedBox(height: 2),
+          Text(
+            item.statusText,
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.cairo(
+              fontSize: 9.5,
+              fontWeight: FontWeight.bold,
+              color: item.statusColor ?? AppColors.textSecondary,
+            ),
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildFilterChip(String key, String label, IconData icon) {
-    final isSelected = _selectedCategory == key;
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedCategory = key;
-        });
-      },
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.darkNav : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.darkNav : AppColors.outline,
-          ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : null,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 15,
-              color: isSelected
-                  ? AppColors.ticketAmber
-                  : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: AppTypography.cairo(
-                fontSize: 11.5,
-                fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                color: isSelected ? Colors.white : AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- Premium Management Card ---
-  Widget _buildManagementCard(_AdminSectionItem item) {
-    return TicketDashboardCard(
-      title: item.title,
-      badgeText: item.statusText,
-      subtitle: item.subtitle,
-      icon: item.icon,
-      accentColor: item.color,
-      isAlert: item.isAlert,
-      actionLabel: 'دخول للقسم',
-      imageUrl: item.imageUrl,
-      onTap: item.onTap,
     );
   }
 
@@ -517,45 +342,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     int pendingTopupsCount,
   ) {
     final totalPending = pendingOrdersCount + pendingTopupsCount;
-    final onlineProviders = admin.providers
-        .where((p) => p.status == 'online')
-        .length;
-    final activeBanners = admin.adminBanners.where((b) => b.isActive).length;
-    final activeAccounts = admin.paymentAccounts
-        .where((a) => a.isActive)
-        .length;
-    final unusedCodes = admin.shippingCodes.where((c) => !c.isUsed).length;
+    final stats = admin.dashboardStats;
+    final onlineProviders = stats?.providersOnline ?? 0;
+    final activeBanners = stats?.bannersActive ?? 0;
+    final activeAccounts = stats?.accountsActive ?? 0;
+    final unusedCodes = stats?.codesAvailable ?? 0;
+    final supervisorsCount = stats?.usersSupervisors ?? 0;
 
     return [
-      // 1. Apps & Products (Merged)
-      _AdminSectionItem(
-        title: 'التطبيقات والمنتجات',
-        subtitle: 'إدارة الخدمات، الباقات والأسعار وتحديد هوامش الربح',
-        icon: Icons.grid_view_rounded,
-        color: const Color(0xFF0EA5E9), // Cyan / Sky Blue
-        category: 'catalog',
-        statusText:
-            '${admin.adminApps.length} تطبيق • ${admin.adminProducts.length} باقة',
-        imageUrl: 'assets/sections/apps_products.jpg',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const AppsAndProductsManagementScreen(),
-            ),
-          );
-        },
-      ),
-
-      // 2. Providers Management
+      // 1. Providers Management
       _AdminSectionItem(
         title: 'إدارة المزودين',
-        subtitle: 'فحص الاتصال والربط المباشر وجلب المنتجات التلقائي',
         icon: Icons.hub_rounded,
         color: const Color(0xFF6366F1), // Electric Indigo
         category: 'catalog',
-        statusText: '${admin.providers.length} مزود ($onlineProviders متصل)',
+        statusText:
+            '${stats?.providersTotal ?? 0} مزود ($onlineProviders متصل)',
         statusColor: onlineProviders > 0 ? AppColors.tertiary : null,
-        imageUrl: 'assets/sections/providers.jpg',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -565,50 +368,76 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 3. Billboard & Ads
+      // 2. Apps & Products (Merged)
       _AdminSectionItem(
-        title: 'لوحة الإعلانات',
-        subtitle: 'إدارة البانرات والعروض الترويجية المتحركة للعملاء',
-        icon: Icons.view_carousel_rounded,
-        color: const Color(0xFFF59E0B), // Amber Gold
+        title: 'التطبيقات والمنتجات',
+        icon: Icons.grid_view_rounded,
+        color: const Color(0xFF0EA5E9), // Cyan / Sky Blue
         category: 'catalog',
-        statusText: '$activeBanners نشط / ${admin.adminBanners.length}',
-        imageUrl: 'assets/sections/banners.jpg',
+        statusText:
+            '${stats?.appsActive ?? 0} تطبيق • ${stats?.productsActive ?? 0} باقة',
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
+            MaterialPageRoute(
+              builder: (_) => const AppsAndProductsManagementScreen(),
+            ),
           );
         },
       ),
 
-      // 4. Orders & Requests Review
+      // 3. Service Templates (أنواع قوالب الخدمة)
       _AdminSectionItem(
-        title: 'الطلبات والمراجعة',
-        subtitle: 'مراجعة طلبات الشحن بالآيدي وتأكيد الإيداعات اليدوية',
-        icon: Icons.fact_check_rounded,
-        color: const Color(0xFFF43F5E), // Rose / Red
-        category: 'finance',
-        isAlert: totalPending > 0,
-        statusText: totalPending > 0 ? '$totalPending معلق' : 'مكتمل ✅',
-        statusColor: totalPending > 0 ? AppColors.error : AppColors.tertiary,
-        imageUrl: 'assets/sections/orders.jpg',
+        title: 'أنواع قوالب الخدمة',
+        icon: Icons.description_outlined,
+        color: const Color(0xFF7C3AED), // Violet
+        category: 'catalog',
+        statusText: '${stats?.serviceTemplates ?? 0} قالب',
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const OrdersManagementScreen()),
+            MaterialPageRoute(builder: (_) => const ServiceTemplatesScreen()),
           );
         },
       ),
 
-      // 5. Payment Accounts & Barcode
+      // 4. Manual Services & Supervisors
+      _AdminSectionItem(
+        title: 'الخدمات اليدوية والمشرفين',
+        icon: Icons.assignment_ind_rounded,
+        color: const Color(0xFF0D9488), // Teal
+        category: 'catalog',
+        statusText: '$supervisorsCount مشرف • متابعة SLA',
+        statusColor: AppColors.secondary,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const ManualServicesManagementScreen(),
+            ),
+          );
+        },
+      ),
+
+      // 5. Users Management
+      _AdminSectionItem(
+        title: 'إدارة المستخدمين',
+        icon: Icons.manage_accounts_rounded,
+        color: const Color(0xFF0EA5E9), // Sky Blue
+        category: 'finance',
+        statusText: '${stats?.usersTotal ?? 0} مستخدم',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const UsersManagementScreen()),
+          );
+        },
+      ),
+
+      // 6. Payment Accounts & Barcode
       _AdminSectionItem(
         title: 'حسابات الدفع',
-        subtitle: 'شام كاش، بايننس Pay، باركودات الدفع والتحويل',
         icon: Icons.account_balance_wallet_rounded,
         color: const Color(0xFF10B981), // Emerald
         category: 'finance',
         statusText: '$activeAccounts مفعل',
         statusColor: AppColors.tertiary,
-        imageUrl: 'assets/sections/payments.jpg',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const PaymentAccountsScreen()),
@@ -616,15 +445,13 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 6. Shipping & Voucher Codes
+      // 7. Shipping & Voucher Codes
       _AdminSectionItem(
         title: 'أكواد الشحن',
-        subtitle: 'توليد وإدارة كروت الشحن الرقمية ومتابعة الاستهلاك',
         icon: Icons.confirmation_number_rounded,
         color: const Color(0xFF8B5CF6), // Purple
         category: 'finance',
         statusText: '$unusedCodes كود متاح',
-        imageUrl: 'assets/sections/shipping_codes.jpg',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const ShippingCodesScreen()),
@@ -632,21 +459,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 7. Manual Services & Supervisors
+      // 8. Orders & Requests Review
       _AdminSectionItem(
-        title: 'الخدمات اليدوية والمشرفين',
-        subtitle: 'متابعة الطلبات البشرية، المشرفين، مراقبة التأخير والاسترجاع',
-        icon: Icons.assignment_ind_rounded,
-        color: const Color(0xFF0D9488), // Teal
-        category: 'catalog',
-        statusText: '${admin.supervisors.length} مشرف • متابعة SLA',
-        statusColor: AppColors.secondary,
-        imageUrl: 'assets/sections/manual_services.jpg',
+        title: 'الطلبات والمراجعة',
+        icon: Icons.fact_check_rounded,
+        color: const Color(0xFFF43F5E), // Rose / Red
+        category: 'finance',
+        isAlert: totalPending > 0,
+        statusText: totalPending > 0 ? '$totalPending معلق' : 'مكتمل ✅',
+        statusColor: totalPending > 0 ? AppColors.error : AppColors.tertiary,
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const ManualServicesManagementScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const OrdersManagementScreen()),
+          );
+        },
+      ),
+
+      // 9. Billboard & Ads
+      _AdminSectionItem(
+        title: 'لوحة الإعلانات',
+        icon: Icons.view_carousel_rounded,
+        color: const Color(0xFFF59E0B), // Amber Gold
+        category: 'catalog',
+        statusText: '$activeBanners نشط',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
           );
         },
       ),
@@ -656,26 +494,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
 class _AdminSectionItem {
   final String title;
-  final String subtitle;
   final IconData icon;
   final Color color;
   final String category;
   final String statusText;
   final Color? statusColor;
   final bool isAlert;
-  final String imageUrl;
   final VoidCallback onTap;
 
   const _AdminSectionItem({
     required this.title,
-    required this.subtitle,
     required this.icon,
     required this.color,
     required this.category,
     required this.statusText,
     this.statusColor,
     this.isAlert = false,
-    required this.imageUrl,
     required this.onTap,
   });
 }

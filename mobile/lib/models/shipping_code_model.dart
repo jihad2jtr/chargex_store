@@ -23,12 +23,18 @@ class ShippingCodeModel {
     return ShippingCodeModel(
       id: json['_id'] ?? json['id'] ?? '',
       code: json['code'] ?? '',
-      amount: (json['amount'] is num) ? (json['amount'] as num).toDouble() : 0.0,
+      amount: (json['amount'] is num)
+          ? (json['amount'] as num).toDouble()
+          : 0.0,
       isUsed: json['isUsed'] ?? false,
       usedByName: json['usedBy'] is Map ? json['usedBy']['name'] : null,
-      usedAt: json['usedAt'] != null ? DateTime.tryParse(json['usedAt'].toString()) : null,
+      usedAt: json['usedAt'] != null
+          ? DateTime.tryParse(json['usedAt'].toString())
+          : null,
       isActive: json['isActive'] ?? true,
-      createdAt: json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) : null,
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString())
+          : null,
     );
   }
 
