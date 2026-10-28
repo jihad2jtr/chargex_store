@@ -19,6 +19,7 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const user_schema_1 = require("../../database/schemas/user.schema");
 const role_enum_1 = require("../../common/interfaces/role.enum");
+const user_id_util_1 = require("../../common/utils/user-id.util");
 const product_schema_1 = require("../../database/schemas/product.schema");
 const order_schema_1 = require("../../database/schemas/order.schema");
 const CLOSED_ORDER_STATUSES = [
@@ -26,6 +27,12 @@ const CLOSED_ORDER_STATUSES = [
     order_schema_1.OrderStatus.REFUNDED,
     order_schema_1.OrderStatus.REJECTED,
 ];
+const ASSIGNABLE_ROLES = [role_enum_1.Role.USER, role_enum_1.Role.SUPERVISOR, role_enum_1.Role.AGENT];
+const ROLE_LABELS = {
+    [role_enum_1.Role.USER]: 'عميل',
+    [role_enum_1.Role.SUPERVISOR]: 'مشرف',
+    [role_enum_1.Role.AGENT]: 'وكيل',
+};
 let UsersService = UsersService_1 = class UsersService {
     constructor(userModel, productModel, orderModel) {
         this.userModel = userModel;
@@ -34,13 +41,20 @@ let UsersService = UsersService_1 = class UsersService {
         this.logger = new common_1.Logger(UsersService_1.name);
     }
     async findAll() {
-        return this.userModel.find().select('-password -refreshToken').sort({ createdAt: -1 });
+        return this.userModel
+            .find()
+            .select('-password -refreshToken')
+            .sort({ createdAt: -1 });
     }
     async findOne(id) {
         const cleanId = id ? id.trim() : '';
-        let user = await this.userModel.findOne({ userId: cleanId }).select('-password -refreshToken');
+        let user = await this.userModel
+            .findOne((0, user_id_util_1.userIdFilter)(cleanId))
+            .select('-password -refreshToken');
         if (!user && mongoose_2.Types.ObjectId.isValid(cleanId)) {
-            user = await this.userModel.findById(cleanId).select('-password -refreshToken');
+            user = await this.userModel
+                .findById(cleanId)
+                .select('-password -refreshToken');
         }
         if (!user)
             throw new common_1.NotFoundException('المستخدم غير موجود');
@@ -61,7 +75,7 @@ let UsersService = UsersService_1 = class UsersService {
     }
     async toggleActive(id) {
         const cleanId = id ? id.trim() : '';
-        let user = await this.userModel.findOne({ userId: cleanId });
+        let user = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanId));
         if (!user && mongoose_2.Types.ObjectId.isValid(cleanId)) {
             user = await this.userModel.findById(cleanId);
         }
@@ -101,31 +115,44 @@ let UsersService = UsersService_1 = class UsersService {
     }
     async updateRole(id, role) {
         const cleanId = id ? id.trim() : '';
-        let user = await this.userModel.findOne({ userId: cleanId });
+        const targetRole = (role || '').toString().trim().toLowerCase();
+        let user = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanId));
         if (!user && mongoose_2.Types.ObjectId.isValid(cleanId)) {
             user = await this.userModel.findById(cleanId);
         }
         if (!user)
             throw new common_1.NotFoundException('المستخدم غير موجود');
+        if (!ASSIGNABLE_ROLES.includes(targetRole)) {
+            throw new common_1.BadRequestException('رتبة غير صالحة. الرتب المسموحة: عميل، مشرف، وكيل');
+        }
         if (user.role === role_enum_1.Role.ADMIN) {
             throw new common_1.BadRequestException('لا يمكن تغيير رتبة حساب الأدمن');
         }
-        if (role === role_enum_1.Role.USER) {
-            const [assignedProducts, activeOrders] = await Promise.all([
+        if (user.role === targetRole) {
+            throw new common_1.BadRequestException(`"${user.name}" يحمل رتبة «${ROLE_LABELS[targetRole]}» بالفعل`);
+        }
+        if (targetRole === role_enum_1.Role.USER) {
+            const [assignedProducts, activeOrders, linkedCustomers] = await Promise.all([
                 this.productModel.countDocuments({ assignedSupervisorId: user._id }),
                 this.orderModel.countDocuments({
                     assignedSupervisorId: user._id,
                     status: { $nin: CLOSED_ORDER_STATUSES },
                 }),
+                this.userModel.countDocuments({ parentAgentId: user._id }),
             ]);
             if (assignedProducts > 0 || activeOrders > 0) {
                 throw new common_1.BadRequestException('لا يمكن إرجاع هذا المستخدم إلى عميل لأنه ما زال مسؤولاً عن خدمات أو طلبات مسندة إليه. ألغِ إسناده أولاً.');
             }
+            if (linkedCustomers > 0) {
+                throw new common_1.BadRequestException(`لا يمكن إرجاع الوكيل إلى عميل لأن لديه ${linkedCustomers} عميل مرتبط به ويستخدم رصيده. انقل عملاءه إلى وكيل آخر أولاً.`);
+            }
         }
-        user.role = role;
+        const previousRole = user.role;
+        user.role = targetRole;
         await user.save();
+        this.logger.log(`تم تغيير رتبة ${user.email} من «${ROLE_LABELS[previousRole] ?? previousRole}» إلى «${ROLE_LABELS[targetRole]}»`);
         return {
-            message: 'تم تحديث الرتبة بنجاح',
+            message: `تم تحديث رتبة "${user.name}" إلى ${ROLE_LABELS[targetRole]}`,
             user: {
                 _id: user._id,
                 name: user.name,
@@ -136,7 +163,7 @@ let UsersService = UsersService_1 = class UsersService {
     }
     async updateDetails(id, dto) {
         const cleanId = id ? id.trim() : '';
-        let user = await this.userModel.findOne({ userId: cleanId });
+        let user = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanId));
         if (!user && mongoose_2.Types.ObjectId.isValid(cleanId)) {
             user = await this.userModel.findById(cleanId);
         }

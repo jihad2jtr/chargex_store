@@ -113,6 +113,10 @@ __decorate([
     __metadata("design:type", String)
 ], Order.prototype, "orderNumber", void 0);
 __decorate([
+    (0, mongoose_1.Prop)({ trim: true, unique: true, sparse: true }),
+    __metadata("design:type", String)
+], Order.prototype, "requestId", void 0);
+__decorate([
     (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User', required: true, index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Order.prototype, "userId", void 0);

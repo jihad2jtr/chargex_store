@@ -126,6 +126,37 @@ void main() {
     );
   });
 
+  // تبويب الآيدي: نص المعرّف وزر نسخه مضغوطان (بلا أحجام افتراضية كبيرة)
+  testWidgets('تبويب الآيدي: المعرّف وزر النسخ بحجم مضغوط', (
+    WidgetTester w,
+  ) async {
+    await _pumpTopup(w, width: 340);
+    await _openMethod(w, 'الآيدي');
+
+    expect(find.byType(BottomSheet), findsOneWidget);
+
+    // find.text يلتقي النص الداخلي، فلا بد من SelectableText نفسه
+    final SelectableText idField = w
+        .widgetList<SelectableText>(find.byType(SelectableText))
+        .single;
+    expect(idField.data, '8940-CX');
+    expect(idField.style?.fontSize, lessThanOrEqualTo(14));
+
+    // الزر: ElevatedButton.icon يبني نوعاً خاصاً فرعياً، فلا بد من bySubtype
+    final ElevatedButton button = w.widget<ElevatedButton>(
+      find.bySubtype<ElevatedButton>(),
+    );
+    // بلا الحد الافتراضي (64×40) وبلا وسادة لمس: الارتفاع الفعلي بقي مضغوطاً
+    expect(
+      button.style?.minimumSize?.resolve(const <WidgetState>{})?.height,
+      28,
+    );
+    expect(button.style?.tapTargetSize, MaterialTapTargetSize.shrinkWrap);
+    expect(w.getRect(find.bySubtype<ElevatedButton>()).height, lessThan(34));
+
+    expect(testerLayoutException(w), isNull);
+  });
+
   testWidgets('النافذة تعمل على شاشة ضيقة 320px', (WidgetTester w) async {
     await _pumpTopup(w, width: 320);
     await _openMethod(w, 'Binance');

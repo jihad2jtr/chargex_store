@@ -23,16 +23,30 @@ export class CodesService {
     return `CHG-${part1}-${part2}`;
   }
 
+  // معرّف الدفعة: يطبع في عنوان كل قسيمة ضمن مجموعة واحدة (B-20261028-3F1A)
+  private generateBatchId(): string {
+    const now = new Date();
+    const stamp = [
+      now.getFullYear(),
+      String(now.getMonth() + 1).padStart(2, '0'),
+      String(now.getDate()).padStart(2, '0'),
+    ].join('');
+    return `B-${stamp}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+  }
+
   // Admin: create batch of shipping / recharge codes
   async generateCodes(params: {
     amount: number;
     count: number;
     adminId: string;
+    note?: string;
   }) {
     if (params.amount <= 0) {
       throw new BadRequestException('قيمة الكود يجب أن تكون أكبر من صفر');
     }
-    const count = Math.min(params.count || 1, 50);
+    const count = Math.min(Math.max(params.count || 1, 1), 50);
+    const batchId = this.generateBatchId();
+    const batchNote = (params.note || '').trim() || undefined;
     const createdCodes: ShippingCodeDocument[] = [];
 
     for (let i = 0; i < count; i++) {
@@ -48,6 +62,8 @@ export class CodesService {
         isUsed: false,
         isActive: true,
         createdBy: new Types.ObjectId(params.adminId),
+        batchId,
+        batchNote,
       });
       await item.save();
       createdCodes.push(item);
@@ -55,6 +71,8 @@ export class CodesService {
 
     return {
       message: `تم إنشاء ${createdCodes.length} كود شحن بقيمة $${params.amount} بنجاح`,
+      batchId,
+      batchNote,
       codes: createdCodes,
     };
   }
@@ -69,7 +87,8 @@ export class CodesService {
       .find(query)
       .populate('usedBy', 'name email phone userId')
       .sort({ createdAt: -1 })
-      .limit(200);
+      // سقف مرتفع كي لا تنقص دفعة عند التصدير (حدف الوسط = قسائم مفقودة في الـ PDF)
+      .limit(500);
   }
 
   // Admin: toggle active code

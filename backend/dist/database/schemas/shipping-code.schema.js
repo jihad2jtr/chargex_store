@@ -43,6 +43,14 @@ __decorate([
     (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'User' }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], ShippingCode.prototype, "createdBy", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ index: true }),
+    __metadata("design:type", String)
+], ShippingCode.prototype, "batchId", void 0);
+__decorate([
+    (0, mongoose_1.Prop)(),
+    __metadata("design:type", String)
+], ShippingCode.prototype, "batchNote", void 0);
 exports.ShippingCode = ShippingCode = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], ShippingCode);

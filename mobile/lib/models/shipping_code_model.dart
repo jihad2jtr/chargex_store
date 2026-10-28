@@ -8,6 +8,10 @@ class ShippingCodeModel {
   final bool isActive;
   final DateTime? createdAt;
 
+  // الدفعة: كل قسائم توليدة واحدة يشتركان فيها، للتصدير مجموعةً مجموعة
+  final String? batchId;
+  final String? batchNote;
+
   ShippingCodeModel({
     required this.id,
     required this.code,
@@ -17,6 +21,8 @@ class ShippingCodeModel {
     this.usedAt,
     this.isActive = true,
     this.createdAt,
+    this.batchId,
+    this.batchNote,
   });
 
   factory ShippingCodeModel.fromJson(Map<String, dynamic> json) {
@@ -35,6 +41,8 @@ class ShippingCodeModel {
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString())
           : null,
+      batchId: json['batchId']?.toString(),
+      batchNote: json['batchNote']?.toString(),
     );
   }
 
@@ -45,6 +53,8 @@ class ShippingCodeModel {
       'amount': amount,
       'isUsed': isUsed,
       'isActive': isActive,
+      'batchId': batchId,
+      'batchNote': batchNote,
     };
   }
 }

@@ -13,6 +13,7 @@ exports.UserSchema = exports.User = void 0;
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const role_enum_1 = require("../../common/interfaces/role.enum");
+const user_id_util_1 = require("../../common/utils/user-id.util");
 let User = class User {
 };
 exports.User = User;
@@ -89,20 +90,7 @@ exports.UserSchema = mongoose_1.SchemaFactory.createForClass(User);
 exports.UserSchema.pre('save', async function () {
     if (!this.userId) {
         const model = this.constructor;
-        let unique = false;
-        while (!unique) {
-            const now = new Date();
-            const yy = String(now.getFullYear()).slice(-2);
-            const mm = String(now.getMonth() + 1).padStart(2, '0');
-            const dd = String(now.getDate()).padStart(2, '0');
-            const rand = Math.floor(10000 + Math.random() * 90000);
-            const candidateId = `jgo${yy}${mm}${dd}${rand}`;
-            const existing = await model.findOne({ userId: candidateId });
-            if (!existing) {
-                this.userId = candidateId;
-                unique = true;
-            }
-        }
+        this.userId = await (0, user_id_util_1.generateUserId)(async (candidateId) => Boolean(await model.findOne((0, user_id_util_1.userIdFilter)(candidateId))));
     }
 });
 //# sourceMappingURL=user.schema.js.map

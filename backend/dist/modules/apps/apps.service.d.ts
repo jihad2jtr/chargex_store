@@ -1,26 +1,29 @@
-import { Model } from 'mongoose';
+import { Model, Types } from 'mongoose';
 import { App, AppDocument } from '../../database/schemas/app.schema';
 import { ProductDocument } from '../../database/schemas/product.schema';
+import { ProviderDocument } from '../../database/schemas/provider.schema';
 export declare class AppsService {
     private appModel;
     private productModel;
-    constructor(appModel: Model<AppDocument>, productModel: Model<ProductDocument>);
-    findActive(): Promise<(import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    private providerModel;
+    constructor(appModel: Model<AppDocument>, productModel: Model<ProductDocument>, providerModel: Model<ProviderDocument>);
+    findActive(): Promise<(import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     })[]>;
-    findAllAdmin(): Promise<(import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    private hasActiveProducts;
+    findAllAdmin(): Promise<(import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     })[]>;
-    findOne(id: string): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    findOne(id: string): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
@@ -34,22 +37,22 @@ export declare class AppsService {
         category?: string;
         description?: string;
         isActive?: boolean;
-    }): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    }): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    update(id: string, updateDto: any): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    update(id: string, updateDto: any): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {
         id: string;
     }>;
-    toggleActive(id: string): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-        _id: import("mongoose").Types.ObjectId;
+    toggleActive(id: string): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
     }> & {
         __v: number;
     } & {

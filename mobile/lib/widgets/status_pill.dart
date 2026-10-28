@@ -86,12 +86,17 @@ class StatusPill extends StatelessWidget {
             decoration: BoxDecoration(color: fg, shape: BoxShape.circle),
           ),
           const SizedBox(width: 5),
-          Text(
-            display,
-            style: AppTypography.cairo(
-              color: fg,
-              fontSize: 10.5,
-              fontWeight: FontWeight.w800,
+          // Flexible: التسمية الطويلة تُقتطع بدل أن تفيض على الشارة
+          Flexible(
+            child: Text(
+              display,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                color: fg,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],

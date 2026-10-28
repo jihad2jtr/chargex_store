@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../providers/admin_provider.dart';
+import '../../widgets/digital_pass_card.dart';
 
 /// صفحة إدارة المستخدمين: عرض كل الحسابات، البحث، الترقية إلى وكيل أو مشرف،
 /// الإرجاع إلى عميل، تفعيل/تعطيل الحسابات، وشحن/خصم رصيد العميل مباشرة.
@@ -18,15 +19,15 @@ class UsersManagementScreen extends StatefulWidget {
 
 /// هوية رتبة الوكيل البصرية في هذه الصفحة
 const Color _agentColor = Color(0xFF8B5CF6);
-const LinearGradient _agentGradient = LinearGradient(
-  colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-);
 
 class _UsersManagementScreenState extends State<UsersManagementScreen> {
   final _searchCtrl = TextEditingController();
   String _roleFilter = 'all';
+
+  // مقاسات التذكرة الموحّدة في هذه الشاشة (نفس هوية بقية صفحات الأدمن)
+  static const double _radius = 16;
+  static const double _notch = 8;
+  static const double _stubWidth = 70;
 
   @override
   void initState() {
@@ -146,7 +147,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildMetricsRow(
+              _buildStatsTicket(
                 total: all.length,
                 agents: agentsCount,
                 supervisors: supervisorsCount,
@@ -211,60 +212,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
               const SizedBox(height: 12),
 
               _buildRoleChips(),
-              const SizedBox(height: 18),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.groups_rounded,
-                        size: 18,
-                        color: AppColors.primaryBlue,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        'المستخدمون',
-                        style: AppTypography.cairo(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.slate900,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryBlue.withValues(alpha: 0.10),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '${filtered.length}',
-                          style: AppTypography.plusJakartaSans(
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.primaryBlue,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (admin.isLoading)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.primaryBlue,
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
 
               if (admin.isLoading && all.isEmpty)
                 const Center(
@@ -278,7 +226,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
               else if (filtered.isEmpty)
                 _buildEmptyState()
               else
-                _buildUsersList(filtered, admin),
+                _buildUsersList(filtered, admin, loading: admin.isLoading),
 
               const SizedBox(height: 40),
             ],
@@ -288,133 +236,243 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
     );
   }
 
-  // --- KPI Metrics Row ---
-  Widget _buildMetricsRow({
+  // ---------------------------------------------------------------------------
+  // عناصر هوية التذكرة المشتركة (نفس مقاسات بقية صفحات الأدمن)
+  // ---------------------------------------------------------------------------
+
+  /// غلاف التذكرة: ظل + حد + قصّ بفتحتي تثقيب
+  Widget _ticketShell({
+    required Widget child,
+    double radius = _radius,
+    double notch = _notch,
+    double elevation = 3,
+    Color borderColor = AppColors.outline,
+  }) {
+    return CustomPaint(
+      painter: TicketPassShadowPainter(
+        cornerRadius: radius,
+        notchRadius: notch,
+        notchPositionFraction: 0.5,
+        shadowColor: AppColors.slate900,
+        elevation: elevation,
+      ),
+      child: CustomPaint(
+        foregroundPainter: TicketPassBorderPainter(
+          cornerRadius: radius,
+          notchRadius: notch,
+          notchPositionFraction: 0.5,
+          borderColor: borderColor,
+          borderWidth: 1,
+        ),
+        child: ClipPath(
+          clipper: TicketPassClipper(
+            cornerRadius: radius,
+            notchRadius: notch,
+            notchPositionFraction: 0.5,
+          ),
+          child: Material(color: AppColors.surfaceCard, child: child),
+        ),
+      ),
+    );
+  }
+
+  /// فاصل مثقّب أفقي (نقّاط) بدل الخط الصلب
+  Widget _dashedRule({Color color = AppColors.outlineVariant, double gap = 0}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: gap),
+      child: SizedBox(
+        height: 1,
+        child: CustomPaint(
+          painter: DashedLinePainter(color: color, dashWidth: 4, dashSpace: 4),
+        ),
+      ),
+    );
+  }
+
+  /// خط تثقيب رأسي يفصل خانات العدّادات داخل البطاقة الواحدة
+  Widget _stripDivider() {
+    return SizedBox(
+      height: 44,
+      child: CustomPaint(
+        painter: VerticalDashedLinePainter(
+          color: AppColors.outline,
+          dashHeight: 4,
+          dashSpace: 4,
+        ),
+      ),
+    );
+  }
+
+  /// شارة أيقونة متدرّجة بهوية التذكرة
+  Widget _iconChip(Color color, IconData icon, {double size = 30}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color.lerp(color, Colors.white, 0.28)!, color],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(size * 0.32),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.28),
+            blurRadius: 9,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: Colors.white, size: size * 0.5),
+    );
+  }
+
+  /// خانة عدّاد: أيقونة ملوّنة + رقم + تسمية. FittedBox يمنع طفو أي عنصر
+  Widget _stripCell(String label, String value, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 26,
+            height: 26,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: color.withValues(alpha: 0.26)),
+            ),
+            child: Icon(icon, size: 14, color: color),
+          ),
+          const SizedBox(height: 5),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              maxLines: 1,
+              style: AppTypography.plusJakartaSans(
+                fontSize: 15.5,
+                fontWeight: FontWeight.w900,
+                color: AppColors.slate900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 1),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: AppTypography.cairo(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: AppColors.slate500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // بطاقة عدّادات واحدة: الإجمالي والوكلاء والمشرفون والعملاء والموقوفون
+  // ---------------------------------------------------------------------------
+  Widget _buildStatsTicket({
     required int total,
     required int agents,
     required int supervisors,
     required int customers,
     required int suspended,
   }) {
-    final tiles = <Widget>[
-      _buildMetricTile(
-        'الإجمالي',
-        total.toString(),
-        Icons.people_alt_rounded,
-        AppColors.primaryBlue,
-        AppColors.brandGradient,
-      ),
-      _buildMetricTile(
-        'وكلاء',
-        agents.toString(),
-        Icons.support_agent_rounded,
-        _agentColor,
-        _agentGradient,
-      ),
-      _buildMetricTile(
-        'مشرفون',
-        supervisors.toString(),
-        Icons.verified_user_rounded,
-        AppColors.ticketAmber,
-        AppColors.ticketGoldGradient,
-      ),
-      _buildMetricTile(
-        'عملاء',
-        customers.toString(),
-        Icons.person_rounded,
-        AppColors.tertiary,
-        const LinearGradient(
-          colors: [Color(0xFF10B981), Color(0xFF059669)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-      _buildMetricTile(
-        'موقوفون',
-        suspended.toString(),
-        Icons.block_rounded,
-        AppColors.error,
-        const LinearGradient(
-          colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-      ),
-    ];
-
-    // ثلاث بطاقات في السطر: تحافظ على اتساع الرقم مهما كثرت البطاقات
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double tileWidth = (constraints.maxWidth - 16) / 3;
-        return Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: tiles
-              .map((t) => SizedBox(width: tileWidth, child: t))
-              .toList(),
-        );
-      },
-    );
-  }
-
-  Widget _buildMetricTile(
-    String title,
-    String value,
-    IconData icon,
-    Color color,
-    LinearGradient gradient,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return _ticketShell(
       child: Column(
         children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              gradient: gradient,
-              borderRadius: BorderRadius.circular(11),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.30),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 9),
+            child: Row(
+              children: [
+                _iconChip(AppColors.primaryBlue, Icons.people_alt_rounded),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'عدّادات الحسابات',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.slate900,
+                        ),
+                      ),
+                      Text(
+                        'USERS LEDGER · $total',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.technicalCode(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textMuted,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
-            child: Icon(icon, color: Colors.white, size: 18),
           ),
-          const SizedBox(height: 7),
-          Text(
-            value,
-            style: AppTypography.plusJakartaSans(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            title,
-            style: AppTypography.cairo(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.slate500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          _dashedRule(color: AppColors.outline),
+          Row(
+            children: [
+              Expanded(
+                child: _stripCell(
+                  'الإجمالي',
+                  '$total',
+                  Icons.groups_rounded,
+                  AppColors.primaryBlue,
+                ),
+              ),
+              _stripDivider(),
+              Expanded(
+                child: _stripCell(
+                  'وكلاء',
+                  '$agents',
+                  Icons.support_agent_rounded,
+                  _agentColor,
+                ),
+              ),
+              _stripDivider(),
+              Expanded(
+                child: _stripCell(
+                  'مشرفون',
+                  '$supervisors',
+                  Icons.verified_user_rounded,
+                  AppColors.ticketAmber,
+                ),
+              ),
+              _stripDivider(),
+              Expanded(
+                child: _stripCell(
+                  'عملاء',
+                  '$customers',
+                  Icons.person_rounded,
+                  AppColors.tertiary,
+                ),
+              ),
+              _stripDivider(),
+              Expanded(
+                child: _stripCell(
+                  'موقوفون',
+                  '$suspended',
+                  Icons.block_rounded,
+                  AppColors.error,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -471,30 +529,67 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
     );
   }
 
-  // --- قائمة موحدة بدون فراغات بين الصفوف (تفصلها خطوط) ---
+  // ---------------------------------------------------------------------------
+  // قائمة المستخدمين بتذكرة واحدة: رأس هوية ثم صفوف تفصلها خطوط مثقّبة
+  // ---------------------------------------------------------------------------
   Widget _buildUsersList(
     List<Map<String, dynamic>> users,
-    AdminProvider admin,
-  ) {
-    return Container(
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.04),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    AdminProvider admin, {
+    required bool loading,
+  }) {
+    return _ticketShell(
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 9),
+            child: Row(
+              children: [
+                _iconChip(AppColors.primaryBlue, Icons.groups_rounded),
+                const SizedBox(width: 9),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'المستخدمون',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.slate900,
+                        ),
+                      ),
+                      Text(
+                        'USERS · ${users.length}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.technicalCode(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textMuted,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (loading)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primaryBlue,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          _dashedRule(color: AppColors.outline),
           for (int i = 0; i < users.length; i++) ...[
-            if (i != 0)
-              const Divider(height: 1, thickness: 1, color: AppColors.outline),
+            if (i != 0) _dashedRule(),
             _buildUserTile(users[i], admin),
           ],
         ],
@@ -503,6 +598,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
   }
 
   // --- User Tile ---
+  /// صف مستخدم داخل التذكرة: جسم بالاسم والشارات وكعب بالرصيد على الحافة
   Widget _buildUserTile(Map<String, dynamic> user, AdminProvider admin) {
     final role = _roleOfUser(user);
     final roleColor = _roleColorOf(role);
@@ -513,125 +609,137 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
     final isActive = user['isActive'] != false;
 
     return Material(
-      color: isActive ? Colors.white : AppColors.rose.withValues(alpha: 0.04),
+      color: isActive
+          ? AppColors.surfaceCard
+          : AppColors.rose.withValues(alpha: 0.05),
       child: InkWell(
         onTap: () => _openDetails(user, admin),
-        child: Stack(
-          children: [
-            // شريط لون الدور على الحافة
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: 4,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      roleColor,
-                      Color.lerp(roleColor, Colors.white, 0.55)!,
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 40,
+                        height: 40,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Color.lerp(roleColor, Colors.white, 0.28)!,
+                              roleColor,
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: roleColor.withValues(alpha: 0.26),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Text(
+                          name.isNotEmpty ? name.characters.first : '؟',
+                          style: AppTypography.cairo(
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 11),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              name,
+                              style: AppTypography.cairo(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.slate900,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 5),
+                            // Wrap بدل Row: الشارات تنزل سطرًا عند ضيق المساحة
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 4,
+                              children: [
+                                _buildRoleBadge(role),
+                                _buildStatusPill(isActive),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const Icon(
+                        Icons.chevron_left_rounded,
+                        size: 20,
+                        color: AppColors.slate400,
+                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-              child: Row(
-                children: [
-                  Container(
-                    width: 44,
-                    height: 44,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          Color.lerp(roleColor, Colors.white, 0.28)!,
-                          roleColor,
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(13),
-                      boxShadow: [
-                        BoxShadow(
-                          color: roleColor.withValues(alpha: 0.30),
-                          blurRadius: 9,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      name.isNotEmpty ? name.characters.first : '؟',
-                      style: AppTypography.cairo(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
-                    ),
+              // خط التثقيب الفاصل بين الجسم وكعب الرصيد
+              SizedBox(
+                width: 1,
+                child: CustomPaint(
+                  painter: VerticalDashedLinePainter(
+                    color: AppColors.outlineVariant,
+                    dashHeight: 5,
+                    dashSpace: 4,
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: AppTypography.cairo(
-                            fontSize: 14.5,
-                            fontWeight: FontWeight.w800,
-                            color: AppColors.slate900,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 6),
-                        // Wrap بدل Row: الشارات تنزل سطرًا عند ضيق المساحة
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 4,
-                          children: [
-                            _buildRoleBadge(role),
-                            _buildStatusPill(isActive),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        '\$${balance.toStringAsFixed(2)}',
-                        style: AppTypography.plusJakartaSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.tertiary,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        'الرصيد',
-                        style: AppTypography.cairo(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.slate500,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.chevron_left_rounded,
-                    size: 22,
-                    color: AppColors.slate400,
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+              // الكعب: عرض ثابت حتى لا يضغط الاسم، والرقم ينكمش بلا طفو
+              Container(
+                width: _stubWidth,
+                color: roleColor.withValues(alpha: 0.06),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        '\$${balance.toStringAsFixed(2)}',
+                        maxLines: 1,
+                        style: AppTypography.plusJakartaSans(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: balance < 0
+                              ? AppColors.error
+                              : AppColors.tertiary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'الرصيد',
+                      maxLines: 1,
+                      style: AppTypography.cairo(
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

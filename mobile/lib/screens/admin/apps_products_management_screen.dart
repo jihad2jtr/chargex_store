@@ -1126,17 +1126,17 @@ class _AppsAndProductsManagementScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'إدارة التطبيقات والمنتجات',
+                    'إدارة التطبيقات',
                     style: AppTypography.cairo(
                       fontWeight: FontWeight.w900,
-                      fontSize: 16.5,
+                      fontSize: 14.5,
                       color: AppColors.slate900,
                     ),
                   ),
                   Text(
                     'APP & PRODUCT INVENTORY',
                     style: AppTypography.technicalCode(
-                      fontSize: 9.5,
+                      fontSize: 7,
                       fontWeight: FontWeight.bold,
                       color: AppColors.slate500,
                       letterSpacing: 0.8,
@@ -1157,7 +1157,7 @@ class _AppsAndProductsManagementScreenState
             },
           ),
           Padding(
-            padding: const EdgeInsets.only(left: 12),
+            padding: const EdgeInsets.only(left: 10),
             child: ElevatedButton.icon(
               icon: const Icon(
                 Icons.add_rounded,
@@ -1165,7 +1165,7 @@ class _AppsAndProductsManagementScreenState
                 color: Colors.white,
               ),
               label: Text(
-                'إضافة تطبيق',
+                '',
                 style: AppTypography.cairo(
                   fontSize: 12,
                   fontWeight: FontWeight.w800,
@@ -1175,12 +1175,9 @@ class _AppsAndProductsManagementScreenState
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryBlue,
                 elevation: 0,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 5),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(25),
                 ),
               ),
               onPressed: () => _openAddEditAppDialog(),
@@ -1475,28 +1472,28 @@ class _AppsAndProductsManagementScreenState
                 Row(
                   children: [
                     _buildMetricBentoSlot(
-                      title: 'إجمالي التطبيقات',
+                      title: 'إجمالي',
                       value: '$totalApps',
                       icon: Icons.apps_rounded,
                       accentColor: AppColors.primaryBlue,
                     ),
                     const SizedBox(width: 8),
                     _buildMetricBentoSlot(
-                      title: 'تطبيقات نشطة',
+                      title: 'نشطة',
                       value: '$activeApps',
                       icon: Icons.check_circle_rounded,
                       accentColor: AppColors.accentGreen,
                     ),
                     const SizedBox(width: 8),
                     _buildMetricBentoSlot(
-                      title: 'معطلة ومخفية',
+                      title: 'معطلة',
                       value: '$inactiveApps',
                       icon: Icons.visibility_off_rounded,
                       accentColor: AppColors.rose,
                     ),
                     const SizedBox(width: 8),
                     _buildMetricBentoSlot(
-                      title: 'باقات الشحن',
+                      title: 'باقات ',
                       value: '$totalProducts',
                       icon: Icons.inventory_2_rounded,
                       accentColor: AppColors.ticketAmber,

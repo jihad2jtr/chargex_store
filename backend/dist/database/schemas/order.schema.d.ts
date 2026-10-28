@@ -208,6 +208,7 @@ export declare const OrderChatMessageSchema: import("mongoose").Schema<OrderChat
 }, OrderChatMessage>;
 export declare class Order {
     orderNumber: string;
+    requestId?: string;
     userId: Types.ObjectId;
     appId: Types.ObjectId;
     productId: Types.ObjectId;
@@ -257,6 +258,15 @@ export declare const OrderSchema: import("mongoose").Schema<Order, import("mongo
     id: string;
 }>, {
     orderNumber?: import("mongoose").SchemaDefinitionProperty<string, Order, Document<unknown, {}, Order, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    requestId?: import("mongoose").SchemaDefinitionProperty<string | undefined, Order, Document<unknown, {}, Order, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
         _id: Types.ObjectId;

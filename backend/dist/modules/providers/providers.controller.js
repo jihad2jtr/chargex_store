@@ -38,6 +38,9 @@ let ProvidersController = class ProvidersController {
     async remove(id) {
         return this.providersService.remove(id);
     }
+    async toggleActive(id) {
+        return this.providersService.toggleActive(id);
+    }
     async checkStatus(id) {
         return this.providersService.checkStatus(id);
     }
@@ -107,6 +110,13 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], ProvidersController.prototype, "remove", null);
+__decorate([
+    (0, common_1.Patch)(':id/toggle-active'),
+    __param(0, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], ProvidersController.prototype, "toggleActive", null);
 __decorate([
     (0, common_1.Post)(':id/check-status'),
     __param(0, (0, common_1.Param)('id')),

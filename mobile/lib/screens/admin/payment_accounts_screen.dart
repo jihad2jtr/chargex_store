@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
@@ -532,12 +533,16 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
               ),
             ),
             const SizedBox(width: 10),
-            Text(
-              'حسابات الدفع',
-              style: AppTypography.cairo(
-                fontSize: 17,
-                fontWeight: FontWeight.w800,
-                color: AppColors.slate900,
+            Flexible(
+              child: Text(
+                'حسابات الدفع',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cairo(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate900,
+                ),
               ),
             ),
           ],
@@ -809,6 +814,8 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
                     children: [
                       Text(
                         acc.accountName.isEmpty ? 'بدون اسم' : acc.accountName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
                           fontSize: 15,
                           fontWeight: FontWeight.w800,
@@ -829,16 +836,20 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
                             ),
                           ),
                           const SizedBox(width: 6),
-                          Text(
-                            acc.isActive
-                                ? 'مفعّل ويظهر للمستخدمين'
-                                : 'معطّل ومخفي',
-                            style: AppTypography.cairo(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w700,
-                              color: acc.isActive
-                                  ? AppColors.emerald
-                                  : AppColors.rose,
+                          Flexible(
+                            child: Text(
+                              acc.isActive
+                                  ? 'مفعّل ويظهر للمستخدمين'
+                                  : 'معطّل ومخفي',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.cairo(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: acc.isActive
+                                    ? AppColors.emerald
+                                    : AppColors.rose,
+                              ),
                             ),
                           ),
                         ],
@@ -858,33 +869,81 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
           ),
           const Divider(height: 1, thickness: 1, color: AppColors.outline),
 
-          // رقم الحساب
+          // رقم الحساب — التسمية في سطر والرقم في سطر كامل العرض كي لا يفيض
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.badge_outlined,
-                  size: 16,
-                  color: AppColors.slate500,
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.badge_outlined,
+                      size: 16,
+                      color: AppColors.slate500,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _idLabel(type),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.slate500,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 8),
-                Text(
-                  _idLabel(type),
-                  style: AppTypography.cairo(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.slate500,
-                  ),
-                ),
-                const Spacer(),
-                SelectableText(
-                  acc.accountId,
-                  style: AppTypography.spaceMono(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: color,
-                  ),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Directionality(
+                        textDirection: TextDirection.ltr,
+                        child: SelectableText(
+                          acc.accountId,
+                          style: AppTypography.spaceMono(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      tooltip: 'نسخ رقم الحساب',
+                      icon: const Icon(
+                        Icons.copy_rounded,
+                        size: 16,
+                        color: AppColors.slate500,
+                      ),
+                      padding: EdgeInsets.zero,
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints.tightFor(
+                        width: 32,
+                        height: 32,
+                      ),
+                      onPressed: () {
+                        Clipboard.setData(ClipboardData(text: acc.accountId));
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'تم نسخ رقم الحساب 📋',
+                              style: AppTypography.cairo(),
+                            ),
+                            backgroundColor: AppColors.emerald,
+                            behavior: SnackBarBehavior.floating,
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -901,15 +960,18 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
                   activeThumbColor: AppColors.emerald,
                   onChanged: (_) => admin.togglePaymentAccount(acc.id),
                 ),
-                Text(
-                  acc.isActive ? 'مفعّل' : 'معطّل',
-                  style: AppTypography.cairo(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.slate600,
+                Expanded(
+                  child: Text(
+                    acc.isActive ? 'مفعّل' : 'معطّل',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.cairo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.slate600,
+                    ),
                   ),
                 ),
-                const Spacer(),
                 IconButton(
                   tooltip: 'تعديل',
                   icon: const Icon(

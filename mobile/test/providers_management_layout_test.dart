@@ -69,14 +69,17 @@ ProviderModel _provider({
   );
 }
 
+/// التذاكر أطول من البطاقات القديمة، لذلك يطلب اختبار التفاعل ارتفاعاً
+/// وهمياً يكفي لإظهار أزرار كل المزودين داخل الشاشة (بلا تمرير).
 Future<List<Object>> _pumpScreen(
   WidgetTester w, {
   double width = 360,
+  double height = 900,
   required _SeededAdmin admin,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
 
-  w.view.physicalSize = Size(width, 900);
+  w.view.physicalSize = Size(width, height);
   w.view.devicePixelRatio = 1.0;
   addTearDown(w.view.resetPhysicalSize);
   addTearDown(w.view.resetDevicePixelRatio);
@@ -224,7 +227,9 @@ void main() {
       _provider(id: 'p1', name: 'Fox Reload'),
       _provider(id: 'p2', name: 'Bay2Game', isActive: false),
     ]);
-    await _pumpScreen(w, admin: admin);
+    // التذاكر أطول من البطاقات القديمة: ارتفاع يتسع لزر كل مزود حتى لا
+    // يفشل اللمس لأن الهدف خارج الشاشة
+    await _pumpScreen(w, admin: admin, height: 2400);
 
     // مزود موقوف: التفعيل لا يحتاج تأكيداً
     await w.tap(find.byTooltip('تفعيل المزود'));

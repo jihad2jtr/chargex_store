@@ -31,6 +31,7 @@ let OrdersController = class OrdersController {
             userId: user._id.toString(),
             productId: body.productId,
             accountInput: body.accountInput,
+            requestId: body.requestId,
         });
     }
     async getMyOrders(user) {

@@ -2,14 +2,16 @@ import { Model, Types } from 'mongoose';
 import { Provider, ProviderDocument, ProviderType } from '../../database/schemas/provider.schema';
 import { ProviderProductDocument } from '../../database/schemas/provider-product.schema';
 import { Product, ProductDocument } from '../../database/schemas/product.schema';
+import { NotificationsService } from '../notifications/notifications.service';
 export declare class ProvidersService {
     private providerModel;
     private providerProductModel;
     private productModel;
+    private readonly notificationsService;
     private static readonly ORDER_TIMEOUT_MS;
     private static readonly STATUS_TIMEOUT_MS;
     private readonly logger;
-    constructor(providerModel: Model<ProviderDocument>, providerProductModel: Model<ProviderProductDocument>, productModel: Model<ProductDocument>);
+    constructor(providerModel: Model<ProviderDocument>, providerProductModel: Model<ProviderProductDocument>, productModel: Model<ProductDocument>, notificationsService: NotificationsService);
     private isTimeoutError;
     private isBay2Game;
     private isFoxReload;
@@ -50,6 +52,13 @@ export declare class ProvidersService {
     } & {
         id: string;
     }>;
+    toggleActive(id: string): Promise<import("mongoose").Document<unknown, {}, ProviderDocument, {}, import("mongoose").DefaultSchemaOptions> & Provider & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
     private computeSalePrice;
     recalculateProviderPrices(providerId: string): Promise<{
         message: string;
@@ -66,8 +75,10 @@ export declare class ProvidersService {
         id: string;
     }>;
     private static readonly STATUS_TTL_MS;
+    private isInsufficientBalanceError;
+    private disableForInsufficientBalance;
     ensureReadyForOrder(providerId: string, requiredCost?: number): Promise<ProviderDocument>;
-    markProviderFailure(providerId: string, message: string): Promise<void>;
+    markProviderFailure(providerId: string, message: string, requiredCost?: number): Promise<void>;
     inspectOrderStatus(providerId: string, reference: string): Promise<{
         state: 'delivered' | 'failed' | 'pending' | 'unknown';
         codes?: string[];
@@ -139,6 +150,7 @@ export declare class ProvidersService {
         balanceAfter?: number;
         message: string;
         raw?: any;
+        isTimeout?: boolean;
     }>;
     checkOrderStatus(providerId: string, reference: string): Promise<any>;
 }

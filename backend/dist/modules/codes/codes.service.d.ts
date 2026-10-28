@@ -10,12 +10,16 @@ export declare class CodesService {
     private notificationsService;
     constructor(codeModel: Model<ShippingCodeDocument>, userModel: Model<UserDocument>, walletService: WalletService, notificationsService: NotificationsService);
     private generateRandomCode;
+    private generateBatchId;
     generateCodes(params: {
         amount: number;
         count: number;
         adminId: string;
+        note?: string;
     }): Promise<{
         message: string;
+        batchId: string;
+        batchNote: string | undefined;
         codes: ShippingCodeDocument[];
     }>;
     getAllCodes(filter?: {

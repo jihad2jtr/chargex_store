@@ -45,11 +45,16 @@ android {
     signingConfigs {
         if (hasReleaseKeystore) {
             create("release") {
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
+                // .trim() ضروري: أي مسافة في آخر السطر داخل key.properties تجعل
+                // كلمة السر «خاطئة» ويفشل التوقيع بخط keystore password was incorrect
+                val prop: (String) -> String = { key ->
+                    (keystoreProperties[key] as String).trim()
+                }
+                keyAlias = prop("keyAlias")
+                keyPassword = prop("keyPassword")
                 // مسار نسبي لمجلد android/ أو مسار مطلق
-                storeFile = rootProject.file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
+                storeFile = rootProject.file(prop("storeFile"))
+                storePassword = prop("storePassword")
             }
         }
     }

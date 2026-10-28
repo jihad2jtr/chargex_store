@@ -24,8 +24,11 @@ export declare class CodesController {
     generateCodes(admin: UserDocument, body: {
         amount: number;
         count?: number;
+        note?: string;
     }): Promise<{
         message: string;
+        batchId: string;
+        batchNote: string | undefined;
         codes: import("../../database/schemas/shipping-code.schema").ShippingCodeDocument[];
     }>;
     getAllCodes(query: {

@@ -137,6 +137,50 @@ export declare class ProductsService {
     } & {
         id: string;
     }>;
+    findAssignedToSupervisor(supervisorId: string): Promise<{
+        availableCodesCount: number;
+        inventoryCodes: undefined;
+        appId: Types.ObjectId;
+        name: string;
+        serviceTemplateId?: Types.ObjectId;
+        quantityLabel: string;
+        kind: string;
+        description?: string;
+        type: ProductType;
+        providerId?: Types.ObjectId;
+        providerProductCode?: string;
+        costPrice: number;
+        profitMarginType: ProfitMarginType;
+        profitMarginValue: number;
+        salePrice: number;
+        previousPrice?: number;
+        hasPriceChanged: boolean;
+        isActive: boolean;
+        requiredFields: string[];
+        assignedSupervisorId?: Types.ObjectId;
+        estimatedMinutes?: number;
+        isSensitive?: boolean;
+        sensitiveFields?: string[];
+        instructions?: string;
+        _id: Types.ObjectId;
+        $locals: Record<string, unknown>;
+        $op: "save" | "validate" | "remove" | null;
+        $where: Record<string, unknown>;
+        baseModelName?: string;
+        collection: import("mongoose").Collection;
+        db: import("mongoose").Connection;
+        errors?: import("mongoose").Error.ValidationError;
+        isNew: boolean;
+        schema: import("mongoose").Schema;
+        __v: number;
+    }[]>;
+    toggleActiveForSupervisor(id: string, supervisorId: string): Promise<import("mongoose").Document<unknown, {}, ProductDocument, {}, import("mongoose").DefaultSchemaOptions> & Product & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
     remove(id: string): Promise<{
         message: string;
     }>;

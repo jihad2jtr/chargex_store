@@ -24,11 +24,13 @@ const axios_1 = __importDefault(require("axios"));
 const provider_schema_1 = require("../../database/schemas/provider.schema");
 const provider_product_schema_1 = require("../../database/schemas/provider-product.schema");
 const product_schema_1 = require("../../database/schemas/product.schema");
+const notifications_service_1 = require("../notifications/notifications.service");
 let ProvidersService = ProvidersService_1 = class ProvidersService {
-    constructor(providerModel, providerProductModel, productModel) {
+    constructor(providerModel, providerProductModel, productModel, notificationsService) {
         this.providerModel = providerModel;
         this.providerProductModel = providerProductModel;
         this.productModel = productModel;
+        this.notificationsService = notificationsService;
         this.logger = new common_1.Logger(ProvidersService_1.name);
     }
     isTimeoutError(err) {
@@ -111,6 +113,25 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
             await this.recalculateProviderPrices(id);
         }
         return provider;
+    }
+    async toggleActive(id) {
+        const provider = await this.findOne(id);
+        const nextActive = provider.isActive === false;
+        provider.isActive = nextActive;
+        if (!nextActive) {
+            provider.lastError = provider.lastError || 'أُوقف المزود يدوياً من الإدارة';
+            await provider.save();
+            return provider;
+        }
+        provider.lastError = undefined;
+        await provider.save();
+        try {
+            return await this.checkStatus(id);
+        }
+        catch (err) {
+            this.logger.warn(`Post-enable status check failed for ${provider.name}: ${err.message}`);
+            return provider;
+        }
     }
     computeSalePrice(costPrice, marginType, marginValue) {
         const cost = Number(costPrice) || 0;
@@ -212,6 +233,34 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         await provider.save();
         return provider;
     }
+    isInsufficientBalanceError(message) {
+        const msg = (message || '').toLowerCase();
+        if (!msg)
+            return false;
+        return (/insufficient\s+(balance|credit|funds|money)/.test(msg) ||
+            /not\s+enough\s+(balance|credit|funds|money)/.test(msg) ||
+            /(balance|credit|funds)\s+(is\s+)?(too\s+)?(low|empty|zero|exhausted|depleted)/.test(msg) ||
+            /(no|without)\s+(available\s+)?(balance|credit|funds)/.test(msg) ||
+            /out\s+of\s+(balance|credit|funds)/.test(msg) ||
+            /رصيد\s*(المزود|غير|لا|منخفض|صفر)/.test(msg));
+    }
+    async disableForInsufficientBalance(provider, reason) {
+        const updated = await this.providerModel.findOneAndUpdate({ _id: provider._id, isActive: { $ne: false } }, { $set: { isActive: false, status: provider_schema_1.ProviderStatus.ERROR, lastError: reason } }, { new: true });
+        if (!updated)
+            return;
+        this.logger.warn(`Provider ${updated.name} auto-disabled: ${reason}`);
+        try {
+            await this.notificationsService.createNotification({
+                forRole: 'admin',
+                title: 'إيقاف مزود تلقائياً: الرصيد غير كافٍ',
+                body: `أُوقف المزود "${updated.name}" تلقائياً بعد تعذّر تنفيذ طلب بسبب الرصيد (${reason}). أعد شحن رصيده ثم فعّله من إدارة المزودين.`,
+                type: 'provider_alert',
+            });
+        }
+        catch (err) {
+            this.logger.warn(`Provider auto-disable notification failed: ${err?.message}`);
+        }
+    }
     async ensureReadyForOrder(providerId, requiredCost = 0) {
         let provider;
         try {
@@ -237,18 +286,30 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         }
         const balance = typeof provider.balance === 'number' ? provider.balance : 0;
         if (requiredCost > 0 && balance < requiredCost) {
-            throw new common_1.BadRequestException('رصيد مزوّد الخدمة غير كافٍ لتنفيذ هذا الطلب حالياً، ولم يتم خصم أي مبلغ من رصيدك. يرجى المحاولة لاحقاً أو اختيار خدمة أخرى');
+            await this.disableForInsufficientBalance(provider, `الرصيد $${balance.toFixed(2)} أقل من تكلفة الطلب $${requiredCost.toFixed(2)}`).catch((err) => this.logger.warn(`Provider auto-disable failed: ${err.message}`));
+            throw new common_1.BadRequestException('ضغط على السيرفر الرجاء المحاولة لا حقاً');
         }
         return provider;
     }
-    async markProviderFailure(providerId, message) {
+    async markProviderFailure(providerId, message, requiredCost = 0) {
+        const insufficientSignal = this.isInsufficientBalanceError(message);
         try {
             await this.providerModel.updateOne({ _id: providerId }, { $set: { lastError: message } });
         }
         catch (err) {
             this.logger.warn(`Could not persist provider failure: ${err.message}`);
         }
-        this.checkStatus(providerId).catch((err) => this.logger.warn(`Background provider status refresh failed: ${err.message}`));
+        this.checkStatus(providerId)
+            .then((refreshed) => {
+            const balance = typeof refreshed.balance === 'number' ? refreshed.balance : 0;
+            const drained = requiredCost > 0 && balance < requiredCost;
+            if (!insufficientSignal && !drained)
+                return;
+            return this.disableForInsufficientBalance(refreshed, insufficientSignal
+                ? `المزود أبلغ عن نفاد الرصيد: ${message}`
+                : `الرصيد $${balance.toFixed(2)} أقل من تكلفة الطلب $${requiredCost.toFixed(2)}`);
+        })
+            .catch((err) => this.logger.warn(`Background provider status refresh failed: ${err.message}`));
     }
     async inspectOrderStatus(providerId, reference) {
         const provider = await this.findOne(providerId);
@@ -694,6 +755,7 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
                     success: false,
                     message: errMsg,
                     raw: error.response?.data,
+                    isTimeout: this.isTimeoutError(error),
                 };
             }
         }
@@ -767,6 +829,7 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
                     success: false,
                     message: errMsg,
                     raw: error.response?.data,
+                    isTimeout: this.isTimeoutError(error),
                 };
             }
         }
@@ -830,6 +893,7 @@ exports.ProvidersService = ProvidersService = ProvidersService_1 = __decorate([
     __param(2, (0, mongoose_1.InjectModel)(product_schema_1.Product.name)),
     __metadata("design:paramtypes", [mongoose_2.Model,
         mongoose_2.Model,
-        mongoose_2.Model])
+        mongoose_2.Model,
+        notifications_service_1.NotificationsService])
 ], ProvidersService);
 //# sourceMappingURL=providers.service.js.map

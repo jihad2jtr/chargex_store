@@ -18,6 +18,7 @@ const products_service_1 = require("./products.service");
 const jwt_auth_guard_1 = require("../../common/guards/jwt-auth.guard");
 const roles_guard_1 = require("../../common/guards/roles.guard");
 const roles_decorator_1 = require("../../common/decorators/roles.decorator");
+const current_user_decorator_1 = require("../../common/decorators/current-user.decorator");
 const role_enum_1 = require("../../common/interfaces/role.enum");
 let ProductsController = class ProductsController {
     constructor(productsService) {
@@ -31,6 +32,12 @@ let ProductsController = class ProductsController {
     }
     async syncProviderPrices() {
         return this.productsService.updatePricesFromProviders();
+    }
+    async getMyAssigned(user) {
+        return this.productsService.findAssignedToSupervisor(user._id.toString());
+    }
+    async toggleMyService(id, user) {
+        return this.productsService.toggleActiveForSupervisor(id, user._id.toString());
     }
     async getOne(id) {
         return this.productsService.findOne(id);
@@ -76,6 +83,25 @@ __decorate([
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
 ], ProductsController.prototype, "syncProviderPrices", null);
+__decorate([
+    (0, common_1.Get)('my-assigned'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.SUPERVISOR, role_enum_1.Role.ADMIN),
+    __param(0, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], ProductsController.prototype, "getMyAssigned", null);
+__decorate([
+    (0, common_1.Patch)(':id/supervisor-toggle'),
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(role_enum_1.Role.SUPERVISOR, role_enum_1.Role.ADMIN),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], ProductsController.prototype, "toggleMyService", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),

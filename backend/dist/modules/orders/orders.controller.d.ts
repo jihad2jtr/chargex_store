@@ -8,6 +8,7 @@ export declare class OrdersController {
     createOrder(user: UserDocument, body: {
         productId: string;
         accountInput?: Record<string, any>;
+        requestId?: string;
     }): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, import("../../database/schemas/order.schema").OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/order.schema").Order & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
@@ -17,6 +18,11 @@ export declare class OrdersController {
         } & {
             id: string;
         };
+        newBalance: number;
+        deliveredCode?: undefined;
+    } | {
+        message: string;
+        order: any;
         newBalance: number;
         deliveredCode: string | undefined;
     }>;
@@ -60,6 +66,7 @@ export declare class OrdersController {
     getSupervisorOrders(user: UserDocument, status?: string): Promise<{
         isDelayed: boolean | undefined;
         orderNumber: string;
+        requestId?: string;
         userId: import("mongoose").Types.ObjectId;
         appId: import("mongoose").Types.ObjectId;
         productId: import("mongoose").Types.ObjectId;

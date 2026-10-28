@@ -26,6 +26,8 @@ export declare class AgentService {
             suspendedSubUsers: number;
             totalTransferred: number;
             transferCount: any;
+            totalReceived: number;
+            receivedCount: any;
         };
         recentTransfers: (import("mongoose").Document<unknown, {}, WalletTransactionDocument, {}, import("mongoose").DefaultSchemaOptions> & WalletTransaction & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
             _id: Types.ObjectId;
@@ -122,11 +124,22 @@ export declare class AgentService {
             agentDeactivationReason: null;
         };
     }>;
-    getTransferHistory(agentId: string): Promise<(import("mongoose").Document<unknown, {}, WalletTransactionDocument, {}, import("mongoose").DefaultSchemaOptions> & WalletTransaction & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+    getTransferHistory(agentId: string): Promise<{
         _id: Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
+        createdAt: any;
+        direction: string;
+        amount: number;
+        description: string;
+        referenceType: string;
+        counterparty: {
+            name: any;
+            userId: any;
+            email: any;
+        };
+        recipient: {
+            name: any;
+            userId: any;
+            email: any;
+        };
+    }[]>;
 }

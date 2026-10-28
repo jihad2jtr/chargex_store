@@ -151,7 +151,7 @@ class _ManualServicesManagementScreenState
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'إدارة الخدمات اليدوية والمشرفين',
+                'إدارة الخدمات اليدوية',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.cairo(

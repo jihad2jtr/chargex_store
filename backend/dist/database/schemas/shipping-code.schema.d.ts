@@ -8,6 +8,8 @@ export declare class ShippingCode {
     usedAt?: Date;
     isActive: boolean;
     createdBy?: Types.ObjectId;
+    batchId?: string;
+    batchNote?: string;
 }
 export declare const ShippingCodeSchema: import("mongoose").Schema<ShippingCode, import("mongoose").Model<ShippingCode, any, any, any, any, any, ShippingCode & {
     _id: Types.ObjectId;
@@ -77,6 +79,24 @@ export declare const ShippingCodeSchema: import("mongoose").Schema<ShippingCode,
         id: string;
     }>> | undefined;
     createdBy?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId | undefined, ShippingCode, Document<unknown, {}, ShippingCode, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<ShippingCode & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    batchId?: import("mongoose").SchemaDefinitionProperty<string | undefined, ShippingCode, Document<unknown, {}, ShippingCode, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<ShippingCode & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    batchNote?: import("mongoose").SchemaDefinitionProperty<string | undefined, ShippingCode, Document<unknown, {}, ShippingCode, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<ShippingCode & {
         _id: Types.ObjectId;

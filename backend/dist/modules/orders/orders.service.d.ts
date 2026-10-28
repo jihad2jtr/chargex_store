@@ -1,4 +1,5 @@
-import { Model, Types } from 'mongoose';
+import { OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Model, Types, Connection } from 'mongoose';
 import { Order, OrderDocument, OrderStatus, OrderTimelineEvent, OrderChatMessage } from '../../database/schemas/order.schema';
 import { ProductDocument, ProductType } from '../../database/schemas/product.schema';
 import { AppDocument } from '../../database/schemas/app.schema';
@@ -7,7 +8,7 @@ import { WalletTransactionDocument } from '../../database/schemas/wallet-transac
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProvidersService } from '../providers/providers.service';
 import { UsersService } from '../users/users.service';
-export declare class OrdersService {
+export declare class OrdersService implements OnModuleInit, OnModuleDestroy {
     private orderModel;
     private productModel;
     private appModel;
@@ -16,13 +17,32 @@ export declare class OrdersService {
     private notificationsService;
     private providersService;
     private usersService;
+    private readonly connection;
     private readonly logger;
-    constructor(orderModel: Model<OrderDocument>, productModel: Model<ProductDocument>, appModel: Model<AppDocument>, userModel: Model<UserDocument>, transactionModel: Model<WalletTransactionDocument>, notificationsService: NotificationsService, providersService: ProvidersService, usersService: UsersService);
+    private static readonly RECONCILE_INTERVAL_MS;
+    private reconcileTimer?;
+    private reconcileKickoffTimer?;
+    private isReconciling;
+    private txSupported?;
+    constructor(orderModel: Model<OrderDocument>, productModel: Model<ProductDocument>, appModel: Model<AppDocument>, userModel: Model<UserDocument>, transactionModel: Model<WalletTransactionDocument>, notificationsService: NotificationsService, providersService: ProvidersService, usersService: UsersService, connection: Connection);
+    onModuleInit(): void;
+    onModuleDestroy(): void;
+    private runReconciliationPass;
+    private compensateDuplicateDebit;
+    private notifyAdminsSafe;
+    private allocateInventoryCode;
+    private getUserBalance;
+    private refundUnpersistedDebit;
+    private releaseInventoryCode;
+    private isUnsupportedTransactionError;
+    private commitPurchaseMoney;
+    private commitPurchaseSequential;
     private generateOrderNumber;
     createOrder(params: {
         userId: string;
         productId: string;
         accountInput?: Record<string, any>;
+        requestId?: string;
     }): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & Order & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
@@ -32,6 +52,11 @@ export declare class OrdersService {
         } & {
             id: string;
         };
+        newBalance: number;
+        deliveredCode?: undefined;
+    } | {
+        message: string;
+        order: any;
         newBalance: number;
         deliveredCode: string | undefined;
     }>;
@@ -65,6 +90,7 @@ export declare class OrdersService {
     }): Promise<{
         isDelayed: boolean | undefined;
         orderNumber: string;
+        requestId?: string;
         userId: Types.ObjectId;
         appId: Types.ObjectId;
         productId: Types.ObjectId;
@@ -105,7 +131,7 @@ export declare class OrdersService {
         $where: Record<string, unknown>;
         baseModelName?: string;
         collection: import("mongoose").Collection;
-        db: import("mongoose").Connection;
+        db: Connection;
         errors?: import("mongoose").Error.ValidationError;
         isNew: boolean;
         schema: import("mongoose").Schema;

@@ -55,6 +55,7 @@ const config_1 = require("@nestjs/config");
 const bcrypt = __importStar(require("bcryptjs"));
 const user_schema_1 = require("../../database/schemas/user.schema");
 const role_enum_1 = require("../../common/interfaces/role.enum");
+const user_id_util_1 = require("../../common/utils/user-id.util");
 let AuthService = AuthService_1 = class AuthService {
     constructor(userModel, jwtService, configService) {
         this.userModel = userModel;
@@ -70,21 +71,7 @@ let AuthService = AuthService_1 = class AuthService {
         await this.ensureUserIds();
     }
     async generateUniqueUserId() {
-        let unique = false;
-        let userId = '';
-        while (!unique) {
-            const now = new Date();
-            const yy = String(now.getFullYear()).slice(-2);
-            const mm = String(now.getMonth() + 1).padStart(2, '0');
-            const dd = String(now.getDate()).padStart(2, '0');
-            const rand = Math.floor(10000 + Math.random() * 90000);
-            userId = `jgo${yy}${mm}${dd}${rand}`;
-            const existing = await this.userModel.findOne({ userId });
-            if (!existing) {
-                unique = true;
-            }
-        }
-        return userId;
+        return (0, user_id_util_1.generateUserId)(async (candidateId) => Boolean(await this.userModel.findOne((0, user_id_util_1.userIdFilter)(candidateId))));
     }
     async ensureUserIds() {
         try {
@@ -93,7 +80,11 @@ let AuthService = AuthService_1 = class AuthService {
                     { userId: { $exists: false } },
                     { userId: null },
                     { userId: '' },
-                    { userId: { $not: /^(jgo|chx)\d{11}$/i } },
+                    {
+                        userId: {
+                            $not: new RegExp(`^(${user_id_util_1.USER_ID_PREFIX}|chx)\\d{11}$`, 'i'),
+                        },
+                    },
                 ],
             });
             for (const u of usersToMigrate) {

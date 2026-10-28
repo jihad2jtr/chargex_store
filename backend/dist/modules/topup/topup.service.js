@@ -24,6 +24,7 @@ const topup_method_schema_1 = require("../../database/schemas/topup-method.schem
 const user_schema_1 = require("../../database/schemas/user.schema");
 const wallet_transaction_schema_1 = require("../../database/schemas/wallet-transaction.schema");
 const wallet_service_1 = require("../wallet/wallet.service");
+const user_id_util_1 = require("../../common/utils/user-id.util");
 const notifications_service_1 = require("../notifications/notifications.service");
 let TopupService = TopupService_1 = class TopupService {
     constructor(accountModel, manualOrderModel, codeModel, topupMethodModel, userModel, transactionModel, walletService, notificationsService) {
@@ -57,7 +58,9 @@ let TopupService = TopupService_1 = class TopupService {
         return account.save();
     }
     async updateAccount(id, updateData) {
-        const account = await this.accountModel.findByIdAndUpdate(id, updateData, { new: true });
+        const account = await this.accountModel.findByIdAndUpdate(id, updateData, {
+            new: true,
+        });
         if (!account)
             throw new common_1.NotFoundException('الحساب غير موجود');
         return account;
@@ -198,13 +201,14 @@ let TopupService = TopupService_1 = class TopupService {
             throw new common_1.BadRequestException('يرجى إدخال آيدي العميل');
         if (!params.amount)
             throw new common_1.BadRequestException('المبلغ يجب أن يكون أكبر من صفر');
-        let user = await this.userModel.findOne({ userId: cleanId });
+        let user = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanId));
         if (!user && mongoose_2.Types.ObjectId.isValid(cleanId)) {
             user = await this.userModel.findById(cleanId);
         }
         if (!user)
             throw new common_1.NotFoundException('المستخدم غير موجود (يرجى التحقق من آيدي العميل)');
-        const notes = (params.description || '').trim() || (params.amount > 0 ? 'شحن مباشر عبر الآيدي' : 'خصم مباشر عبر الآيدي');
+        const notes = (params.description || '').trim() ||
+            (params.amount > 0 ? 'شحن مباشر عبر الآيدي' : 'خصم مباشر عبر الآيدي');
         const result = await this.walletService.adminAdjustBalance({
             userId: user._id.toString(),
             amount: params.amount,
@@ -237,7 +241,9 @@ let TopupService = TopupService_1 = class TopupService {
         if (manualOrder.status !== manual_order_schema_1.ManualOrderStatus.PENDING) {
             throw new common_1.BadRequestException('تمت معالجة هذا الطلب مسبقاً');
         }
-        const finalAmount = approvedAmount !== undefined && approvedAmount > 0 ? approvedAmount : manualOrder.amount;
+        const finalAmount = approvedAmount !== undefined && approvedAmount > 0
+            ? approvedAmount
+            : manualOrder.amount;
         manualOrder.status = manual_order_schema_1.ManualOrderStatus.APPROVED;
         manualOrder.amount = finalAmount;
         manualOrder.adminNotes = notes || 'تم التحقق من الإيصال والموافقة بنجاح';

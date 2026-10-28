@@ -3,16 +3,21 @@ import 'package:flutter/foundation.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
 import '../models/order_model.dart';
+import '../models/product_model.dart';
 
 class ManualServicesProvider extends ChangeNotifier {
   final ApiClient _api = ApiClient();
 
   List<OrderModel> _supervisorOrders = [];
+  List<ProductModel> _assignedServices = [];
   bool _isLoading = false;
+  bool _isTogglingService = false;
   String? _errorMessage;
 
   List<OrderModel> get supervisorOrders => _supervisorOrders;
+  List<ProductModel> get assignedServices => _assignedServices;
   bool get isLoading => _isLoading;
+  bool get isTogglingService => _isTogglingService;
   String? get errorMessage => _errorMessage;
 
   // --- Supervisor: Fetch assigned orders ---
@@ -44,6 +49,45 @@ class ManualServicesProvider extends ChangeNotifier {
       _isLoading = false;
     }
     notifyListeners();
+  }
+
+  // --- Supervisor: الخدمات (المنتجات) المسندة إليه ---
+  /// تُجلب مع الخدمات الموقوفة مؤقتاً ليراها مقدم الخدمة ويعيد تفعيلها
+  Future<void> fetchAssignedServices({bool silent = false}) async {
+    try {
+      final res = await _api.get(ApiConstants.supervisorAssignedServices);
+      if (res is List) {
+        _assignedServices = res
+            .map((e) => ProductModel.fromJson(Map<String, dynamic>.from(e)))
+            .toList();
+      }
+    } catch (e) {
+      if (!silent) _errorMessage = e.toString();
+    }
+    notifyListeners();
+  }
+
+  /// إيقاف مؤقت / إعادة تفعيل: الخدمة الموقوفة تختفي من واجهة العميل
+  Future<bool> toggleServiceActive(String serviceId) async {
+    _isTogglingService = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final res = await _api.patch('/products/$serviceId/supervisor-toggle');
+      if (res is Map) {
+        final updated = ProductModel.fromJson(Map<String, dynamic>.from(res));
+        final idx = _assignedServices.indexWhere((p) => p.id == updated.id);
+        if (idx >= 0) _assignedServices[idx] = updated;
+      }
+      _isTogglingService = false;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      _isTogglingService = false;
+      notifyListeners();
+      return false;
+    }
   }
 
   // Supervisor: Accept Order

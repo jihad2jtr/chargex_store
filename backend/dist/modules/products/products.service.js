@@ -50,7 +50,12 @@ let ProductsService = ProductsService_1 = class ProductsService {
             .populate('assignedSupervisorId', 'name role')
             .populate('serviceTemplateId')
             .sort({ salePrice: 1 });
-        return products.map((prod) => {
+        return products
+            .filter((prod) => {
+            const provider = prod.providerId;
+            return !provider || provider.isActive !== false;
+        })
+            .map((prod) => {
             const obj = prod.toObject();
             const provider = obj.providerId;
             return {
@@ -203,6 +208,34 @@ let ProductsService = ProductsService_1 = class ProductsService {
         const product = await this.productModel.findById(id);
         if (!product)
             throw new common_1.NotFoundException('المنتج غير موجود');
+        product.isActive = !product.isActive;
+        await product.save();
+        return this.findOne(id);
+    }
+    async findAssignedToSupervisor(supervisorId) {
+        const products = await this.productModel
+            .find({ assignedSupervisorId: new mongoose_2.Types.ObjectId(supervisorId) })
+            .populate('appId', 'name iconUrl')
+            .populate('providerId', 'name status isActive')
+            .populate('serviceTemplateId')
+            .sort({ isActive: -1, salePrice: 1 });
+        return products.map((prod) => {
+            const obj = prod.toObject();
+            return {
+                ...obj,
+                availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
+                inventoryCodes: undefined,
+            };
+        });
+    }
+    async toggleActiveForSupervisor(id, supervisorId) {
+        const product = await this.productModel.findById(id);
+        if (!product)
+            throw new common_1.NotFoundException('الخدمة غير موجودة');
+        if (!product.assignedSupervisorId ||
+            product.assignedSupervisorId.toString() !== supervisorId) {
+            throw new common_1.ForbiddenException('هذه الخدمة غير مسندة إليك');
+        }
         product.isActive = !product.isActive;
         await product.save();
         return this.findOne(id);

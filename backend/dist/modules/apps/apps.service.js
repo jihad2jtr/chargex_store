@@ -18,13 +18,33 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const app_schema_1 = require("../../database/schemas/app.schema");
 const product_schema_1 = require("../../database/schemas/product.schema");
+const provider_schema_1 = require("../../database/schemas/provider.schema");
 let AppsService = class AppsService {
-    constructor(appModel, productModel) {
+    constructor(appModel, productModel, providerModel) {
         this.appModel = appModel;
         this.productModel = productModel;
+        this.providerModel = providerModel;
     }
     async findActive() {
-        return this.appModel.find({ isActive: true }).sort({ sortOrder: 1, createdAt: -1 });
+        const disabledProviderIds = await this.providerModel.find({ isActive: false }).distinct('_id');
+        const appIdsWithActiveProducts = await this.productModel.distinct('appId', {
+            isActive: true,
+            ...(disabledProviderIds.length > 0
+                ? { providerId: { $nin: disabledProviderIds } }
+                : {}),
+        });
+        if (appIdsWithActiveProducts.length === 0)
+            return [];
+        return this.appModel
+            .find({ isActive: true, _id: { $in: appIdsWithActiveProducts } })
+            .sort({ sortOrder: 1, createdAt: -1 });
+    }
+    async hasActiveProducts(appId) {
+        const exists = await this.productModel.exists({
+            appId: new mongoose_2.Types.ObjectId(appId),
+            isActive: true,
+        });
+        return !!exists;
     }
     async findAllAdmin() {
         return this.appModel.find().sort({ sortOrder: 1, createdAt: -1 });
@@ -54,7 +74,7 @@ let AppsService = class AppsService {
         await this.assertUniqueName(createDto.name);
         const app = new this.appModel({
             ...createDto,
-            isActive: createDto.isActive !== undefined ? createDto.isActive : true,
+            isActive: false,
             sortOrder: createDto.sortOrder || 0,
         });
         return app.save();
@@ -63,6 +83,12 @@ let AppsService = class AppsService {
         if (updateDto?.name !== undefined) {
             await this.assertUniqueName(updateDto.name, id);
         }
+        if (updateDto?.isActive === true) {
+            const current = await this.findOne(id);
+            if (!current.isActive && !(await this.hasActiveProducts(id))) {
+                throw new common_1.BadRequestException('لا يمكن تفعيل التطبيق قبل إضافة منتج واحد مفعّل على الأقل');
+            }
+        }
         const app = await this.appModel.findByIdAndUpdate(id, updateDto, { new: true });
         if (!app)
             throw new common_1.NotFoundException('الخدمة / التطبيق غير موجود');
@@ -70,6 +96,9 @@ let AppsService = class AppsService {
     }
     async toggleActive(id) {
         const app = await this.findOne(id);
+        if (!app.isActive && !(await this.hasActiveProducts(id))) {
+            throw new common_1.BadRequestException('لا يمكن تفعيل التطبيق قبل إضافة منتج واحد مفعّل على الأقل');
+        }
         app.isActive = !app.isActive;
         return app.save();
     }
@@ -91,7 +120,9 @@ exports.AppsService = AppsService = __decorate([
     (0, common_1.Injectable)(),
     __param(0, (0, mongoose_1.InjectModel)(app_schema_1.App.name)),
     __param(1, (0, mongoose_1.InjectModel)(product_schema_1.Product.name)),
+    __param(2, (0, mongoose_1.InjectModel)(provider_schema_1.Provider.name)),
     __metadata("design:paramtypes", [mongoose_2.Model,
+        mongoose_2.Model,
         mongoose_2.Model])
 ], AppsService);
 //# sourceMappingURL=apps.service.js.map

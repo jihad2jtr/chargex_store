@@ -35,6 +35,7 @@ let CodesController = class CodesController {
             amount: Number(body.amount),
             count: Number(body.count || 1),
             adminId: admin._id.toString(),
+            note: body.note,
         });
     }
     async getAllCodes(query) {

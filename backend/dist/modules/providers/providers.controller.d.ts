@@ -33,6 +33,13 @@ export declare class ProvidersController {
     remove(id: string): Promise<{
         message: string;
     }>;
+    toggleActive(id: string): Promise<import("mongoose").Document<unknown, {}, import("../../database/schemas/provider.schema").ProviderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/provider.schema").Provider & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+        _id: import("mongoose").Types.ObjectId;
+    }> & {
+        __v: number;
+    } & {
+        id: string;
+    }>;
     checkStatus(id: string): Promise<import("mongoose").Document<unknown, {}, import("../../database/schemas/provider.schema").ProviderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/provider.schema").Provider & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {

@@ -73,6 +73,9 @@ class ApiConstants {
   // Manual Services & Supervisor Workflow Endpoints
   static const String supervisorOrders = '/orders/supervisor/my-orders';
 
+  /// الخدمات المسندة لمقدم الخدمة (المشرف)، وتشمل الموقوفة مؤقتاً
+  static const String supervisorAssignedServices = '/products/my-assigned';
+
   // Users Management Endpoints
   static const String usersList = '/users';
 

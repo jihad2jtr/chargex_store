@@ -653,18 +653,28 @@ class AdminProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> generateShippingCodes(double amount, int count) async {
+  /// يولّد دفعة قسائم ويرجع معرّف الدفعة (null عند الفشل) لعرض خيار التصدير فوراً
+  Future<String?> generateShippingCodes(
+    double amount,
+    int count, {
+    String? note,
+  }) async {
     try {
-      await _api.post(
+      final res = await _api.post(
         ApiConstants.adminCodesGenerate,
-        body: {'amount': amount, 'count': count},
+        body: {
+          'amount': amount,
+          'count': count,
+          if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
+        },
       );
+      final batchId = res is Map ? res['batchId']?.toString() : null;
       await fetchShippingCodes();
-      return true;
+      return batchId ?? '';
     } catch (e) {
       _errorMessage = e.toString();
       notifyListeners();
-      return false;
+      return null;
     }
   }
 

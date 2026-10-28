@@ -66,11 +66,22 @@ let CodesService = class CodesService {
         const part2 = crypto.randomBytes(2).toString('hex').toUpperCase();
         return `CHG-${part1}-${part2}`;
     }
+    generateBatchId() {
+        const now = new Date();
+        const stamp = [
+            now.getFullYear(),
+            String(now.getMonth() + 1).padStart(2, '0'),
+            String(now.getDate()).padStart(2, '0'),
+        ].join('');
+        return `B-${stamp}-${crypto.randomBytes(2).toString('hex').toUpperCase()}`;
+    }
     async generateCodes(params) {
         if (params.amount <= 0) {
             throw new common_1.BadRequestException('قيمة الكود يجب أن تكون أكبر من صفر');
         }
-        const count = Math.min(params.count || 1, 50);
+        const count = Math.min(Math.max(params.count || 1, 1), 50);
+        const batchId = this.generateBatchId();
+        const batchNote = (params.note || '').trim() || undefined;
         const createdCodes = [];
         for (let i = 0; i < count; i++) {
             let uniqueCode = this.generateRandomCode();
@@ -83,12 +94,16 @@ let CodesService = class CodesService {
                 isUsed: false,
                 isActive: true,
                 createdBy: new mongoose_2.Types.ObjectId(params.adminId),
+                batchId,
+                batchNote,
             });
             await item.save();
             createdCodes.push(item);
         }
         return {
             message: `تم إنشاء ${createdCodes.length} كود شحن بقيمة $${params.amount} بنجاح`,
+            batchId,
+            batchNote,
             codes: createdCodes,
         };
     }
@@ -102,7 +117,7 @@ let CodesService = class CodesService {
             .find(query)
             .populate('usedBy', 'name email phone userId')
             .sort({ createdAt: -1 })
-            .limit(200);
+            .limit(500);
     }
     async toggleActive(id) {
         const code = await this.codeModel.findById(id);

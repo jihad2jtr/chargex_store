@@ -1,10 +1,12 @@
 // شحن محفظة العميل عبر شام كاش: لا يُطلب رقم حساب المرسل — المبلغ مع صورة
-// الإيصال يكفيان للتحقق، لذا الحقل أُزيل من النموذج ولم يعد إلزامياً.
+// الإيصال يكفيان للتحقق، والبطاقة تعرض صورة كود الدفع في الأعلى ورقم الحساب
+// تحتها، بكل ألوان شعار شام كاش نفسه.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:layan_chargex/models/payment_account_model.dart';
 import 'package:layan_chargex/models/user_model.dart';
@@ -139,8 +141,11 @@ Future<_FakeWallet> _pumpTopup(
 Future<void> _settle(WidgetTester w) async {
   await w.pump();
   await w.pump(const Duration(milliseconds: 600));
-  while (w.takeException() != null) {
-    // تجاهل أخطاء google_fonts والصور الشبكة الناتجة عن حظر الشبكة
+  while (true) {
+    final Object? error = w.takeException();
+    if (error == null) break;
+    // تُسجَّل لتُفحص لاحقاً: طفو التخطيط وحده يُعتبر فشلاً
+    _collected.add(error);
   }
 }
 
@@ -153,6 +158,16 @@ Future<void> _openShamSheet(WidgetTester w) async {
 
 Finder get _shamAmountField =>
     find.widgetWithText(TextField, 'المبلغ المحول بالدولار (\$ USD)');
+
+/// أخطاء التخطيط المُسجَّلة أثناء التثبيت (الخطوط/الشبكة تُستثنى عند الفحص)
+final List<Object> _collected = <Object>[];
+
+void _expectNoOverflow(int width) {
+  final overflow = _collected
+      .where((e) => e.toString().contains('RenderFlex overflowed'))
+      .toList();
+  expect(overflow, isEmpty, reason: 'طفو تخطيط على ${width}dp: $overflow');
+}
 
 void main() {
   setUpAll(() => HttpOverrides.global = _BlockedHttpOverrides());
@@ -222,5 +237,48 @@ void main() {
       find.widgetWithText(TextField, 'معرف الدفع الخاص بك (Pay ID أو TxID)'),
       findsOneWidget,
     );
+  });
+
+  testWidgets(
+    'بطاقة الحساب: الصورة في الأعلى ورقم الحساب تحتها بألوان الشعار',
+    (w) async {
+      _collected.clear();
+      await _pumpTopup(w, width: 380, height: 2400);
+      await _openShamSheet(w);
+
+      // رقم الحساب الكامل واسم الحساب يظهران بلا اقتطاع
+      expect(find.text('09991112233'), findsOneWidget);
+      expect(find.text('حساب المتجر الرسمي'), findsOneWidget);
+
+      // الترتيب الرأسي المطلوب: صورة كود الدفع أعلى ورقم الحساب تحتها
+      final Rect code = w.getRect(find.byType(QrImageView).first);
+      final Rect idLine = w.getRect(find.text('09991112233'));
+      expect(code.bottom, lessThan(idLine.top));
+
+      // ألوان الشعار: رقم الحساب بلون أزرق الشعار لا الأزرق العام السابق
+      final SelectableText idField = w
+          .widgetList<SelectableText>(find.byType(SelectableText))
+          .single;
+      expect(idField.data, '09991112233');
+      expect(idField.style?.color, const Color(0xFF4E67C3));
+
+      // الضغط لم يمس الصورة: بقيت بمقاسها، ومحتوى البطاقة صار أقصر من 250
+      expect(code.width, greaterThan(130));
+      final Rect hint = w.getRect(
+        find.text('حول إلى هذا الحساب ثم اضغط الصورة للتكبير'),
+      );
+      expect(hint.bottom - code.top, lessThan(250));
+      _expectNoOverflow(380);
+    },
+  );
+
+  testWidgets('البطاقة الجديدة بلا طفو على عرض 320', (w) async {
+    _collected.clear();
+    await _pumpTopup(w, width: 320, height: 2400);
+    await _openShamSheet(w);
+
+    expect(find.text('09991112233'), findsOneWidget);
+    expect(find.text('نسخ'), findsOneWidget);
+    _expectNoOverflow(320);
   });
 }

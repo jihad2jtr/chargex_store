@@ -3,7 +3,9 @@ import { ProductsService } from './products.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/interfaces/role.enum';
+import { UserDocument } from '../../database/schemas/user.schema';
 
 @Controller('products')
 export class ProductsController {
@@ -29,6 +31,22 @@ export class ProductsController {
   @Roles(Role.ADMIN)
   async syncProviderPrices() {
     return this.productsService.updatePricesFromProviders();
+  }
+
+  // Supervisor: الخدمات المسندة إليه (مقدم الخدمة) — تشمل الموقوفة مؤقتاً
+  @Get('my-assigned')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERVISOR, Role.ADMIN)
+  async getMyAssigned(@CurrentUser() user: UserDocument) {
+    return this.productsService.findAssignedToSupervisor(user._id.toString());
+  }
+
+  // Supervisor: إيقاف مؤقت / إعادة تفعيل خدمة مسندة إليه هو فقط
+  @Patch(':id/supervisor-toggle')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.SUPERVISOR, Role.ADMIN)
+  async toggleMyService(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+    return this.productsService.toggleActiveForSupervisor(id, user._id.toString());
   }
 
   @Get(':id')

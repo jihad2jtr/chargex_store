@@ -332,7 +332,7 @@ void main() {
     await w.pump();
     await w.pump(const Duration(milliseconds: 500));
 
-    expect(find.text('سجل الشحن بالآيدي'), findsOneWidget);
+    expect(find.text('سجل الشحن ID'), findsOneWidget);
     // الآيدي المخزّنة تظهر كما هي في سطر بيانات العملية
     expect(find.text('jgo26101512345'), findsWidgets);
     // تلميح حقل الآيدي يقدّم الصيغة الجديدة بأحرف كبيرة

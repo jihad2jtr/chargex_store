@@ -137,7 +137,7 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
         );
       case 'id_topup':
         return (
-          label: 'شحن بالآيدي',
+          label: 'شحن ID',
           icon: Icons.badge_rounded,
           color: AppColors.primaryBlue,
           brand: null,
@@ -1013,7 +1013,7 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
                 child: _segmentItem(
                   active,
                   2,
-                  'شحن بالآيدي',
+                  'شحن ID',
                   Icons.badge_rounded,
                   null,
                 ),
@@ -1610,7 +1610,7 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'شحن رصيد مباشر بالآيدي',
+                        'شحن رصيد مباشر ',
                         style: AppTypography.cairo(
                           fontSize: 13,
                           fontWeight: FontWeight.w900,
@@ -1761,7 +1761,7 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
             const SizedBox(height: 18),
             _listSectionLabel(
               Icons.history_rounded,
-              'سجل الشحن بالآيدي',
+              'سجل الشحن ID',
               idLog.length,
             ),
             ...idLog.take(10).map(_buildTopupCard),

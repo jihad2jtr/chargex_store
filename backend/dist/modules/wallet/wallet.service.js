@@ -18,6 +18,7 @@ const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const wallet_transaction_schema_1 = require("../../database/schemas/wallet-transaction.schema");
 const user_schema_1 = require("../../database/schemas/user.schema");
+const user_id_util_1 = require("../../common/utils/user-id.util");
 const notifications_service_1 = require("../notifications/notifications.service");
 let WalletService = class WalletService {
     constructor(transactionModel, userModel, notificationsService) {
@@ -54,7 +55,7 @@ let WalletService = class WalletService {
             throw new common_1.BadRequestException('المبلغ لا يمكن أن يكون صفراً');
         }
         const cleanInput = params.userId ? params.userId.trim() : '';
-        let user = await this.userModel.findOne({ userId: cleanInput });
+        let user = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanInput));
         if (!user && mongoose_2.Types.ObjectId.isValid(cleanInput)) {
             user = await this.userModel.findById(cleanInput);
         }
@@ -69,11 +70,14 @@ let WalletService = class WalletService {
         await user.save();
         const transaction = new this.transactionModel({
             userId: user._id,
-            type: params.amount > 0 ? wallet_transaction_schema_1.TransactionType.TOPUP : wallet_transaction_schema_1.TransactionType.ADMIN_ADJUSTMENT,
+            type: params.amount > 0
+                ? wallet_transaction_schema_1.TransactionType.TOPUP
+                : wallet_transaction_schema_1.TransactionType.ADMIN_ADJUSTMENT,
             amount: params.amount,
             balanceBefore,
             balanceAfter,
-            description: params.description || (params.amount > 0 ? 'شحن رصيد من الإدارة' : 'خصم رصيد من الإدارة'),
+            description: params.description ||
+                (params.amount > 0 ? 'شحن رصيد من الإدارة' : 'خصم رصيد من الإدارة'),
             referenceType: params.referenceType ?? 'Admin',
             referenceId: params.referenceId ?? params.adminId,
             status: wallet_transaction_schema_1.TransactionStatus.COMPLETED,

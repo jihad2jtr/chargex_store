@@ -25,6 +25,14 @@ export class ShippingCode {
 
   @Prop({ type: Types.ObjectId, ref: 'User' })
   createdBy?: Types.ObjectId;
+
+  // كل دفعة توليد تشترك في معرّف واحد (B-YYYYMMDD-XXXX) كي تُصدَّر القسائم مجموعةً مجموعة
+  @Prop({ index: true })
+  batchId?: string;
+
+  // ملاحظة اختيارية يكتبها الأدمن عند التوليد (اسم الدفعة / الغرفة منها)
+  @Prop()
+  batchNote?: string;
 }
 
 export const ShippingCodeSchema = SchemaFactory.createForClass(ShippingCode);

@@ -14,6 +14,13 @@ import '../../widgets/balance_badge.dart';
 import '../../widgets/brand_logo.dart';
 import '../../widgets/digital_pass_card.dart';
 
+/// لوحة ألوان شعار شام كاش نفسه (أزرق ملكي متدرّج + فيروزي) — مقاسة من
+/// بكسلات الشعار في assets/brands/sham_cash.jpg، ويُبنى تبويب شام كاش كاملاً
+/// بهذه الألوان بدل الأزرق العام فتطابق البطاقة هوية الأيقونة.
+const Color _shamBlue = Color(0xFF4E67C3);
+const Color _shamBlueDeep = Color(0xFF2B3F9E);
+const Color _shamTeal = Color(0xFF3F8F9B);
+
 class TopupScreen extends StatefulWidget {
   final bool showAppBar;
   const TopupScreen({super.key, this.showAppBar = true});
@@ -1015,7 +1022,7 @@ class _TopupScreenState extends State<TopupScreen> {
               id: 'sham_cash',
               title: 'شام كاش',
               icon: Icons.account_balance_wallet_rounded,
-              activeColor: const Color(0xFF2563EB),
+              activeColor: _shamBlue,
               brand: BrandLogo.shamCash,
             ),
           ),
@@ -1287,12 +1294,12 @@ class _TopupScreenState extends State<TopupScreen> {
 
           const SizedBox(height: 12),
 
-          // Luxury ID Showcase Container
+          // Luxury ID Showcase Container — مضغوط: نص المعرّف والزر أصغر
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
               color: const Color(0xFFF8FAFC),
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: const Color(0xFF0284C7).withValues(alpha: 0.3),
               ),
@@ -1307,42 +1314,47 @@ class _TopupScreenState extends State<TopupScreen> {
                       Text(
                         'معرّف حسابك الخاص (UID):',
                         style: AppTypography.cairo(
-                          fontSize: 11,
+                          fontSize: 10,
                           color: const Color(0xFF64748B),
                         ),
                       ),
-                      const SizedBox(height: 3),
+                      const SizedBox(height: 2),
                       SelectableText(
                         userId,
                         style: AppTypography.technicalCode(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w800,
                           color: const Color(0xFF0284C7),
-                          letterSpacing: 1.5,
+                          letterSpacing: 0.8,
                         ),
                       ),
                     ],
                   ),
                 ),
                 ElevatedButton.icon(
-                  icon: const Icon(Icons.copy_rounded, size: 15),
+                  icon: const Icon(Icons.copy_rounded, size: 13),
                   label: Text(
                     'نسخ الآيدي',
                     style: AppTypography.cairo(
                       fontWeight: FontWeight.bold,
-                      fontSize: 12,
+                      fontSize: 10.5,
                     ),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF0284C7),
                     foregroundColor: Colors.white,
                     elevation: 0,
+                    // بلا الحد الافتراضي (64×40) وبلا وسادة اللمس (48→40) وإلا
+                    // يبقى الزر كبيراً في الصف حتى بعد تصغير الحواف والخط
+                    minimumSize: const Size(0, 28),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
+                      horizontal: 10,
+                      vertical: 5,
                     ),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   onPressed: () {
@@ -1463,7 +1475,7 @@ class _TopupScreenState extends State<TopupScreen> {
 
     return _sectionCard(
       key: const ValueKey('tab_sham_cash'),
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -1471,9 +1483,14 @@ class _TopupScreenState extends State<TopupScreen> {
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(7),
+                padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF2563EB).withValues(alpha: 0.12),
+                  // تدرّج ثنائي اللون من الشعار نفسه (أزرق ← فيروزي)
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [_shamBlue, _shamTeal],
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const BrandLogo(
@@ -1487,43 +1504,40 @@ class _TopupScreenState extends State<TopupScreen> {
                 child: Text(
                   'حسابات الدفع عبر شام كاش',
                   style: AppTypography.cairo(
-                    fontSize: 14,
+                    fontSize: 13,
                     fontWeight: FontWeight.w800,
-                    color: const Color(0xFF0F172A),
+                    color: _shamBlueDeep,
                   ),
                 ),
               ),
             ],
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Payment Destination Cards
           for (final acc in wallet.shamCashAccounts)
             _buildDestinationCard(
               title: 'حساب شام كاش الرسمي',
               acc: acc,
-              accentColor: const Color(0xFF2563EB),
+              accentColor: _shamBlue,
             ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Preset Amount Selector ($5, $10, $25, $50, $100)
           Text(
             'اختر أو أدخل المبلغ المطلوب (\$ USD):',
             style: AppTypography.cairo(
-              fontSize: 12.5,
+              fontSize: 12,
               fontWeight: FontWeight.w700,
               color: const Color(0xFF334155),
             ),
           ),
-          const SizedBox(height: 8),
-          _buildQuickAmountChips(
-            _shamAmountController,
-            const Color(0xFF2563EB),
-          ),
+          const SizedBox(height: 6),
+          _buildQuickAmountChips(_shamAmountController, _shamBlue),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Custom Amount Input
           TextField(
@@ -1541,7 +1555,7 @@ class _TopupScreenState extends State<TopupScreen> {
               ),
               prefixIcon: const Icon(
                 Icons.attach_money_rounded,
-                color: Color(0xFF2563EB),
+                color: _shamBlue,
               ),
               filled: true,
               fillColor: const Color(0xFFF8FAFC),
@@ -1559,57 +1573,64 @@ class _TopupScreenState extends State<TopupScreen> {
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(
-                  color: Color(0xFF2563EB),
-                  width: 1.5,
-                ),
+                borderSide: const BorderSide(color: _shamBlue, width: 1.5),
               ),
             ),
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
           // Receipt Upload Component
           _buildModernReceiptBox(
             isSham: true,
             bytes: _shamReceiptBytes,
             name: _shamReceiptName,
-            accentColor: const Color(0xFF2563EB),
+            accentColor: _shamTeal,
           ),
 
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
 
-          // Submit Button
-          ElevatedButton.icon(
-            icon: wallet.isLoading
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Icon(Icons.send_rounded, size: 17),
-            label: Text(
-              wallet.isLoading
-                  ? 'جاري إرسال الطلب...'
-                  : 'تأكيد وإرسال طلب الشحن',
-              style: AppTypography.cairo(
-                fontSize: 13.5,
-                fontWeight: FontWeight.bold,
+          // Submit Button: تدرّج من لوني الشعار (أزرق ← فيروزي)
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: const LinearGradient(
+                begin: AlignmentDirectional.centerStart,
+                end: AlignmentDirectional.centerEnd,
+                colors: [_shamBlue, _shamTeal],
               ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2563EB),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
+            child: ElevatedButton.icon(
+              icon: wallet.isLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        color: Colors.white,
+                        strokeWidth: 2,
+                      ),
+                    )
+                  : const Icon(Icons.send_rounded, size: 17),
+              label: Text(
+                wallet.isLoading
+                    ? 'جاري إرسال الطلب...'
+                    : 'تأكيد وإرسال طلب الشحن',
+                style: AppTypography.cairo(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-              elevation: 0,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.transparent,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+              ),
+              onPressed: wallet.isLoading ? null : _submitShamCash,
             ),
-            onPressed: wallet.isLoading ? null : _submitShamCash,
           ),
         ],
       ),
@@ -2155,6 +2176,9 @@ class _TopupScreenState extends State<TopupScreen> {
   }
 
   // Payment Destination Card (صورة الباركود + اسم الحساب + الرقم مع نسخ)
+  /// بطاقة حساب الدفع: صورة كود الدفع في الأعلى في المنتصف، ورقم الحساب
+  /// تحتها بعرض كامل فلا يُقتطع مهما طال، مع لمسة نسخ واحدة.
+  /// البطاقة مضغوطة (سطر واحد للتعريف + حواف قليلة) بلا المساس بحجم الصورة.
   Widget _buildDestinationCard({
     required String title,
     required PaymentAccountModel acc,
@@ -2163,157 +2187,168 @@ class _TopupScreenState extends State<TopupScreen> {
     final accountId = acc.accountId;
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(10, 10, 10, 8),
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: accentColor.withValues(alpha: 0.28)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // صورة كود الدفع (باركود مرفوع أو QR مولّد) — الضغط للتكبير
-          InkWell(
-            onTap: () => _showAccountQrModal(title, acc, accentColor),
-            borderRadius: BorderRadius.circular(10),
-            child: Container(
-              width: 120,
-              height: 120,
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: const Color(0xFFE2E8F0)),
-              ),
-              child: Stack(
-                children: [
-                  Positioned.fill(child: _accountPayCodeImage(acc, 110)),
-                  Positioned(
-                    bottom: 0,
-                    right: 0,
-                    child: Container(
-                      padding: const EdgeInsets.all(3),
-                      decoration: BoxDecoration(
-                        color: accentColor.withValues(alpha: 0.9),
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(6),
-                          bottomRight: Radius.circular(6),
+          // 1) صورة كود الدفع (باركود مرفوع أو QR مولّد) — الضغط للتكبير
+          Center(
+            child: InkWell(
+              onTap: () => _showAccountQrModal(title, acc, accentColor),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                width: 150,
+                height: 150,
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: accentColor.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(child: _accountPayCodeImage(acc, 138)),
+                    Positioned(
+                      bottom: 0,
+                      right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(3),
+                        decoration: BoxDecoration(
+                          color: accentColor.withValues(alpha: 0.9),
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(6),
+                            bottomRight: Radius.circular(6),
+                          ),
+                        ),
+                        child: const Icon(
+                          Icons.zoom_in_rounded,
+                          size: 12,
+                          color: Colors.white,
                         ),
                       ),
-                      child: const Icon(
-                        Icons.zoom_in_rounded,
-                        size: 12,
-                        color: Colors.white,
-                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(height: 6),
 
-          // Account details column
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppTypography.cairo(
-                    fontSize: 10,
-                    color: const Color(0xFF64748B),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
+          // 2) اسم الحساب وعنوانه في سطر واحد تحت الصورة
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Flexible(
+                child: Text(
                   acc.accountName,
+                  textAlign: TextAlign.center,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.cairo(
-                    fontSize: 13,
+                    fontSize: 12,
                     fontWeight: FontWeight.w800,
                     color: const Color(0xFF0F172A),
                   ),
                 ),
-                const SizedBox(height: 8),
-
-                // Account ID bar with 1-tap copy
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: const Color(0xFFE2E8F0)),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: SelectableText(
-                          accountId,
-                          style: AppTypography.technicalCode(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w800,
-                            color: accentColor,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                      InkWell(
-                        onTap: () {
-                          Clipboard.setData(ClipboardData(text: accountId));
-                          _showMessage(
-                            SnackBar(
-                              content: Text(
-                                'تم نسخ: $accountId بنجاح 📋',
-                                style: AppTypography.cairo(),
-                              ),
-                              backgroundColor: const Color(0xFF059669),
-                              behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 2),
-                            ),
-                          );
-                        },
-                        borderRadius: BorderRadius.circular(6),
-                        child: Padding(
-                          padding: const EdgeInsets.all(4),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'نسخ',
-                                style: AppTypography.cairo(
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.bold,
-                                  color: accentColor,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.copy_rounded,
-                                size: 13,
-                                color: accentColor,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'حول إلى هذا الحساب ثم اضغط الصورة للتكبير',
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: AppTypography.cairo(
                     fontSize: 9.5,
-                    color: const Color(0xFF94A3B8),
+                    color: const Color(0xFF64748B),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 5),
+
+          // 3) رقم الحساب: شريط بعرض كامل + نسخ بلمسة
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: accentColor.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.tag_rounded, size: 14, color: accentColor),
+                const SizedBox(width: 5),
+                Expanded(
+                  child: SelectableText(
+                    accountId,
+                    style: AppTypography.technicalCode(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: accentColor,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                InkWell(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: accountId));
+                    _showMessage(
+                      SnackBar(
+                        content: Text(
+                          'تم نسخ: $accountId بنجاح 📋',
+                          style: AppTypography.cairo(),
+                        ),
+                        backgroundColor: const Color(0xFF059669),
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'نسخ',
+                          style: AppTypography.cairo(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: accentColor,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        Icon(Icons.copy_rounded, size: 12, color: accentColor),
+                      ],
+                    ),
                   ),
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'حول إلى هذا الحساب ثم اضغط الصورة للتكبير',
+            textAlign: TextAlign.center,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.cairo(
+              fontSize: 9,
+              color: const Color(0xFF94A3B8),
             ),
           ),
         ],

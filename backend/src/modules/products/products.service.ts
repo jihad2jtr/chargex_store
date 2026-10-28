@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ForbiddenException, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Product, ProductDocument, ProfitMarginType, ProductType } from '../../database/schemas/product.schema';
@@ -253,6 +253,46 @@ export class ProductsService {
   async toggleActive(id: string) {
     const product = await this.productModel.findById(id);
     if (!product) throw new NotFoundException('المنتج غير موجود');
+    product.isActive = !product.isActive;
+    await product.save();
+    return this.findOne(id);
+  }
+
+  /**
+   * مقدمو الخدمة (المشرفين): قائمة الخدمات المسندة إليهم.
+   * تشمل الخدمات الموقوفة مؤقتاً ليراها المشرف ويعيد تفعيلها.
+   */
+  async findAssignedToSupervisor(supervisorId: string) {
+    const products = await this.productModel
+      .find({ assignedSupervisorId: new Types.ObjectId(supervisorId) })
+      .populate('appId', 'name iconUrl')
+      .populate('providerId', 'name status isActive')
+      .populate('serviceTemplateId')
+      .sort({ isActive: -1, salePrice: 1 });
+
+    return products.map((prod) => {
+      const obj = prod.toObject();
+      return {
+        ...obj,
+        availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
+        inventoryCodes: undefined, // لا تُسرَّب الأكواد المخزّنة
+      };
+    });
+  }
+
+  /**
+   * إيقاف مؤقت / إعادة تفعيل خدمة من مقدّم الخدمة نفسه:
+   * الصلاحية على المسند إليه فقط، وإلا تُرفض الطلب.
+   */
+  async toggleActiveForSupervisor(id: string, supervisorId: string) {
+    const product = await this.productModel.findById(id);
+    if (!product) throw new NotFoundException('الخدمة غير موجودة');
+    if (
+      !product.assignedSupervisorId ||
+      product.assignedSupervisorId.toString() !== supervisorId
+    ) {
+      throw new ForbiddenException('هذه الخدمة غير مسندة إليك');
+    }
     product.isActive = !product.isActive;
     await product.save();
     return this.findOne(id);

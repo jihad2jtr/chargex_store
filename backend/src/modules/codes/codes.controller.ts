@@ -24,18 +24,19 @@ export class CodesController {
     return this.codesService.redeemCode(body.code, user._id.toString());
   }
 
-  // Admin: Generate codes
+  // Admin: Generate codes (كل الدفعة تشترك في batchId واحد للتصدير)
   @Post('admin/generate')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
   async generateCodes(
     @CurrentUser() admin: UserDocument,
-    @Body() body: { amount: number; count?: number },
+    @Body() body: { amount: number; count?: number; note?: string },
   ) {
     return this.codesService.generateCodes({
       amount: Number(body.amount),
       count: Number(body.count || 1),
       adminId: admin._id.toString(),
+      note: body.note,
     });
   }
 

@@ -363,8 +363,9 @@ export class ProvidersService {
       ).catch((err: any) =>
         this.logger.warn(`Provider auto-disable failed: ${err.message}`),
       );
+      // رسالة تمويه في حال نفاد رصيد المزود
       throw new BadRequestException(
-        'رصيد مزوّد الخدمة غير كافٍ لتنفيذ هذا الطلب حالياً، ولم يتم خصم أي مبلغ من رصيدك. يرجى المحاولة لاحقاً أو اختيار خدمة أخرى',
+        'ضغط على السيرفر الرجاء المحاولة لا حقاً',
       );
     }
 

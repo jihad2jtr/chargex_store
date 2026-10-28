@@ -20,6 +20,8 @@ export declare class AgentController {
             suspendedSubUsers: number;
             totalTransferred: number;
             transferCount: any;
+            totalReceived: number;
+            receivedCount: any;
         };
         recentTransfers: (import("mongoose").Document<unknown, {}, import("../../database/schemas/wallet-transaction.schema").WalletTransactionDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/wallet-transaction.schema").WalletTransaction & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
             _id: import("mongoose").Types.ObjectId;
@@ -123,11 +125,22 @@ export declare class AgentController {
             agentDeactivationReason: null;
         };
     }>;
-    getTransfers(agent: UserDocument): Promise<(import("mongoose").Document<unknown, {}, import("../../database/schemas/wallet-transaction.schema").WalletTransactionDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/wallet-transaction.schema").WalletTransaction & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+    getTransfers(agent: UserDocument): Promise<{
         _id: import("mongoose").Types.ObjectId;
-    }> & {
-        __v: number;
-    } & {
-        id: string;
-    })[]>;
+        createdAt: any;
+        direction: string;
+        amount: number;
+        description: string;
+        referenceType: string;
+        counterparty: {
+            name: any;
+            userId: any;
+            email: any;
+        };
+        recipient: {
+            name: any;
+            userId: any;
+            email: any;
+        };
+    }[]>;
 }

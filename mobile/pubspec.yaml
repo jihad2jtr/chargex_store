@@ -44,6 +44,9 @@ dependencies:
   share_plus: ^12.0.2
   barcode_widget: ^2.0.4
   url_launcher: ^6.3.2
+  pdf: ^3.12.0 # تصدير دفعات القسائم إلى PDF
+  path_provider: ^2.1.5 # writing the generated pdf to a shareable file
+  image: 4.10.0 # pinned: 4.11.0 needs a newer dart:io (decodeLazy) than this SDK
 
 dev_dependencies:
   flutter_test:

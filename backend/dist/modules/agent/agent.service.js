@@ -54,7 +54,9 @@ const bcrypt = __importStar(require("bcryptjs"));
 const user_schema_1 = require("../../database/schemas/user.schema");
 const wallet_transaction_schema_1 = require("../../database/schemas/wallet-transaction.schema");
 const role_enum_1 = require("../../common/interfaces/role.enum");
+const user_id_util_1 = require("../../common/utils/user-id.util");
 const notifications_service_1 = require("../notifications/notifications.service");
+const AGENT_INCOMING_REFERENCE_TYPES = ['Admin', 'IdTopup', 'ManualOrder'];
 let AgentService = AgentService_1 = class AgentService {
     constructor(userModel, transactionModel, notificationsService) {
         this.userModel = userModel;
@@ -63,20 +65,7 @@ let AgentService = AgentService_1 = class AgentService {
         this.logger = new common_1.Logger(AgentService_1.name);
     }
     async generateUniqueUserId() {
-        let unique = false;
-        let userId = '';
-        while (!unique) {
-            const now = new Date();
-            const yy = String(now.getFullYear()).slice(-2);
-            const mm = String(now.getMonth() + 1).padStart(2, '0');
-            const dd = String(now.getDate()).padStart(2, '0');
-            const rand = Math.floor(10000 + Math.random() * 90000);
-            userId = `jgo${yy}${mm}${dd}${rand}`;
-            const existing = await this.userModel.findOne({ userId });
-            if (!existing)
-                unique = true;
-        }
-        return userId;
+        return (0, user_id_util_1.generateUserId)(async (candidateId) => Boolean(await this.userModel.findOne((0, user_id_util_1.userIdFilter)(candidateId))));
     }
     async getDashboardStats(agentId) {
         const agent = await this.userModel.findById(agentId);
@@ -109,8 +98,30 @@ let AgentService = AgentService_1 = class AgentService {
                 },
             },
         ]);
-        const totalTransferred = transferAgg.length > 0 ? Number(transferAgg[0].totalAmount.toFixed(2)) : 0.0;
+        const totalTransferred = transferAgg.length > 0
+            ? Number(transferAgg[0].totalAmount.toFixed(2))
+            : 0.0;
         const transferCount = transferAgg.length > 0 ? transferAgg[0].totalCount : 0;
+        const incomingAgg = await this.transactionModel.aggregate([
+            {
+                $match: {
+                    userId: new mongoose_2.Types.ObjectId(agentId),
+                    amount: { $gt: 0 },
+                    referenceType: { $in: AGENT_INCOMING_REFERENCE_TYPES },
+                },
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalAmount: { $sum: '$amount' },
+                    totalCount: { $sum: 1 },
+                },
+            },
+        ]);
+        const totalReceived = incomingAgg.length > 0
+            ? Number(incomingAgg[0].totalAmount.toFixed(2))
+            : 0.0;
+        const receivedCount = incomingAgg.length > 0 ? incomingAgg[0].totalCount : 0;
         const recentTransfers = await this.transactionModel
             .find({
             userId: new mongoose_2.Types.ObjectId(agentId),
@@ -134,6 +145,8 @@ let AgentService = AgentService_1 = class AgentService {
                 suspendedSubUsers,
                 totalTransferred,
                 transferCount,
+                totalReceived,
+                receivedCount,
             },
             recentTransfers,
         };
@@ -251,7 +264,7 @@ let AgentService = AgentService_1 = class AgentService {
     }
     async linkUserToAgent(agentId, userIdentifier) {
         const cleanId = userIdentifier ? userIdentifier.trim() : '';
-        let target = await this.userModel.findOne({ userId: cleanId });
+        let target = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanId));
         if (!target && cleanId.includes('@')) {
             target = await this.userModel.findOne({ email: cleanId.toLowerCase() });
         }
@@ -303,12 +316,14 @@ let AgentService = AgentService_1 = class AgentService {
             throw new common_1.BadRequestException(`رصيدك الحالي غير كافٍ. المطلوب: $${transferAmount.toFixed(2)}، الرصيد المتاح: $${agent.balance.toFixed(2)}`);
         }
         const cleanTarget = targetUserId ? targetUserId.trim() : '';
-        let target = await this.userModel.findOne({ userId: cleanTarget });
+        let target = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanTarget));
         if (!target && mongoose_2.Types.ObjectId.isValid(cleanTarget)) {
             target = await this.userModel.findById(cleanTarget);
         }
         if (!target && cleanTarget.includes('@')) {
-            target = await this.userModel.findOne({ email: cleanTarget.toLowerCase() });
+            target = await this.userModel.findOne({
+                email: cleanTarget.toLowerCase(),
+            });
         }
         if (!target) {
             throw new common_1.NotFoundException('المستخدم المستلم غير موجود');
@@ -316,7 +331,8 @@ let AgentService = AgentService_1 = class AgentService {
         if (!target.parentAgentId) {
             target.parentAgentId = agent._id;
         }
-        else if (target.parentAgentId.toString() !== agentId && agent.role !== role_enum_1.Role.ADMIN) {
+        else if (target.parentAgentId.toString() !== agentId &&
+            agent.role !== role_enum_1.Role.ADMIN) {
             throw new common_1.ForbiddenException('المستخدم المستلم يتبع لوكيل آخر، لا يمكنك التحويل إلا لعملائك التابعين لك');
         }
         if (!target.isActive) {
@@ -357,7 +373,11 @@ let AgentService = AgentService_1 = class AgentService {
             title: 'شحن رصيد من الوكيل ⚡',
             body: `تم استلام تحويل رصيد بقيمة $${transferAmount.toFixed(2)} من وكيلك (${agent.name}). رصيدك الحالي: $${targetBalAfter.toFixed(2)}`,
             type: 'wallet_topup',
-            data: { amount: transferAmount, newBalance: targetBalAfter, agentName: agent.name },
+            data: {
+                amount: transferAmount,
+                newBalance: targetBalAfter,
+                agentName: agent.name,
+            },
         });
         return {
             message: `تم تحويل مبلغ $${transferAmount.toFixed(2)} بنجاح للعميل ${target.name} ✅`,
@@ -373,7 +393,7 @@ let AgentService = AgentService_1 = class AgentService {
     }
     async toggleUserStatus(agentId, targetUserId, isActive, reason) {
         const cleanId = targetUserId ? targetUserId.trim() : '';
-        let target = await this.userModel.findOne({ userId: cleanId });
+        let target = await this.userModel.findOne((0, user_id_util_1.userIdFilter)(cleanId));
         if (!target && mongoose_2.Types.ObjectId.isValid(cleanId)) {
             target = await this.userModel.findById(cleanId);
         }
@@ -390,7 +410,8 @@ let AgentService = AgentService_1 = class AgentService {
             target.isActive = false;
             target.deactivatedByAgent = true;
             target.agentDeactivationReason =
-                reason?.trim() || 'تم تجميد الحساب من قبل الوكيل المعتمد لعدم تسوية المستحقات المالية';
+                reason?.trim() ||
+                    'تم تجميد الحساب من قبل الوكيل المعتمد لعدم تسوية المستحقات المالية';
             target.refreshToken = undefined;
             await target.save();
             this.logger.warn(`Agent ${agentId} suspended user ${target._id} (${target.email}). Reason: ${target.agentDeactivationReason}`);
@@ -426,13 +447,54 @@ let AgentService = AgentService_1 = class AgentService {
         }
     }
     async getTransferHistory(agentId) {
-        return this.transactionModel
+        const agentObjectId = new mongoose_2.Types.ObjectId(agentId);
+        const docs = await this.transactionModel
             .find({
-            userId: new mongoose_2.Types.ObjectId(agentId),
-            type: wallet_transaction_schema_1.TransactionType.AGENT_TRANSFER,
+            userId: agentObjectId,
+            $or: [
+                { type: wallet_transaction_schema_1.TransactionType.AGENT_TRANSFER, amount: { $lt: 0 } },
+                {
+                    amount: { $gt: 0 },
+                    referenceType: { $in: AGENT_INCOMING_REFERENCE_TYPES },
+                },
+            ],
         })
             .sort({ createdAt: -1 })
-            .limit(100);
+            .limit(100)
+            .lean();
+        const targetIds = docs
+            .filter((doc) => doc.amount < 0 && doc.referenceId)
+            .map((doc) => String(doc.referenceId))
+            .filter((id) => mongoose_2.Types.ObjectId.isValid(id))
+            .map((id) => new mongoose_2.Types.ObjectId(id));
+        const targets = targetIds.length
+            ? await this.userModel
+                .find({ _id: { $in: targetIds } })
+                .select('name userId email')
+                .lean()
+            : [];
+        const targetById = new Map(targets.map((user) => [String(user._id), user]));
+        return docs.map((doc) => {
+            const isOutgoing = doc.amount < 0;
+            const target = isOutgoing ? targetById.get(String(doc.referenceId)) : null;
+            const counterparty = isOutgoing
+                ? {
+                    name: target?.name ?? '',
+                    userId: target?.userId ?? '',
+                    email: target?.email ?? '',
+                }
+                : { name: 'الإدارة', userId: '', email: '' };
+            return {
+                _id: doc._id,
+                createdAt: doc.createdAt,
+                direction: isOutgoing ? 'out' : 'in',
+                amount: Math.abs(doc.amount),
+                description: doc.description,
+                referenceType: doc.referenceType ?? '',
+                counterparty,
+                recipient: counterparty,
+            };
+        });
     }
 };
 exports.AgentService = AgentService;
