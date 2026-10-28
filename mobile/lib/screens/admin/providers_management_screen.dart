@@ -434,14 +434,19 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'المزودين المربوطين بالنظام',
-                          style: AppTypography.cairo(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w800,
-                            color: const Color(0xFF0F172A),
+                        Flexible(
+                          child: Text(
+                            'المزودين المربوطين بالنظام',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                            ),
                           ),
                         ),
+                        const SizedBox(width: 8),
                         Text(
                           '${admin.providers.length} مزود مسجل',
                           style: AppTypography.cairo(
@@ -501,47 +506,56 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: const Color(0xFF818CF8).withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: const Icon(
-                      Icons.hub_rounded,
-                      color: Color(0xFFA5B4FC),
-                      size: 19,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'بوابة الاتصال والربط المباشر',
-                        style: AppTypography.cairo(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w800,
-                          color: Colors.white,
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF6366F1).withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: const Color(0xFF818CF8).withValues(alpha: 0.4),
                         ),
                       ),
-                      Text(
-                        'مراقبة حالة السيرفرات والمزامنة التلقائية',
-                        style: AppTypography.cairo(
-                          fontSize: 10,
-                          color: Colors.white60,
-                        ),
+                      child: const Icon(
+                        Icons.hub_rounded,
+                        color: Color(0xFFA5B4FC),
+                        size: 19,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'بوابة الاتصال والربط المباشر',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                          Text(
+                            'مراقبة حالة السيرفرات والمزامنة التلقائية',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 10,
+                              color: Colors.white60,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
                 decoration: BoxDecoration(
@@ -587,27 +601,34 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'إجمالي أرصدة المزودين',
-                    style: AppTypography.cairo(
-                      fontSize: 11,
-                      color: Colors.white60,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'إجمالي أرصدة المزودين',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 11,
+                        color: Colors.white60,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '\$${totalBalance.toStringAsFixed(2)}',
-                    style: AppTypography.price(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFF38BDF8),
+                    const SizedBox(height: 2),
+                    Text(
+                      '\$${totalBalance.toStringAsFixed(2)}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.price(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w900,
+                        color: const Color(0xFF38BDF8),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white,
@@ -646,14 +667,17 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   // ---------------------------------------------------------------------------
   Widget _buildProviderCard(ProviderModel provider, AdminProvider admin) {
     final isOnline = provider.status == 'online';
+    final isActive = provider.isActive;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: isActive ? Colors.white : const Color(0xFFFEF7F7),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isOnline
+          color: !isActive
+              ? const Color(0xFFFCA5A5).withValues(alpha: 0.6)
+              : isOnline
               ? const Color(0xFF6366F1).withValues(alpha: 0.25)
               : const Color(0xFFE2E8F0),
           width: 1.0,
@@ -723,7 +747,16 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          StatusPill(status: provider.status),
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (!isActive) ...[
+                                _buildSuspendedPill(),
+                                const SizedBox(width: 6),
+                              ],
+                              StatusPill(status: provider.status),
+                            ],
+                          ),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -787,6 +820,38 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             ),
           ),
 
+          // تنبيه الإيقاف: كل ما يرتبط بهذا المزود مخفي عن العملاء
+          if (!isActive)
+            Container(
+              margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: const Color(0xFFFCA5A5)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(
+                    Icons.visibility_off_rounded,
+                    size: 14,
+                    color: Color(0xFFDC2626),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'المزود موقوف — كل التطبيقات والألعاب المرتبطة به لا تظهر للعملاء',
+                      style: AppTypography.cairo(
+                        fontSize: 10.5,
+                        height: 1.4,
+                        color: const Color(0xFFB91C1C),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Balance and Info Pill Row
           Container(
             margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -799,39 +864,53 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Row(
-                  children: [
-                    const Icon(
-                      Icons.account_balance_wallet_rounded,
-                      size: 15,
-                      color: Color(0xFF10B981),
-                    ),
-                    const SizedBox(width: 5),
-                    Text(
-                      'رصيد المزود: ',
-                      style: AppTypography.cairo(
-                        fontSize: 11.5,
-                        color: const Color(0xFF64748B),
+                Flexible(
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.account_balance_wallet_rounded,
+                        size: 15,
+                        color: Color(0xFF10B981),
                       ),
-                    ),
-                    Text(
-                      '\$${provider.balance.toStringAsFixed(2)}',
-                      style: AppTypography.technicalCode(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFF0F172A),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          'رصيد المزود: ',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.cairo(
+                            fontSize: 11.5,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      Text(
+                        '\$${provider.balance.toStringAsFixed(2)}',
+                        maxLines: 1,
+                        style: AppTypography.technicalCode(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                if (provider.lastCheckAt != null)
-                  Text(
-                    'آخر فحص: ${provider.lastCheckAt!.hour.toString().padLeft(2, '0')}:${provider.lastCheckAt!.minute.toString().padLeft(2, '0')}',
-                    style: AppTypography.cairo(
-                      fontSize: 10.5,
-                      color: const Color(0xFF94A3B8),
+                if (provider.lastCheckAt != null) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      'آخر فحص: ${provider.lastCheckAt!.hour.toString().padLeft(2, '0')}:${provider.lastCheckAt!.minute.toString().padLeft(2, '0')}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 10.5,
+                        color: const Color(0xFF94A3B8),
+                      ),
                     ),
                   ),
+                ],
               ],
             ),
           ),
@@ -839,6 +918,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
           // نسبة الربح المطبّقة على كل منتجات المزود
           Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: const Color(0xFFF1F5F9),
@@ -853,29 +933,39 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   color: Color(0xFF6366F1),
                 ),
                 const SizedBox(width: 5),
-                Text(
-                  'هامش الربح: ',
-                  style: AppTypography.cairo(
-                    fontSize: 11.5,
-                    color: const Color(0xFF64748B),
+                Flexible(
+                  child: Text(
+                    'هامش الربح: ',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.cairo(
+                      fontSize: 11.5,
+                      color: const Color(0xFF64748B),
+                    ),
                   ),
                 ),
                 Text(
                   provider.profitMarginType == 'fixed'
                       ? '\$${provider.profitMarginValue.toStringAsFixed(2)}'
                       : '${provider.profitMarginValue.toStringAsFixed(1)}%',
+                  maxLines: 1,
                   style: AppTypography.technicalCode(
                     fontSize: 13,
                     fontWeight: FontWeight.w900,
                     color: const Color(0xFF4F46E5),
                   ),
                 ),
-                const Spacer(),
-                Text(
-                  'تُطبَّق على كل المنتجات',
-                  style: AppTypography.cairo(
-                    fontSize: 10,
-                    color: const Color(0xFF94A3B8),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'تُطبَّق على كل المنتجات',
+                    textAlign: TextAlign.end,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.cairo(
+                      fontSize: 10,
+                      color: const Color(0xFF94A3B8),
+                    ),
                   ),
                 ),
               ],
@@ -899,49 +989,57 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
           const SizedBox(height: 12),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
 
-          // Actions Footer
+          // Actions Footer — صفّان: الإجراء الرئيس ي + زر التفعيل، ثم أدوات الإدارة المدمجة
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Prominent "View Products" Button
-                ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF6366F1),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 8,
+                Row(
+                  children: [
+                    // Prominent "View Products" Button
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF6366F1),
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                        ),
+                        icon: const Icon(Icons.inventory_2_rounded, size: 15),
+                        label: Text(
+                          'عرض المنتجات',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        onPressed: () => _openProviderProducts(provider),
+                      ),
                     ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                  ),
-                  icon: const Icon(Icons.inventory_2_rounded, size: 15),
-                  label: Text(
-                    'عرض المنتجات',
-                    style: AppTypography.cairo(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  onPressed: () => _openProviderProducts(provider),
+                    const SizedBox(width: 8),
+                    // إيقاف/تفعيل المزود (يُخفي/يُظهر كل تطبيقاته)
+                    _buildPowerButton(provider, admin, isActive),
+                  ],
                 ),
-
+                const SizedBox(height: 2),
                 // Fast Tools (Sync, Check, Edit, Delete)
                 Row(
-                  mainAxisSize: MainAxisSize.min,
+                  mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     // Sync
-                    IconButton(
+                    _buildCardIconButton(
                       tooltip: 'مزامنة المنتجات والأسعار',
-                      icon: const Icon(
-                        Icons.sync_rounded,
-                        size: 19,
-                        color: Color(0xFF0284C7),
-                      ),
+                      icon: Icons.sync_rounded,
+                      color: const Color(0xFF0284C7),
                       onPressed: () async {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
@@ -971,35 +1069,26 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     ),
 
                     // Test Status
-                    IconButton(
+                    _buildCardIconButton(
                       tooltip: 'فحص الاتصال وتحديث الرصيد',
-                      icon: const Icon(
-                        Icons.flash_on_rounded,
-                        size: 19,
-                        color: Color(0xFFD97706),
-                      ),
+                      icon: Icons.flash_on_rounded,
+                      color: const Color(0xFFD97706),
                       onPressed: () => admin.checkProviderStatus(provider.id),
                     ),
 
                     // Edit
-                    IconButton(
+                    _buildCardIconButton(
                       tooltip: 'تعديل المزود',
-                      icon: const Icon(
-                        Icons.edit_rounded,
-                        size: 18,
-                        color: Color(0xFF64748B),
-                      ),
+                      icon: Icons.edit_rounded,
+                      color: const Color(0xFF64748B),
                       onPressed: () => _openAddEditDialog(provider),
                     ),
 
                     // Delete
-                    IconButton(
+                    _buildCardIconButton(
                       tooltip: 'حذف المزود',
-                      icon: const Icon(
-                        Icons.delete_outline_rounded,
-                        size: 19,
-                        color: Color(0xFFEF4444),
-                      ),
+                      icon: Icons.delete_outline_rounded,
+                      color: const Color(0xFFEF4444),
                       onPressed: () => _confirmDeleteProvider(provider, admin),
                     ),
                   ],
@@ -1008,6 +1097,167 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  // زر إيقاف/تفعيل المزود بجانب الإجراء الرئيسي في البطاقة
+  Widget _buildPowerButton(
+    ProviderModel provider,
+    AdminProvider admin,
+    bool isActive,
+  ) {
+    final color = isActive ? const Color(0xFFDC2626) : const Color(0xFF059669);
+    return Tooltip(
+      message: isActive ? 'إيقاف المزود وإخفاء تطبيقاته' : 'تفعيل المزود',
+      child: InkWell(
+        onTap: () => _confirmToggleProvider(provider, admin),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
+          ),
+          child: Icon(
+            isActive
+                ? Icons.power_settings_new_rounded
+                : Icons.play_circle_fill_rounded,
+            size: 20,
+            color: color,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // زر أيقونة مدمج لا يتجاوز عرضه 38dp كي لا تفيض صفوف الإجراءات
+  Widget _buildCardIconButton({
+    required String tooltip,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon, size: 19, color: color),
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      visualDensity: VisualDensity.compact,
+      constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+    );
+  }
+
+  Widget _buildSuspendedPill() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFEE2E2),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFFFCA5A5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.power_settings_new_rounded,
+            size: 11,
+            color: Color(0xFFDC2626),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            'موقوف',
+            style: AppTypography.cairo(
+              fontSize: 10,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFFDC2626),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _confirmToggleProvider(
+    ProviderModel provider,
+    AdminProvider admin,
+  ) async {
+    // الإيقاف يُخفي كل تطبيقات المزود، لذا يُطلب تأكيد صريح قبل التنفيذ
+    if (provider.isActive) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+          ),
+          title: Text(
+            'إيقاف مزود الخدمة',
+            style: AppTypography.cairo(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
+          ),
+          content: Text(
+            'سيتم إيقاف "${provider.name}" وإخفاء كل التطبيقات والألعاب والخدمات المرتبطة به\n'
+            'من واجهة العملاء فوراً. يمكنك تفعيله مجدداً في أي وقت.',
+            style: AppTypography.cairo(
+              color: Colors.white70,
+              fontSize: 13,
+              height: 1.5,
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(
+                'إلغاء',
+                style: AppTypography.cairo(color: Colors.white60),
+              ),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(
+                'إيقاف المزود',
+                style: AppTypography.cairo(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    final wasActive = provider.isActive;
+    final ok = await admin.toggleProviderActive(provider.id);
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? (wasActive
+                    ? 'تم إيقاف "${provider.name}" وإخفاء كل تطبيقاته عن العملاء 🚫'
+                    : 'تم تفعيل "${provider.name}" وإظهار تطبيقاته المتاحة ✅')
+              : (admin.errorMessage ?? 'تعذّر تعديل حالة المزود'),
+          style: AppTypography.cairo(color: Colors.white, fontSize: 13),
+        ),
+        backgroundColor: ok
+            ? (wasActive ? const Color(0xFFDC2626) : const Color(0xFF059669))
+            : const Color(0xFFDC2626),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 3),
       ),
     );
   }

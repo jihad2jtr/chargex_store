@@ -164,6 +164,32 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
+  /// إيقاف/تفعيل مزود: الإيقاف يُخفي كل التطبيقات والألعاب المرتبطة به فوراً
+  Future<bool> toggleProviderActive(String id) async {
+    try {
+      final res = await _api.patch(
+        '${ApiConstants.providers}/$id/toggle-active',
+      );
+      if (res is Map) {
+        final updated = ProviderModel.fromJson(Map<String, dynamic>.from(res));
+        final idx = _providers.indexWhere((p) => p.id == id);
+        if (idx != -1) {
+          _providers[idx] = updated;
+          notifyListeners();
+        }
+      }
+      await fetchProviders(forceRefresh: true);
+      return true;
+    } catch (e) {
+      // 404 يعني أن نسخة الخادم المنشورة لا تحتوي المسار بعد (نسخة قديمة)
+      _errorMessage = e is ApiException && e.statusCode == 404
+          ? 'نسخة الخادم الحالية لا تدعم إيقاف المزود بعد — يجب تحديث خادم الخدمة (Backend) ثم إعادة المحاولة'
+          : _failMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<List<dynamic>> fetchProviderProducts(
     String id, {
     bool forceRefresh = false,
@@ -361,7 +387,7 @@ class AdminProvider extends ChangeNotifier {
       await fetchAdminApps();
       return true;
     } catch (e) {
-      _errorMessage = e.toString();
+      _errorMessage = _failMessage(e);
       notifyListeners();
       return false;
     }

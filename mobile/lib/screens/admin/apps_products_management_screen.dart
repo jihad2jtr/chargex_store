@@ -64,6 +64,34 @@ class _AppsAndProductsManagementScreenState
     final admin = Provider.of<AdminProvider>(context, listen: false);
     final wasActive = app.isActive;
 
+    // لا يُسمح بتفعيل تطبيق/خدمة بلا منتج مفعّل واحد على الأقل
+    if (!wasActive) {
+      final activeProducts = admin.adminProducts
+          .where((p) => p.appId == app.id && p.isActive)
+          .length;
+      if (activeProducts == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'لا يمكن تفعيل "${app.name}": أضف منتجاً مفعّلاً واحداً على الأقل أولاً ⚠️',
+              style: AppTypography.cairo(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
+            ),
+            backgroundColor: AppColors.ticketAmber,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+    }
+
     final ok = await admin.toggleAppActive(app.id);
 
     if (mounted) {

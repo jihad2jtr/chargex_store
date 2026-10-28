@@ -552,6 +552,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
             await this.providersService.markProviderFailure(
               product.providerId.toString(),
               providerResult.message,
+              product.costPrice || 0,
             );
           } catch (markErr: any) {
             this.logger.warn(`Could not mark provider failure: ${markErr.message}`);

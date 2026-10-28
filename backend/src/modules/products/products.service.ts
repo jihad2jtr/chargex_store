@@ -51,19 +51,25 @@ export class ProductsService {
       .populate('serviceTemplateId')
       .sort({ salePrice: 1 });
 
-    return products.map((prod) => {
-      const obj = prod.toObject();
-      const provider = obj.providerId as any;
+    // مزود موقوف = منتجاته مخفية تماماً (كانت تُعرض كـ "غير متاحة" فقط)
+    return products
+      .filter((prod) => {
+        const provider = prod.providerId as unknown as { isActive?: boolean } | null;
+        return !provider || provider.isActive !== false;
+      })
+      .map((prod) => {
+        const obj = prod.toObject();
+        const provider = obj.providerId as any;
 
-      return {
-        ...obj,
-        availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
-        inventoryCodes: undefined, // Don't expose actual secret codes to client list!
-        // Lets the client disable purchases before the order is even attempted
-        providerAvailable:
-          !provider || (provider.isActive !== false && provider.status === 'online'),
-      };
-    });
+        return {
+          ...obj,
+          availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
+          inventoryCodes: undefined, // Don't expose actual secret codes to client list!
+          // Lets the client disable purchases before the order is even attempted
+          providerAvailable:
+            !provider || (provider.isActive !== false && provider.status === 'online'),
+        };
+      });
   }
 
   // Admin: all products under an app or system-wide

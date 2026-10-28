@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Patch, UseGuards } from '@nestjs/common';
 import { ProvidersService } from './providers.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -34,6 +34,12 @@ export class ProvidersController {
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.providersService.remove(id);
+  }
+
+  // إيقاف/تفعيل المزود: الإيقاف يُخفي كل التطبيقات المرتبطة به عن العملاء
+  @Patch(':id/toggle-active')
+  async toggleActive(@Param('id') id: string) {
+    return this.providersService.toggleActive(id);
   }
 
   @Post(':id/check-status')

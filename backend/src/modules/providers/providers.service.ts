@@ -5,6 +5,7 @@ import axios from 'axios';
 import { Provider, ProviderDocument, ProviderStatus, ProviderType } from '../../database/schemas/provider.schema';
 import { ProviderProduct, ProviderProductDocument } from '../../database/schemas/provider-product.schema';
 import { Product, ProductDocument, ProfitMarginType, ProductType } from '../../database/schemas/product.schema';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class ProvidersService {
@@ -20,6 +21,7 @@ export class ProvidersService {
     @InjectModel(Provider.name) private providerModel: Model<ProviderDocument>,
     @InjectModel(ProviderProduct.name) private providerProductModel: Model<ProviderProductDocument>,
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private isTimeoutError(err: any): boolean {
@@ -131,6 +133,31 @@ export class ProvidersService {
     }
 
     return provider;
+  }
+
+  // زر الإيقاف/التفعيل اليدوي: الإيقاف يُخفي كل التطبيقات والمنتجات المرتبطة به
+  async toggleActive(id: string) {
+    const provider = await this.findOne(id);
+    // السجلات القديمة قد لا تحمل الحقل أصلاً — تُعتبر مفعّلة كي يعمل زر الإيقاف
+    const nextActive = provider.isActive === false;
+    provider.isActive = nextActive;
+
+    if (!nextActive) {
+      provider.lastError = provider.lastError || 'أُوقف المزود يدوياً من الإدارة';
+      await provider.save();
+      return provider;
+    }
+
+    provider.lastError = undefined;
+    await provider.save();
+
+    // التفعيل يتبعه فحص فوري كي لا يعود مزود بلا رصيد إلى واجهة العملاء
+    try {
+      return await this.checkStatus(id);
+    } catch (err: any) {
+      this.logger.warn(`Post-enable status check failed for ${provider.name}: ${err.message}`);
+      return provider;
+    }
   }
 
   /** حساب سعر البيع من سعر التكلفة حسب هامش ربح المزود */
@@ -260,6 +287,44 @@ export class ProvidersService {
   // Maximum age of a stored provider status before it is refreshed on demand
   private static readonly STATUS_TTL_MS = 10 * 60 * 1000;
 
+  // رسالة المزود قد تشير لنفاد الرصيد حتى دون رمز خطأ صريح
+  private isInsufficientBalanceError(message?: string): boolean {
+    const msg = (message || '').toLowerCase();
+    if (!msg) return false;
+    return (
+      /insufficient\s+(balance|credit|funds|money)/.test(msg) ||
+      /not\s+enough\s+(balance|credit|funds|money)/.test(msg) ||
+      /(balance|credit|funds)\s+(is\s+)?(too\s+)?(low|empty|zero|exhausted|depleted)/.test(msg) ||
+      /(no|without)\s+(available\s+)?(balance|credit|funds)/.test(msg) ||
+      /out\s+of\s+(balance|credit|funds)/.test(msg) ||
+      /رصيد\s*(المزود|غير|لا|منخفض|صفر)/.test(msg)
+    );
+  }
+
+  // إيقاف المزود تلقائياً عند نفاد رصيده: الشرط أن يكون ما زال مفعّلاً،
+  // كي لا يتكرر الإشعار مع كل محاولة شراء لاحقة
+  private async disableForInsufficientBalance(provider: ProviderDocument, reason: string) {
+    const updated = await this.providerModel.findOneAndUpdate(
+      // $ne: false كي تُشمل السجلات القديمة التي لا تحمل الحقل أصلاً
+      { _id: provider._id, isActive: { $ne: false } },
+      { $set: { isActive: false, status: ProviderStatus.ERROR, lastError: reason } },
+      { new: true },
+    );
+    if (!updated) return; // كان موقوفاً مسبقاً — لا تكرار للإشعار
+
+    this.logger.warn(`Provider ${updated.name} auto-disabled: ${reason}`);
+    try {
+      await this.notificationsService.createNotification({
+        forRole: 'admin',
+        title: 'إيقاف مزود تلقائياً: الرصيد غير كافٍ',
+        body: `أُوقف المزود "${updated.name}" تلقائياً بعد تعذّر تنفيذ طلب بسبب الرصيد (${reason}). أعد شحن رصيده ثم فعّله من إدارة المزودين.`,
+        type: 'provider_alert',
+      });
+    } catch (err: any) {
+      this.logger.warn(`Provider auto-disable notification failed: ${err?.message}`);
+    }
+  }
+
   // Fail fast — before any money is deducted — when a provider cannot serve the order
   async ensureReadyForOrder(providerId: string, requiredCost = 0): Promise<ProviderDocument> {
     let provider: ProviderDocument;
@@ -291,6 +356,13 @@ export class ProvidersService {
 
     const balance = typeof provider.balance === 'number' ? provider.balance : 0;
     if (requiredCost > 0 && balance < requiredCost) {
+      // نفاد رصيد المزود = إيقاف فوري له فتختفي كل تطبيقاته المرتبطة من المتجر
+      await this.disableForInsufficientBalance(
+        provider,
+        `الرصيد $${balance.toFixed(2)} أقل من تكلفة الطلب $${requiredCost.toFixed(2)}`,
+      ).catch((err: any) =>
+        this.logger.warn(`Provider auto-disable failed: ${err.message}`),
+      );
       throw new BadRequestException(
         'رصيد مزوّد الخدمة غير كافٍ لتنفيذ هذا الطلب حالياً، ولم يتم خصم أي مبلغ من رصيدك. يرجى المحاولة لاحقاً أو اختيار خدمة أخرى',
       );
@@ -300,16 +372,31 @@ export class ProvidersService {
   }
 
   // Persist the provider-side failure reason and refresh its status/balance in the background
-  async markProviderFailure(providerId: string, message: string) {
+  async markProviderFailure(providerId: string, message: string, requiredCost = 0) {
+    const insufficientSignal = this.isInsufficientBalanceError(message);
+
     try {
       await this.providerModel.updateOne({ _id: providerId }, { $set: { lastError: message } });
     } catch (err: any) {
       this.logger.warn(`Could not persist provider failure: ${err.message}`);
     }
 
-    this.checkStatus(providerId).catch((err: any) =>
-      this.logger.warn(`Background provider status refresh failed: ${err.message}`),
-    );
+    this.checkStatus(providerId)
+      .then((refreshed) => {
+        const balance = typeof refreshed.balance === 'number' ? refreshed.balance : 0;
+        const drained = requiredCost > 0 && balance < requiredCost;
+        if (!insufficientSignal && !drained) return;
+
+        return this.disableForInsufficientBalance(
+          refreshed,
+          insufficientSignal
+            ? `المزود أبلغ عن نفاد الرصيد: ${message}`
+            : `الرصيد $${balance.toFixed(2)} أقل من تكلفة الطلب $${requiredCost.toFixed(2)}`,
+        );
+      })
+      .catch((err: any) =>
+        this.logger.warn(`Background provider status refresh failed: ${err.message}`),
+      );
   }
 
   // Normalized view over any provider's order status (used for reconciliation)
