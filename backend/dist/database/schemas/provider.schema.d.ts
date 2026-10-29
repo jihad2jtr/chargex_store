@@ -9,6 +9,8 @@ export declare enum ProviderStatus {
 export declare enum ProviderType {
     BAY2GAME = "bay2game",
     FOXRELOAD = "foxreload",
+    FIVESIM = "fivesim",
+    HEROSMS = "herosms",
     CUSTOM = "custom"
 }
 export declare class Provider {

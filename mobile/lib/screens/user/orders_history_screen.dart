@@ -7,7 +7,9 @@ import '../../core/constants/app_icon_assets.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/app_model.dart';
 import '../../models/order_model.dart';
+import '../../models/virtual_number_model.dart';
 import '../../providers/app_catalog_provider.dart';
+import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/app_thumb.dart';
 import '../../widgets/status_pill.dart';
 import 'app_products_screen.dart';
@@ -23,6 +25,10 @@ class OrdersHistoryScreen extends StatefulWidget {
 
 class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   String _selectedFilter = 'all';
+
+  /// فلتر نوع الخدمة: all / app / game / service / number — طبقة مستقلّة عن
+  /// فلتر الحالة، وفوقه شريط «الكل/قيد الانتظار/...» كما كان.
+  String _selectedKind = 'all';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   Timer? _autoRefreshTimer;
@@ -35,12 +41,21 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<AppCatalogProvider>(context, listen: false).fetchMyOrders();
+      // سجل الأرقام الوهمية مدمج هنا (لم يعد له سجل منعزل في صفحة الأرقام)
+      Provider.of<VirtualNumbersProvider>(
+        context,
+        listen: false,
+      ).fetchMyRequests();
     });
 
     // Auto-refresh orders every 15 seconds
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
       if (mounted) {
         Provider.of<AppCatalogProvider>(context, listen: false).fetchMyOrders();
+        Provider.of<VirtualNumbersProvider>(
+          context,
+          listen: false,
+        ).fetchMyRequests(quiet: true);
       }
     });
   }
@@ -131,7 +146,32 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final catalog = Provider.of<AppCatalogProvider>(context);
+    final numbers = Provider.of<VirtualNumbersProvider>(context);
     final allOrders = catalog.myOrders;
+
+    // سجل الأرقام الوهمية مدمج في «طلباتي»: الرقم الحيّ يُدار من صفحة
+    // الأرقام، وهنا تُعرض الأرقام المنتهية كتذاكر مثل بقية الطلبات.
+    final numberHistory = numbers.myRequests.where((r) => !r.isLive).toList()
+      ..sort(
+        (a, b) =>
+            (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)),
+      );
+
+    // عدد كل نوع (بلا فلترة) لشريط الأنواع
+    final appCount = allOrders.where((o) => o.serviceKind == 'app').length;
+    final gameCount = allOrders.where((o) => o.serviceKind == 'game').length;
+    final serviceCount = allOrders
+        .where((o) => o.serviceKind == 'service')
+        .length;
+    final numberCount = numberHistory.length;
+
+    // إبقاء العناصر بترتيبها الزمني المختلط: الطلبات والأرقام تُزمن معاً
+    final entries = <_HistoryRow>[
+      ...allOrders.map((o) => _HistoryRow.order(o, o.createdAt)),
+      ...numberHistory.map(
+        (r) => _HistoryRow.number(r, r.createdAt ?? DateTime(0)),
+      ),
+    ]..sort((a, b) => b.at.compareTo(a.at));
 
     // Filter calculations
     final completedCount = allOrders
@@ -150,44 +190,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         .where((o) => o.isCompleted || o.isDelivered)
         .fold(0.0, (sum, o) => sum + o.amount);
 
-    final filteredOrders = allOrders.where((order) {
-      // 1. Status Filter
-      if (_selectedFilter == 'completed') {
-        if (!order.isCompleted && !order.isDelivered) return false;
-      } else if (_selectedFilter == 'pending') {
-        if (!order.isPending &&
-            !order.isInProgress &&
-            !order.isAccepted &&
-            !order.isAssigned) {
-          return false;
-        }
-      } else if (_selectedFilter == 'manual') {
-        if (!order.isManual) return false;
-      } else if (_selectedFilter == 'rejected') {
-        if (!order.isRejected && !order.isDisputed) return false;
-      }
-
-      // 2. Search Query Filter
-      if (_searchQuery.trim().isNotEmpty) {
-        final q = _searchQuery.trim().toLowerCase();
-        final matchNum = order.orderNumber.toLowerCase().contains(q);
-        final matchApp = order.appName.toLowerCase().contains(q);
-        final matchProd = order.productName.toLowerCase().contains(q);
-        final matchInputs = order.accountInput.values.any(
-          (v) => v.toString().toLowerCase().contains(q),
-        );
-        final matchCode = (order.deliveredCode ?? '').toLowerCase().contains(q);
-        if (!matchNum &&
-            !matchApp &&
-            !matchProd &&
-            !matchInputs &&
-            !matchCode) {
-          return false;
-        }
-      }
-
-      return true;
-    }).toList();
+    final filtered = entries.where((row) => _passesFilter(row)).toList();
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
@@ -220,7 +223,10 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     ),
                   ),
                   tooltip: 'تحديث الطلبات',
-                  onPressed: () => catalog.fetchMyOrders(),
+                  onPressed: () {
+                    catalog.fetchMyOrders();
+                    numbers.fetchMyRequests();
+                  },
                 ),
                 const SizedBox(width: 10),
               ],
@@ -228,14 +234,17 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           : null,
       body: RefreshIndicator(
         color: const Color(0xFF0F172A),
-        onRefresh: () => catalog.fetchMyOrders(),
+        onRefresh: () async {
+          await catalog.fetchMyOrders();
+          await numbers.fetchMyRequests();
+        },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           children: [
             // 1. Compact stats bar
             _buildExecutiveSummaryBanner(
-              totalOrders: allOrders.length,
+              totalOrders: allOrders.length + numberHistory.length,
               completedCount: completedCount,
               pendingCount: pendingCount,
               totalSpent: totalSpent,
@@ -246,7 +255,17 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             _buildSearchBar(),
             const SizedBox(height: 8),
 
-            // 3. Tactile Filter Pills
+            // 3. Type filter (أرقام/تطبيقات/ألعاب/خدمات)
+            _buildKindChips(
+              totalCount: entries.length,
+              appCount: appCount,
+              gameCount: gameCount,
+              serviceCount: serviceCount,
+              numberCount: numberCount,
+            ),
+            const SizedBox(height: 8),
+
+            // 4. Tactile Filter Pills (الحالة)
             _buildFilterChips(
               totalCount: allOrders.length,
               completedCount: completedCount,
@@ -256,15 +275,25 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             ),
             const SizedBox(height: 11),
 
-            // 4. Orders List or Empty State
-            if (filteredOrders.isEmpty)
-              _buildEmptyState(allOrders.isEmpty)
+            // 5. Merged list or Empty State
+            if (filtered.isEmpty)
+              _buildEmptyState(entries.isEmpty)
             else
-              ...filteredOrders.map((order) {
+              ...filtered.map((row) {
                 final dateStr = DateFormat(
                   'yyyy/MM/dd • hh:mm a',
-                ).format(order.createdAt);
-                return _buildOrderTicket(order, dateStr, catalog);
+                ).format(row.at);
+                return switch (row) {
+                  _OrderHistoryRow(:final order) => _buildOrderTicket(
+                    order,
+                    dateStr,
+                    catalog,
+                  ),
+                  _NumberHistoryRow(:final request) => _buildNumberTicket(
+                    request,
+                    dateStr,
+                  ),
+                };
               }),
 
             const SizedBox(height: 30),
@@ -272,6 +301,69 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         ),
       ),
     );
+  }
+
+  /// يطبّق فلتر الحالة + فلتر النوع + البحث على صف مدمج (طلب أو رقم)
+  bool _passesFilter(_HistoryRow row) {
+    // 1. Status filter
+    if (_selectedFilter != 'all') {
+      if (row case _OrderHistoryRow(:final order)) {
+        if (_selectedFilter == 'completed') {
+          if (!order.isCompleted && !order.isDelivered) return false;
+        } else if (_selectedFilter == 'pending') {
+          if (!order.isPending &&
+              !order.isInProgress &&
+              !order.isAccepted &&
+              !order.isAssigned) {
+            return false;
+          }
+        } else if (_selectedFilter == 'manual') {
+          if (!order.isManual) return false;
+        } else if (_selectedFilter == 'rejected') {
+          if (!order.isRejected && !order.isDisputed) return false;
+        }
+      } else {
+        // الأرقام: الرقم المنتهي لا يُعدّ قيد الانتظار/مرفوضاً في الفلترة اليدوية
+        if (_selectedFilter == 'pending' || _selectedFilter == 'manual') {
+          return false;
+        }
+      }
+    }
+
+    // 2. Type filter
+    if (_selectedKind != 'all' && row.kind != _selectedKind) return false;
+
+    // 3. Search query
+    if (_searchQuery.trim().isNotEmpty) {
+      final q = _searchQuery.trim().toLowerCase();
+      if (row case _OrderHistoryRow(:final order)) {
+        final matchNum = order.orderNumber.toLowerCase().contains(q);
+        final matchApp = order.appName.toLowerCase().contains(q);
+        final matchProd = order.productName.toLowerCase().contains(q);
+        final matchInputs = order.accountInput.values.any(
+          (v) => v.toString().toLowerCase().contains(q),
+        );
+        final matchCode = (order.deliveredCode ?? '').toLowerCase().contains(q);
+        if (!matchNum &&
+            !matchApp &&
+            !matchProd &&
+            !matchInputs &&
+            !matchCode) {
+          return false;
+        }
+      } else if (row case _NumberHistoryRow(:final request)) {
+        final haystack = <String>[
+          request.requestNumber,
+          request.title,
+          request.countryName,
+          request.phoneNumber ?? '',
+          request.smsCode ?? '',
+        ];
+        if (!haystack.any((v) => v.toLowerCase().contains(q))) return false;
+      }
+    }
+
+    return true;
   }
 
   // ===========================================================================
@@ -1592,6 +1684,525 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       ),
     );
   }
+
+  // ===========================================================================
+  // TYPE FILTER — شريط الأنواع: الكل / تطبيقات / ألعاب / خدمات / أرقام
+  // الأرقام تُقرأ من مزود الأرقام، والبقية تُصنَّف من نوع التطبيق (appType)
+  // بحيث الاشتراكات واليدوي وكل بلا نوع يدخل تحت «خدمات».
+  // ===========================================================================
+  Widget _buildKindChips({
+    required int totalCount,
+    required int appCount,
+    required int gameCount,
+    required int serviceCount,
+    required int numberCount,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          _buildFilterChip('all', 'الكل', totalCount, Icons.dashboard_outlined),
+          const SizedBox(width: 8),
+          _buildKindChip('app', 'تطبيقات', appCount, Icons.apps_rounded),
+          const SizedBox(width: 8),
+          _buildKindChip('game', 'ألعاب', gameCount, Icons.sports_esports),
+          const SizedBox(width: 8),
+          _buildKindChip(
+            'service',
+            'خدمات',
+            serviceCount,
+            Icons.support_agent_outlined,
+          ),
+          const SizedBox(width: 8),
+          _buildKindChip(
+            'number',
+            'أرقام',
+            numberCount,
+            Icons.sim_card_download_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKindChip(String key, String label, int count, IconData icon) {
+    final isSelected = _selectedKind == key;
+
+    return InkWell(
+      onTap: () => setState(() => _selectedKind = key),
+      borderRadius: BorderRadius.circular(16),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
+        decoration: BoxDecoration(
+          color: isSelected ? const Color(0xFF4338CA) : Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF4338CA)
+                : const Color(0xFFE2E8F0),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 12,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTypography.cairo(
+                fontSize: 10.5,
+                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                color: isSelected ? Colors.white : const Color(0xFF334155),
+              ),
+            ),
+            const SizedBox(width: 5),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.18)
+                    : const Color(0xFFF1F5F9),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                '$count',
+                style: AppTypography.technicalCode(
+                  fontSize: 9.5,
+                  fontWeight: FontWeight.bold,
+                  color: isSelected ? Colors.white : const Color(0xFF64748B),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
+  // NUMBER TICKET — تذكرة رقم وهمي مدمجة بنفس شكل تذاكر الطلبات
+  // ===========================================================================
+  String _numberTicketKey(VirtualNumberRequestModel r) =>
+      r.id.isNotEmpty ? r.id : r.requestNumber;
+
+  bool _isNumberOpen(VirtualNumberRequestModel r) =>
+      _openTickets.contains('n:${_numberTicketKey(r)}');
+
+  void _toggleNumberTicket(VirtualNumberRequestModel r) {
+    setState(() {
+      final String key = 'n:${_numberTicketKey(r)}';
+      if (!_openTickets.remove(key)) _openTickets.add(key);
+    });
+  }
+
+  /// أيقونة الخدمة: من سجل الأيقونات المربعة باسم الخدمة، وإلا سلسلة فارغة
+  /// فيستعمل AppThumb رمزه الافتراضي
+  AppItemModel _numberAppItem(VirtualNumberRequestModel r) {
+    final String name = r.title;
+    final String? icon = builtinIconAssetForName(name);
+    return AppItemModel(
+      id: r.service,
+      name: name.isNotEmpty ? name : 'رقم تحقق',
+      iconUrl: icon ?? '',
+    );
+  }
+
+  /// يلائم شارة الحالة: لون أخضر للّرمز المستلَم، وكهرماني للإرجاع، وأحمر للفشل
+  ({Color fg, Color bg, String label}) _numberPill(
+    VirtualNumberRequestModel r,
+  ) {
+    if (r.hasCode || r.status == VirtualNumberRequestModel.completed) {
+      return (
+        fg: const Color(0xFF059669),
+        bg: const Color(0xFFD1FAE5),
+        label: r.statusLabel,
+      );
+    }
+    if (r.status == VirtualNumberRequestModel.received) {
+      return (
+        fg: const Color(0xFF0284C7),
+        bg: const Color(0xFFE0F2FE),
+        label: r.statusLabel,
+      );
+    }
+    if (r.isRefunded || r.status == VirtualNumberRequestModel.expired) {
+      return (
+        fg: const Color(0xFFD97706),
+        bg: const Color(0xFFFEF3C7),
+        label: r.statusLabel,
+      );
+    }
+    if (r.status == VirtualNumberRequestModel.cancelled ||
+        r.status == VirtualNumberRequestModel.failed) {
+      return (
+        fg: const Color(0xFFDC2626),
+        bg: const Color(0xFFFEE2E2),
+        label: r.statusLabel,
+      );
+    }
+    return (
+      fg: const Color(0xFF64748B),
+      bg: const Color(0xFFF1F5F9),
+      label: r.statusLabel,
+    );
+  }
+
+  /// شارة حالة الرقم: لون/نص مخصصان (StatusPill لا يعرف حالات الأرقام العربية)
+  Widget _numberPillWidget(({Color fg, Color bg, String label}) pill) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: pill.bg,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: pill.fg.withValues(alpha: 0.35), width: 1),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 5,
+            height: 5,
+            decoration: BoxDecoration(color: pill.fg, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              pill.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                color: pill.fg,
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _copyValue(String value, String label) {
+    if (value.isEmpty) return;
+    Clipboard.setData(ClipboardData(text: value));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(seconds: 1),
+        content: Text('تم نسخ $label', style: AppTypography.cairo()),
+        backgroundColor: const Color(0xFF0F172A),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  Widget _buildNumberTicket(VirtualNumberRequestModel request, String dateStr) {
+    final bool open = _isNumberOpen(request);
+    final pill = _numberPill(request);
+    final Color borderColor = pill.fg.withValues(alpha: 0.25);
+    final String phone = request.phoneNumber ?? '';
+    final String code = request.smsCode ?? '';
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _ticketSection(
+            top: true,
+            borderColor: borderColor,
+            onTap: () => _toggleNumberTicket(request),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(11, 9, 8, 4),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 38,
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF1F5F9),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                      ),
+                      child: AppThumb(
+                        app: _numberAppItem(request),
+                        size: 36,
+                        radius: 8,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            request.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w800,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Row(
+                            children: [
+                              Flexible(
+                                flex: 3,
+                                child: Text(
+                                  request.countryName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: AppTypography.cairo(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: const Color(0xFF64748B),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Flexible(
+                                flex: 2,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 5,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFFF1F5F9),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'رقم وهمي 📱',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.cairo(
+                                      fontSize: 8.5,
+                                      fontWeight: FontWeight.bold,
+                                      color: const Color(0xFF475569),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    SizedBox(
+                      width: 80,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: Text(
+                              '\$${request.amount.toStringAsFixed(2)}',
+                              style: AppTypography.price(
+                                fontSize: 13.5,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: AlignmentDirectional.centerEnd,
+                            child: _numberPillWidget(pill),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 2),
+                    AnimatedRotation(
+                      turns: open ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: const Icon(
+                        Icons.expand_more_rounded,
+                        size: 17,
+                        color: Color(0xFF94A3B8),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          _ticketSection(
+            top: false,
+            borderColor: borderColor,
+            onTap: () => _toggleNumberTicket(request),
+            children: [
+              Padding(
+                padding: EdgeInsets.fromLTRB(11, 6, 11, open ? 10 : 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Flexible(
+                          child: Text(
+                            'VN #${request.requestNumber}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.technicalCode(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0284C7),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          dateStr,
+                          style: AppTypography.technicalCode(
+                            fontSize: 9,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (open) ...[
+                      const Divider(
+                        height: 16,
+                        thickness: 0.6,
+                        color: Color(0xFFE2E8F0),
+                      ),
+                      if (phone.isNotEmpty)
+                        _numberDetailRow(
+                          icon: Icons.phone_rounded,
+                          label: 'الرقم',
+                          value: phone,
+                          onCopy: () => _copyValue(phone, 'رقم التحقق'),
+                        ),
+                      if (code.isNotEmpty)
+                        _numberDetailRow(
+                          icon: Icons.key_rounded,
+                          label: 'رمز التحقق',
+                          value: code,
+                          onCopy: () => _copyValue(code, 'رمز التحقق'),
+                        ),
+                      if (request.note.isNotEmpty)
+                        _numberDetailRow(
+                          icon: Icons.info_outline_rounded,
+                          label: 'ملاحظة',
+                          value: request.note,
+                        ),
+                      if (phone.isEmpty && code.isEmpty)
+                        Text(
+                          'لم يصل رمز لهذا الرقم${request.isRefunded ? '، وأُرجع المبلغ' : ''}',
+                          style: AppTypography.cairo(
+                            fontSize: 11,
+                            color: const Color(0xFF64748B),
+                          ),
+                        ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _numberDetailRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    VoidCallback? onCopy,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Icon(icon, size: 14, color: const Color(0xFF64748B)),
+          const SizedBox(width: 6),
+          Text(
+            '$label:',
+            style: AppTypography.cairo(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: const Color(0xFF475569),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.technicalCode(
+                fontSize: 11,
+                color: const Color(0xFF0F172A),
+              ),
+            ),
+          ),
+          if (onCopy != null)
+            InkWell(
+              onTap: onCopy,
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.all(3),
+                child: const Icon(
+                  Icons.copy_rounded,
+                  size: 14,
+                  color: Color(0xFF94A3B8),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// MERGED HISTORY ROW — يوحّد تذاكر الطلبات وتذاكر الأرقام في قائمة واحدة
+// =============================================================================
+sealed class _HistoryRow {
+  final DateTime at;
+  const _HistoryRow(this.at);
+
+  /// نوع الصف لفلتر «أرقام/تطبيقات/ألعاب/خدمات»
+  String get kind;
+
+  const factory _HistoryRow.order(OrderModel order, DateTime at) =
+      _OrderHistoryRow;
+
+  const factory _HistoryRow.number(
+    VirtualNumberRequestModel request,
+    DateTime at,
+  ) = _NumberHistoryRow;
+}
+
+class _OrderHistoryRow extends _HistoryRow {
+  final OrderModel order;
+  const _OrderHistoryRow(this.order, super.at);
+
+  @override
+  String get kind => order.serviceKind;
+}
+
+class _NumberHistoryRow extends _HistoryRow {
+  final VirtualNumberRequestModel request;
+  const _NumberHistoryRow(this.request, super.at);
+
+  @override
+  String get kind => 'number';
 }
 
 // =============================================================================

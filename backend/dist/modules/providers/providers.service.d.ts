@@ -15,6 +15,8 @@ export declare class ProvidersService {
     private isTimeoutError;
     private isBay2Game;
     private isFoxReload;
+    private isVirtualNumbers;
+    private virtualNumberClient;
     private getFoxReloadBaseUrl;
     private getFoxReloadHeaders;
     findAll(): Promise<(import("mongoose").Document<unknown, {}, ProviderDocument, {}, import("mongoose").DefaultSchemaOptions> & Provider & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{

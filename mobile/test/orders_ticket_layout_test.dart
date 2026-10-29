@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:layan_chargex/core/services/cache_service.dart';
 import 'package:layan_chargex/models/order_model.dart';
 import 'package:layan_chargex/providers/app_catalog_provider.dart';
+import 'package:layan_chargex/providers/virtual_numbers_provider.dart';
 import 'package:layan_chargex/screens/user/orders_history_screen.dart';
 import 'package:layan_chargex/widgets/app_thumb.dart';
 
@@ -78,8 +79,16 @@ Future<void> _pumpOrders(
   addTearDown(w.view.resetDevicePixelRatio);
 
   await w.pumpWidget(
-    ChangeNotifierProvider<AppCatalogProvider>(
-      create: (_) => AppCatalogProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AppCatalogProvider>(
+          create: (_) => AppCatalogProvider(),
+        ),
+        // «طلباتي» تدمج سجل الأرقام الوهمية، فهي تحتاج مزوّد الأرقام
+        ChangeNotifierProvider<VirtualNumbersProvider>(
+          create: (_) => VirtualNumbersProvider(),
+        ),
+      ],
       child: MaterialApp(
         home: Directionality(
           textDirection: TextDirection.rtl,

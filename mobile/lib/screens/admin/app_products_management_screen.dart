@@ -364,7 +364,8 @@ class _AppProductsManagementScreenState
                     const SizedBox(height: 12),
 
                     // Provider (Optional or for direct_api)
-                    if (admin.providers.isNotEmpty) ...[
+                    // مزودو الأرقام الوهمية خارج القائمة: لا يخدمون منتجات ولا كتالوج
+                    if (admin.providers.any((p) => !p.isVirtualNumber)) ...[
                       DropdownButtonFormField<String?>(
                         initialValue: selectedProviderId,
                         decoration: const InputDecoration(
@@ -376,12 +377,14 @@ class _AppProductsManagementScreenState
                             value: null,
                             child: Text('بدون مزود'),
                           ),
-                          ...admin.providers.map(
-                            (p) => DropdownMenuItem(
-                              value: p.id,
-                              child: Text(p.name),
-                            ),
-                          ),
+                          ...admin.providers
+                              .where((p) => !p.isVirtualNumber)
+                              .map(
+                                (p) => DropdownMenuItem(
+                                  value: p.id,
+                                  child: Text(p.name),
+                                ),
+                              ),
                         ],
                         onChanged: (val) {
                           setDialogState(() => selectedProviderId = val);

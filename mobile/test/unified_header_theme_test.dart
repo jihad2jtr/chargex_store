@@ -71,4 +71,20 @@ void main() {
       isEmpty,
     );
   });
+
+  // الشريط العلوي صار هوية مختصرة: الاسم + شارة الدور فقط، ومعرّف الآيدي
+  // لم يعد معروضاً فيه (يبقى متاحاً من زر الباركود).
+  testWidgets('الشريط العلوي لا يعرض معرّف الآيدي', (w) async {
+    await _renderHeader(w);
+
+    expect(find.text('عميل JGO'), findsOneWidget);
+    expect(find.text('عميل'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(UnifiedTactileHeader),
+        matching: find.textContaining('#'),
+      ),
+      findsNothing,
+    );
+  });
 }

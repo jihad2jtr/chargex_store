@@ -900,7 +900,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
     async getMyOrders(userId) {
         return this.orderModel
             .find({ userId: new mongoose_2.Types.ObjectId(userId) })
-            .populate('appId', 'name iconUrl')
+            .populate('appId', 'name iconUrl appType')
             .populate('productId', 'name type costPrice salePrice isSensitive')
             .populate('assignedSupervisorId', 'name email phone role')
             .sort({ createdAt: -1 });

@@ -7,11 +7,19 @@ import '../../models/provider_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../providers/virtual_numbers_provider.dart';
 import 'provider_form_dialog.dart';
 import 'provider_products_screen.dart';
+import 'virtual_number_catalog_screen.dart';
 
 class ProvidersManagementScreen extends StatefulWidget {
-  const ProvidersManagementScreen({super.key});
+  const ProvidersManagementScreen({super.key, this.virtualNumbersOnly = false});
+
+  /// `true`: صفحة مزودي الأرقام الوهمية (5sim / Hero-SMS).
+  /// نفس التذكرة والمعالجة، لكن القائمة محصورة بهم وحدهم؛ منتجاتهم دول
+  /// أرقام تُنتقى من كتالوج المزود إلى تطبيقات الأرقام — مثل منتجات
+  /// المزود العاديين في المتجر تماماً.
+  final bool virtualNumbersOnly;
 
   @override
   State<ProvidersManagementScreen> createState() =>
@@ -20,6 +28,9 @@ class ProvidersManagementScreen extends StatefulWidget {
 
 class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   bool _isCheckingAll = false;
+
+  /// نصف المزودين الذي تعرضه هذه الصفحة: أرقام وهمية أو متاجر
+  bool get _virtualOnly => widget.virtualNumbersOnly;
 
   // مقاسات التذكرة الموحّدة في هذه الشاشة (نفس هوية بقية صفحات الأدمن)
   static const double _radius = 16;
@@ -37,7 +48,11 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   Future<void> _checkAllProviders() async {
     setState(() => _isCheckingAll = true);
     final admin = Provider.of<AdminProvider>(context, listen: false);
-    for (final p in admin.providers) {
+    // فحص الصفحة الحالية فقط: صفحات المزودين مفصولة، فلا يُفحص ما لا يظهر هنا
+    final targets = admin.providers
+        .where((p) => p.isVirtualNumber == _virtualOnly)
+        .toList();
+    for (final p in targets) {
       await admin.checkProviderStatus(p.id);
     }
     if (mounted) {
@@ -45,7 +60,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'تم الانتهاء من فحص اتصال جميع المزودين وتحديث الأرصدة بنجاح ✅',
+            _virtualOnly
+                ? 'تم الانتهاء من فحص اتصال مزودي الأرقام وتحديث الأرصدة بنجاح ✅'
+                : 'تم الانتهاء من فحص اتصال جميع المزودين وتحديث الأرصدة بنجاح ✅',
             style: AppTypography.cairo(),
           ),
           backgroundColor: AppColors.tertiaryLight,
@@ -60,7 +77,11 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     final admin = Provider.of<AdminProvider>(context, listen: false);
     showDialog<void>(
       context: context,
-      builder: (_) => ProviderFormDialog(admin: admin, provider: provider),
+      builder: (_) => ProviderFormDialog(
+        admin: admin,
+        provider: provider,
+        virtualNumbersOnly: _virtualOnly,
+      ),
     );
   }
 
@@ -72,17 +93,37 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     );
   }
 
+  /// انتقاء دول الأرقام: كتالوج المزود ← تطبيقات الأرقام ← تفعيل/إخفاء
+  void _openNumberCatalog(ProviderModel provider) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VirtualNumberCatalogScreen(providerId: provider.id),
+      ),
+    );
+    // العودة بعد الانتقاء أو تبديل التفعيل: عدّادات التطبيقات تتحدث
+    Future.microtask(() async {
+      if (mounted) {
+        await context.read<VirtualNumbersProvider>().fetchAdminApps(
+          quiet: true,
+        );
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final admin = Provider.of<AdminProvider>(context);
-    final onlineCount = admin.providers
-        .where((p) => p.status == 'online')
-        .length;
-    final totalBalance = admin.providers.fold<double>(
+    // كل صفحة تعرض نصفها فقط: مزودو المتاجر في «إدارة المزودين»
+    // ومزودو الأرقام في صفحتهم المستقلة
+    final providers = admin.providers
+        .where((p) => p.isVirtualNumber == _virtualOnly)
+        .toList();
+    final onlineCount = providers.where((p) => p.status == 'online').length;
+    final totalBalance = providers.fold<double>(
       0.0,
       (acc, p) => acc + p.balance,
     );
-    final suspendedCount = admin.providers.where((p) => !p.isActive).length;
+    final suspendedCount = providers.where((p) => !p.isActive).length;
 
     return Scaffold(
       backgroundColor: AppColors.paper,
@@ -91,7 +132,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
         elevation: 0,
         scrolledUnderElevation: 1,
         title: Text(
-          'إدارة المزودين',
+          _virtualOnly ? 'مزودو الأرقام الوهمية' : 'إدارة المزودين',
           style: AppTypography.cairo(
             fontSize: 16.5,
             fontWeight: FontWeight.w800,
@@ -100,7 +141,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
         ),
         actions: [
           IconButton(
-            tooltip: 'فحص اتصال جميع المزودين',
+            tooltip: _virtualOnly
+                ? 'فحص اتصال مزودي الأرقام'
+                : 'فحص اتصال جميع المزودين',
             icon: _isCheckingAll
                 ? const SizedBox(
                     width: 18,
@@ -117,7 +160,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             onPressed: _isCheckingAll ? null : _checkAllProviders,
           ),
           IconButton(
-            tooltip: 'إضافة مزود جديد',
+            tooltip: _virtualOnly ? 'إضافة مزود أرقام' : 'إضافة مزود جديد',
             icon: Container(
               padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(
@@ -153,7 +196,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   children: [
                     // 1. بطاقة عدّادات واحدة بنمط التذكرة
                     _buildStatsTicket(
-                      total: admin.providers.length,
+                      total: providers.length,
                       online: onlineCount,
                       suspended: suspendedCount,
                       totalBalance: totalBalance,
@@ -163,14 +206,18 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
                     // 2. تذاكر المزودين
                     _sectionHeader(
-                      'المزودين المربوطين بالنظام',
-                      'PROVIDERS · ${admin.providers.length}',
+                      _virtualOnly
+                          ? 'مزودو أرقام التحقق'
+                          : 'المزودين المربوطين بالنظام',
+                      _virtualOnly
+                          ? 'SMS PROVIDERS · ${providers.length}'
+                          : 'PROVIDERS · ${providers.length}',
                     ),
 
-                    if (admin.providers.isEmpty)
+                    if (providers.isEmpty)
                       _buildEmptyState()
                     else
-                      ...admin.providers.map(
+                      ...providers.map(
                         (provider) => _buildProviderCard(provider, admin),
                       ),
 
@@ -395,7 +442,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'بوابة اتصال المزودين',
+                        _virtualOnly
+                            ? 'بوابة مزودي الأرقام'
+                            : 'بوابة اتصال المزودين',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
@@ -405,7 +454,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         ),
                       ),
                       Text(
-                        'PROVIDERS LEDGER · $online/$total متصل',
+                        _virtualOnly
+                            ? 'SMS PROVIDERS LEDGER · $online/$total متصل'
+                            : 'PROVIDERS LEDGER · $online/$total متصل',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.technicalCode(
@@ -601,7 +652,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                                     icon: Icons.trending_up_rounded,
                                     label: 'هامش الربح',
                                     value: marginValue,
-                                    note: 'تُطبَّق على كل المنتجات',
+                                    note: _virtualOnly
+                                        ? 'تُطبَّق على أسعار الأرقام'
+                                        : 'تُطبَّق على كل المنتجات',
                                     color: AppColors.primaryBlue,
                                   ),
                                 ),
@@ -647,8 +700,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                             const SizedBox(height: 8),
                             _note(
                               icon: Icons.visibility_off_rounded,
-                              text:
-                                  'المزود موقوف — كل التطبيقات والألعاب المرتبطة به لا تظهر للعملاء',
+                              text: _virtualOnly
+                                  ? 'المزود موقوف — لن تُصدَر أرقام للعملاء'
+                                  : 'المزود موقوف — كل التطبيقات والألعاب المرتبطة به لا تظهر للعملاء',
                               color: AppColors.errorLight,
                               background: AppColors.rose.withValues(
                                 alpha: 0.07,
@@ -731,35 +785,96 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                 children: [
                   Row(
                     children: [
-                      // Prominent "View Products" Button
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryBlue,
-                            foregroundColor: Colors.white,
-                            elevation: 0,
+                      // مزود الأرقام منتجاته دول تُنتقى من كتالوجه — نفس مسار المتجر
+                      if (_virtualOnly) ...[
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                            ),
+                            icon: const Icon(Icons.public_rounded, size: 15),
+                            label: Text(
+                              'انتقاء الدول والتطبيقات',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.cairo(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            onPressed: () => _openNumberCatalog(provider),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.slate700,
+                            side: const BorderSide(color: AppColors.slate300),
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
+                              horizontal: 10,
                               vertical: 12,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(11),
                             ),
                           ),
-                          icon: const Icon(Icons.inventory_2_rounded, size: 15),
+                          icon: const Icon(
+                            Icons.account_balance_wallet_rounded,
+                            size: 15,
+                          ),
+                          onPressed: () =>
+                              admin.checkProviderStatus(provider.id),
                           label: Text(
-                            'عرض المنتجات',
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            'فحص الرصيد',
                             style: AppTypography.cairo(
-                              fontSize: 12,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
-                          onPressed: () => _openProviderProducts(provider),
                         ),
-                      ),
-                      const SizedBox(width: 8),
+                      ] else ...[
+                        // Prominent "View Products" Button
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              elevation: 0,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(11),
+                              ),
+                            ),
+                            icon: const Icon(
+                              Icons.inventory_2_rounded,
+                              size: 15,
+                            ),
+                            label: Text(
+                              'عرض المنتجات',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.cairo(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            onPressed: () => _openProviderProducts(provider),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       // إيقاف/تفعيل المزود (يُخفي/يُظهر كل تطبيقاته)
                       _buildPowerButton(provider, admin, isActive),
                     ],
@@ -770,45 +885,48 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     mainAxisAlignment: MainAxisAlignment.end,
                     children: [
                       // Sync
-                      _buildCardIconButton(
-                        tooltip: 'مزامنة المنتجات والأسعار',
-                        icon: Icons.sync_rounded,
-                        color: AppColors.primaryBlue,
-                        onPressed: () async {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'جاري مزامنة المنتجات والأسعار من المزود...',
-                              ),
-                              behavior: SnackBarBehavior.floating,
-                            ),
-                          );
-                          final res = await admin.syncProviderProducts(
-                            provider.id,
-                          );
-                          if (mounted) {
+                      if (!_virtualOnly)
+                        _buildCardIconButton(
+                          tooltip: 'مزامنة المنتجات والأسعار',
+                          icon: Icons.sync_rounded,
+                          color: AppColors.primaryBlue,
+                          onPressed: () async {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
+                              const SnackBar(
                                 content: Text(
-                                  res?['message'] ?? 'تمت المزامنة بنجاح ✅',
+                                  'جاري مزامنة المنتجات والأسعار من المزود...',
                                 ),
-                                backgroundColor: res != null
-                                    ? AppColors.tertiaryLight
-                                    : AppColors.errorLight,
                                 behavior: SnackBarBehavior.floating,
                               ),
                             );
-                          }
-                        },
-                      ),
+                            final res = await admin.syncProviderProducts(
+                              provider.id,
+                            );
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    res?['message'] ?? 'تمت المزامنة بنجاح ✅',
+                                  ),
+                                  backgroundColor: res != null
+                                      ? AppColors.tertiaryLight
+                                      : AppColors.errorLight,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                        ),
 
                       // Test Status
-                      _buildCardIconButton(
-                        tooltip: 'فحص الاتصال وتحديث الرصيد',
-                        icon: Icons.flash_on_rounded,
-                        color: AppColors.secondaryBright,
-                        onPressed: () => admin.checkProviderStatus(provider.id),
-                      ),
+                      if (!_virtualOnly)
+                        _buildCardIconButton(
+                          tooltip: 'فحص الاتصال وتحديث الرصيد',
+                          icon: Icons.flash_on_rounded,
+                          color: AppColors.secondaryBright,
+                          onPressed: () =>
+                              admin.checkProviderStatus(provider.id),
+                        ),
 
                       // Edit
                       _buildCardIconButton(
@@ -1059,7 +1177,11 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   ) {
     final color = isActive ? AppColors.errorLight : AppColors.tertiaryLight;
     return Tooltip(
-      message: isActive ? 'إيقاف المزود وإخفاء تطبيقاته' : 'تفعيل المزود',
+      message: isActive
+          ? (_virtualOnly
+                ? 'إيقاف مزود الأرقام عن العملاء'
+                : 'إيقاف المزود وإخفاء تطبيقاته')
+          : 'تفعيل المزود',
       child: InkWell(
         onTap: () => _confirmToggleProvider(provider, admin),
         borderRadius: BorderRadius.circular(10),
@@ -1234,14 +1356,16 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     ProviderModel provider,
     AdminProvider admin,
   ) async {
-    // الإيقاف يُخفي كل تطبيقات المزود، لذا يُطلب تأكيد صريح قبل التنفيذ
+    // الإيقاف يُخفي خدمات المزود (تطبيقات أو أرقام)، لذا يُطلب تأكيد صريح قبل التنفيذ
     if (provider.isActive) {
       final confirmed = await _confirmTicket(
-        title: 'إيقاف مزود الخدمة',
+        title: _virtualOnly ? 'إيقاف مزود الأرقام' : 'إيقاف مزود الخدمة',
         code: 'SUSPEND · ${provider.name}',
-        body:
-            'سيتم إيقاف "${provider.name}" وإخفاء كل التطبيقات والألعاب والخدمات المرتبطة به\n'
-            'من واجهة العملاء فوراً. يمكنك تفعيله مجدداً في أي وقت.',
+        body: _virtualOnly
+            ? 'سيتم إيقاف "${provider.name}" فلن تُصدَر أرقام جديدة للعملاء\n'
+                  'من صفحة الأرقام الوهمية فوراً. يمكنك تفعيله مجدداً في أي وقت.'
+            : 'سيتم إيقاف "${provider.name}" وإخفاء كل التطبيقات والألعاب والخدمات المرتبطة به\n'
+                  'من واجهة العملاء فوراً. يمكنك تفعيله مجدداً في أي وقت.',
         confirmLabel: 'إيقاف المزود',
         cancelLabel: 'إلغاء',
         danger: AppColors.errorLight,
@@ -1259,8 +1383,12 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
         content: Text(
           ok
               ? (wasActive
-                    ? 'تم إيقاف "${provider.name}" وإخفاء كل تطبيقاته عن العملاء 🚫'
-                    : 'تم تفعيل "${provider.name}" وإظهار تطبيقاته المتاحة ✅')
+                    ? (_virtualOnly
+                          ? 'تم إيقاف "${provider.name}" فلن تُصدَر أرقام جديدة للعملاء 🚫'
+                          : 'تم إيقاف "${provider.name}" وإخفاء كل تطبيقاته عن العملاء 🚫')
+                    : (_virtualOnly
+                          ? 'تم تفعيل "${provider.name}" ويمكنه إصدار أرقام للعملاء ✅'
+                          : 'تم تفعيل "${provider.name}" وإظهار تطبيقاته المتاحة ✅'))
               : (admin.errorMessage ?? 'تعذّر تعديل حالة المزود'),
           style: AppTypography.cairo(color: Colors.white, fontSize: 13),
         ),
@@ -1275,10 +1403,11 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
   void _confirmDeleteProvider(ProviderModel provider, AdminProvider admin) {
     _confirmTicket(
-      title: 'حذف مزود الخدمة',
+      title: _virtualOnly ? 'حذف مزود الأرقام' : 'حذف مزود الخدمة',
       code: 'DELETE · ${provider.name}',
-      body:
-          'هل أنت متأكد من حذف المزود "${provider.name}"؟ قد يؤثر ذلك على المنتجات المربوطة به.',
+      body: _virtualOnly
+          ? 'هل أنت متأكد من حذف المزود "${provider.name}"؟ ستتوقف صفحة الأرقام الوهمية عن إصدار أرقام حتى تضيف مزوداً بديلاً.'
+          : 'هل أنت متأكد من حذف المزود "${provider.name}"؟ قد يؤثر ذلك على المنتجات المربوطة به.',
       confirmLabel: 'تأكيد الحذف',
       cancelLabel: 'إلغاء',
       danger: AppColors.rose,
@@ -1295,10 +1424,16 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _iconChip(AppColors.primaryBlue, Icons.hub_outlined, size: 52),
+            _iconChip(
+              _virtualOnly ? AppColors.tertiary : AppColors.primaryBlue,
+              _virtualOnly ? Icons.sim_card_rounded : Icons.hub_outlined,
+              size: 52,
+            ),
             const SizedBox(height: 14),
             Text(
-              'لا يوجد مزودين مضافين حالياً',
+              _virtualOnly
+                  ? 'لا يوجد مزود أرقام بعد'
+                  : 'لا يوجد مزودين مضافين حالياً',
               textAlign: TextAlign.center,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
@@ -1310,7 +1445,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             ),
             const SizedBox(height: 4),
             Text(
-              'أضف مزودين مثل Smile One أو SEAGM لجلب المنتجات والأسعار تلقائياً',
+              _virtualOnly
+                  ? 'أضف 5sim أو Hero-SMS لتفعيل صفحة الأرقام الوهمية وإصدار أرقام للعملاء'
+                  : 'أضف مزودين مثل Smile One أو SEAGM لجلب المنتجات والأسعار تلقائياً',
               textAlign: TextAlign.center,
               style: AppTypography.cairo(
                 fontSize: 12,
@@ -1322,7 +1459,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
               onPressed: () => _openAddEditDialog(),
               icon: const Icon(Icons.add_rounded, size: 18),
               label: Text(
-                'إضافة أول مزود',
+                _virtualOnly ? 'إضافة مزود أرقام' : 'إضافة أول مزود',
                 style: AppTypography.cairo(fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(

@@ -12,10 +12,19 @@ import '../../widgets/digital_pass_card.dart';
 /// والـ TextField لا يزال حيّاً، فيرمي «A TextEditingController was used after
 /// being disposed» وتظهر الشاشة الحمراء.
 class ProviderFormDialog extends StatefulWidget {
-  const ProviderFormDialog({super.key, required this.admin, this.provider});
+  const ProviderFormDialog({
+    super.key,
+    required this.admin,
+    this.provider,
+    this.virtualNumbersOnly = false,
+  });
 
   final AdminProvider admin;
   final ProviderModel? provider;
+
+  /// `true`: النافذة تُفتح من صفحة مزودي الأرقام، فتُعرض اختصارات
+  /// 5sim و Hero-SMS وحدها ولا تظهر اختصارات مزودي المتاجر.
+  final bool virtualNumbersOnly;
 
   @override
   State<ProviderFormDialog> createState() => _ProviderFormDialogState();
@@ -32,6 +41,8 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
   String? _error;
 
   bool get _isEdit => widget.provider != null;
+
+  bool get _virtualOnly => widget.virtualNumbersOnly;
 
   @override
   void initState() {
@@ -139,7 +150,9 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _isEdit ? 'تعديل بيانات المزود' : 'إضافة مزود جديد',
+                  _isEdit
+                      ? 'تعديل بيانات المزود'
+                      : (_virtualOnly ? 'إضافة مزود أرقام' : 'إضافة مزود جديد'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.cairo(
@@ -149,7 +162,11 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                   ),
                 ),
                 Text(
-                  _isEdit ? 'PROVIDER · UPDATE' : 'PROVIDER · CREATE',
+                  _virtualOnly
+                      ? (_isEdit
+                            ? 'SMS PROVIDER · UPDATE'
+                            : 'SMS PROVIDER · CREATE')
+                      : (_isEdit ? 'PROVIDER · UPDATE' : 'PROVIDER · CREATE'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.technicalCode(
@@ -170,7 +187,9 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'بيانات الربط عبر API المباشر لجلب المنتجات والأسعار',
+              _virtualOnly
+                  ? 'بيانات مزود أرقام التحقق (5sim / Hero-SMS) عبر API المباشر'
+                  : 'بيانات الربط عبر API المباشر لجلب المنتجات والأسعار',
               style: AppTypography.cairo(
                 color: AppColors.slate500,
                 fontSize: 11.5,
@@ -181,24 +200,47 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
               spacing: 8,
               runSpacing: 6,
               children: [
-                _quickChip(
-                  label: 'Fox Reload',
-                  icon: Icons.flash_on_rounded,
-                  color: AppColors.ticketAmber,
-                  onTap: () => _fillQuick(
-                    name: 'Fox Reload',
-                    url: 'https://public-api.foxreload.com',
+                if (!_virtualOnly) ...[
+                  _quickChip(
+                    label: 'Fox Reload',
+                    icon: Icons.flash_on_rounded,
+                    color: AppColors.ticketAmber,
+                    onTap: () => _fillQuick(
+                      name: 'Fox Reload',
+                      url: 'https://public-api.foxreload.com',
+                    ),
                   ),
-                ),
-                _quickChip(
-                  label: 'Bay2Game',
-                  icon: Icons.games_rounded,
-                  color: AppColors.primaryBlue,
-                  onTap: () => _fillQuick(
-                    name: 'Bay2Game',
-                    url: 'https://bay2game.com/api',
+                  _quickChip(
+                    label: 'Bay2Game',
+                    icon: Icons.games_rounded,
+                    color: AppColors.primaryBlue,
+                    onTap: () => _fillQuick(
+                      name: 'Bay2Game',
+                      url: 'https://bay2game.com/api',
+                    ),
                   ),
-                ),
+                ],
+                // مزودو الأرقام لهم صفحة مستقلة: لا تظهر اختصاراتهم هنا
+                if (_virtualOnly) ...[
+                  // مزود أرقام التحقق الوهمية: اسمه يحدّد نوعه في الخادم (fivesim)
+                  _quickChip(
+                    label: '5sim للأرقام الوهمية',
+                    icon: Icons.sim_card_rounded,
+                    color: AppColors.accentGreen,
+                    onTap: () =>
+                        _fillQuick(name: '5sim', url: 'https://5sim.net/v1'),
+                  ),
+                  // البديل بنفس الغرض (herosms): رابطه يحدّد نوعه في الخادم
+                  _quickChip(
+                    label: 'Hero-SMS للأرقام الوهمية',
+                    icon: Icons.phone_android_rounded,
+                    color: AppColors.primaryBlue,
+                    onTap: () => _fillQuick(
+                      name: 'Hero-SMS',
+                      url: 'https://hero-sms.com/stubs/handler_api.php',
+                    ),
+                  ),
+                ],
               ],
             ),
             const SizedBox(height: 12),
@@ -206,7 +248,9 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
             const SizedBox(height: 12),
             _field(
               controller: _nameCtrl,
-              label: 'اسم المزود (مثال: Smile One, SEAGM)',
+              label: _virtualOnly
+                  ? 'اسم المزود (5sim أو Hero-SMS)'
+                  : 'اسم المزود (مثال: Smile One, SEAGM)',
               icon: Icons.business_rounded,
             ),
             const SizedBox(height: 11),
@@ -231,7 +275,9 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
             const SizedBox(height: 11),
             _field(
               controller: _marginCtrl,
-              label: 'نسبة الربح % المطبّقة على كل منتجات المزود',
+              label: _virtualOnly
+                  ? 'نسبة الربح % المطبّقة على أسعار الأرقام'
+                  : 'نسبة الربح % المطبّقة على كل منتجات المزود',
               icon: Icons.trending_up_rounded,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
@@ -239,8 +285,11 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
             ),
             const SizedBox(height: 6),
             Text(
-              'تُحدَّد نسبة الربح هنا لكل منتجات هذا المزود، وليست لكل منتج على حدة.\n'
-              'أي تعديل هنا يعيد حساب أسعار بيع منتجاته تلقائياً.',
+              _virtualOnly
+                  ? 'تُحدَّد نسبة الربح هنا لكل أرقام هذا المزود، وليست لكل خدمة على حدة.\n'
+                        'أي تعديل هنا يعيد حساب أسعار الأرقام تلقائياً.'
+                  : 'تُحدَّد نسبة الربح هنا لكل منتجات هذا المزود، وليست لكل منتج على حدة.\n'
+                        'أي تعديل هنا يعيد حساب أسعار بيع منتجاته تلقائياً.',
               style: AppTypography.cairo(
                 color: AppColors.slate500,
                 fontSize: 10.5,

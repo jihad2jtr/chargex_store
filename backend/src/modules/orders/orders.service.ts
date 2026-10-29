@@ -1088,7 +1088,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   async getMyOrders(userId: string) {
     return this.orderModel
       .find({ userId: new Types.ObjectId(userId) })
-      .populate('appId', 'name iconUrl')
+      // appType يُرسل مع التطبيق كي تصنّف شاشة «طلباتي» كل طلب إلى نوع
+      // (تطبيقات/ألعاب/خدمات)؛ الأرقام الوهمية تُدمج من مسارها الخاص
+      .populate('appId', 'name iconUrl appType')
       .populate('productId', 'name type costPrice salePrice isSensitive')
       .populate('assignedSupervisorId', 'name email phone role')
       .sort({ createdAt: -1 });

@@ -13,6 +13,10 @@ export enum ProviderStatus {
 export enum ProviderType {
   BAY2GAME = 'bay2game',
   FOXRELOAD = 'foxreload',
+  // أرقام التحقق الوهمية (استقبال SMS) — تُستخدم في صفحة «أرقام وهمية»
+  FIVESIM = 'fivesim',
+  // بديل نفس الغرض ببروتوكول متوافق مع SMS-Activate
+  HEROSMS = 'herosms',
   CUSTOM = 'custom',
 }
 

@@ -4,6 +4,8 @@ class ProviderModel {
   final String baseUrl;
   final String apiKey;
   final String? apiSecret;
+  // 'bay2game' | 'foxreload' | 'fivesim' | 'herosms' | 'custom'
+  final String providerType;
   final Map<String, dynamic> headers;
   final String status; // 'online' | 'offline' | 'error'
   final String? lastError;
@@ -19,6 +21,7 @@ class ProviderModel {
     required this.baseUrl,
     required this.apiKey,
     this.apiSecret,
+    this.providerType = '',
     this.headers = const {},
     this.status = 'offline',
     this.lastError,
@@ -36,6 +39,7 @@ class ProviderModel {
       baseUrl: json['baseUrl'] ?? '',
       apiKey: json['apiKey'] ?? '',
       apiSecret: json['apiSecret'],
+      providerType: (json['providerType'] ?? '').toString(),
       headers: (json['headers'] as Map<String, dynamic>?) ?? {},
       status: json['status'] ?? 'offline',
       lastError: json['lastError'],
@@ -53,6 +57,19 @@ class ProviderModel {
     );
   }
 
+  /// مزود أرقام التحقق الوهمية (5sim / Hero-SMS): صفحته مستقلة عن مزودي المتاجر
+  /// لأنه لا يخدم منتجات ولا كتالوج تطبيقات، بل إصدار أرقام مؤقتة.
+  /// السجلات القديمة قد تخلو من النوع، فيُستدل عليه من الاسم أو الرابط.
+  bool get isVirtualNumber {
+    final String type = providerType.trim().toLowerCase();
+    if (type == 'fivesim' || type == 'herosms') return true;
+    if (type == 'bay2game' || type == 'foxreload') return false;
+    final String haystack = '$name $baseUrl'.toLowerCase();
+    return haystack.contains('5sim') ||
+        haystack.contains('herosms') ||
+        haystack.contains('hero-sms');
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -60,6 +77,7 @@ class ProviderModel {
       'baseUrl': baseUrl,
       'apiKey': apiKey,
       'apiSecret': apiSecret,
+      'providerType': providerType,
       'headers': headers,
       'status': status,
       'lastError': lastError,

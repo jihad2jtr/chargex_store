@@ -11,6 +11,7 @@ import 'providers/admin_provider.dart';
 import 'providers/margin_provider.dart';
 import 'providers/manual_services_provider.dart';
 import 'providers/agent_provider.dart';
+import 'providers/virtual_numbers_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/user/user_main_screen.dart';
 import 'core/services/cache_service.dart';
@@ -35,6 +36,7 @@ void main() async {
         ChangeNotifierProvider(create: (_) => MarginProvider()),
         ChangeNotifierProvider(create: (_) => ManualServicesProvider()),
         ChangeNotifierProvider(create: (_) => AgentProvider()),
+        ChangeNotifierProvider(create: (_) => VirtualNumbersProvider()),
       ],
       child: const JGOApp(),
     ),

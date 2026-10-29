@@ -22,6 +22,8 @@ var ProviderType;
 (function (ProviderType) {
     ProviderType["BAY2GAME"] = "bay2game";
     ProviderType["FOXRELOAD"] = "foxreload";
+    ProviderType["FIVESIM"] = "fivesim";
+    ProviderType["HEROSMS"] = "herosms";
     ProviderType["CUSTOM"] = "custom";
 })(ProviderType || (exports.ProviderType = ProviderType = {}));
 let Provider = class Provider {

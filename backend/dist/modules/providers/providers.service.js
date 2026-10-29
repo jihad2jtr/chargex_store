@@ -25,6 +25,7 @@ const provider_schema_1 = require("../../database/schemas/provider.schema");
 const provider_product_schema_1 = require("../../database/schemas/provider-product.schema");
 const product_schema_1 = require("../../database/schemas/product.schema");
 const notifications_service_1 = require("../notifications/notifications.service");
+const virtual_number_clients_1 = require("../virtual-numbers/virtual-number-clients");
 let ProvidersService = ProvidersService_1 = class ProvidersService {
     constructor(providerModel, providerProductModel, productModel, notificationsService) {
         this.providerModel = providerModel;
@@ -51,6 +52,17 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         return (provider.providerType === provider_schema_1.ProviderType.FOXRELOAD ||
             provider.baseUrl?.toLowerCase().includes('foxreload') ||
             provider.name?.toLowerCase().includes('foxreload'));
+    }
+    isVirtualNumbers(provider) {
+        return (0, virtual_number_clients_1.isVirtualNumberProvider)(provider);
+    }
+    virtualNumberClient(provider) {
+        return (0, virtual_number_clients_1.createVirtualNumberClient)({
+            baseUrl: provider.baseUrl,
+            apiKey: provider.apiKey,
+            providerType: provider.providerType,
+            name: provider.name,
+        });
     }
     getFoxReloadBaseUrl(provider) {
         const raw = (provider.baseUrl || '').trim().replace(/\/+$/, '');
@@ -84,11 +96,12 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         const isFox = createDto.providerType === provider_schema_1.ProviderType.FOXRELOAD ||
             createDto.baseUrl?.toLowerCase().includes('foxreload') ||
             createDto.name?.toLowerCase().includes('foxreload');
+        const virtualType = (0, virtual_number_clients_1.detectVirtualNumberType)(createDto);
         const resolvedType = isBay
             ? provider_schema_1.ProviderType.BAY2GAME
             : isFox
                 ? provider_schema_1.ProviderType.FOXRELOAD
-                : (createDto.providerType || provider_schema_1.ProviderType.CUSTOM);
+                : virtualType ?? (createDto.providerType || provider_schema_1.ProviderType.CUSTOM);
         const provider = new this.providerModel({
             ...createDto,
             providerType: resolvedType,
@@ -207,6 +220,12 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
                     provider.status = provider_schema_1.ProviderStatus.ERROR;
                     provider.lastError = 'حساب المزود غير نشط أو مفتاح API غير صالح';
                 }
+            }
+            else if (this.isVirtualNumbers(provider)) {
+                const profile = await this.virtualNumberClient(provider).getProfile();
+                provider.balance = profile.balance;
+                provider.status = provider_schema_1.ProviderStatus.ONLINE;
+                provider.lastError = undefined;
             }
             else {
                 await axios_1.default.get(provider.baseUrl, {

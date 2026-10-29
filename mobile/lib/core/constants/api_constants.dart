@@ -70,6 +70,28 @@ class ApiConstants {
   static const String exchangeRate = '/exchange-rates/current';
   static const String adminRefreshExchangeRate = '/exchange-rates/refresh';
 
+  // Virtual Numbers (أرقام التحقق الوهمية — 5sim أو Hero-SMS)
+  static const String virtualNumbers = '/virtual-numbers';
+  static const String virtualNumberOptions = '/virtual-numbers/options';
+  static const String virtualNumberRequest = '/virtual-numbers/request';
+  static const String virtualNumberMy = '/virtual-numbers/my';
+  static const String adminVirtualNumbers = '/virtual-numbers/admin/requests';
+  static const String adminVirtualNumbersStats = '/virtual-numbers/admin/stats';
+  static const String adminVirtualNumbersSync =
+      '/virtual-numbers/admin/sync-catalog';
+  static const String adminVirtualNumbersCheck =
+      '/virtual-numbers/admin/check-provider';
+  static const String adminVirtualNumbersSweep = '/virtual-numbers/admin/sweep';
+
+  // المُنتقَى: تطبيقات الأرقام ودولها — نفس نموذج تطبيقات المتجر
+  static const String adminVirtualNumberApps = '/virtual-numbers/admin/apps';
+  static const String adminVirtualNumberAppsBulk =
+      '/virtual-numbers/admin/apps/bulk';
+  static const String adminVirtualNumberCatalog =
+      '/virtual-numbers/admin/catalog';
+  static const String adminVirtualNumberAddCountries =
+      '/virtual-numbers/admin/catalog/add-countries';
+
   // Manual Services & Supervisor Workflow Endpoints
   static const String supervisorOrders = '/orders/supervisor/my-orders';
 

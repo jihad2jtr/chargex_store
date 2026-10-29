@@ -27,6 +27,7 @@ const agent_module_1 = require("./modules/agent/agent.module");
 const dashboard_module_1 = require("./modules/dashboard/dashboard.module");
 const service_templates_module_1 = require("./modules/service-templates/service-templates.module");
 const exchange_rates_module_1 = require("./modules/exchange-rates/exchange-rates.module");
+const virtual_numbers_module_1 = require("./modules/virtual-numbers/virtual-numbers.module");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 let AppModule = class AppModule {
@@ -68,6 +69,7 @@ exports.AppModule = AppModule = __decorate([
             dashboard_module_1.DashboardModule,
             service_templates_module_1.ServiceTemplatesModule,
             exchange_rates_module_1.ExchangeRatesModule,
+            virtual_numbers_module_1.VirtualNumbersModule,
         ],
         controllers: [app_controller_1.AppController],
         providers: [app_service_1.AppService],

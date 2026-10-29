@@ -9,7 +9,7 @@ import {
 import { ShippingCode } from '../../database/schemas/shipping-code.schema';
 import { Banner } from '../../database/schemas/banner.schema';
 import { ShamCashAccount } from '../../database/schemas/sham-cash-account.schema';
-import { Provider, ProviderStatus } from '../../database/schemas/provider.schema';
+import { Provider, ProviderStatus, ProviderType } from '../../database/schemas/provider.schema';
 import { Product } from '../../database/schemas/product.schema';
 import { App as AppEntity } from '../../database/schemas/app.schema';
 import { User } from '../../database/schemas/user.schema';
@@ -326,10 +326,16 @@ export class DashboardService {
       this.shippingCodeModel.countDocuments({ isUsed: true }),
       this.bannerModel.countDocuments({ isActive: true }),
       this.paymentAccountModel.countDocuments({ isActive: true }),
-      this.providerModel.countDocuments({ isActive: true }),
+      // مزودا الأرقام الوهمية (5sim / Hero-SMS) في صفحة مستقلة،
+      // فالعدّاد هنا يخص مزودي المتاجر وحدهم كي يطابق محتوى صفحتهم
+      this.providerModel.countDocuments({
+        isActive: true,
+        providerType: { $nin: [ProviderType.FIVESIM, ProviderType.HEROSMS] },
+      }),
       this.providerModel.countDocuments({
         status: ProviderStatus.ONLINE,
         isActive: true,
+        providerType: { $nin: [ProviderType.FIVESIM, ProviderType.HEROSMS] },
       }),
       this.productModel.countDocuments({ isActive: true }),
       this.appModel.countDocuments({ isActive: true }),

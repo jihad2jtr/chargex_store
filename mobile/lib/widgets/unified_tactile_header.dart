@@ -515,7 +515,6 @@ class UnifiedTactileHeader extends StatelessWidget {
         (currentUser?.name != null && currentUser!.name.trim().isNotEmpty)
         ? currentUser.name.trim()
         : 'عميل JGO';
-    final String clientId = currentUser?.displayId ?? '8940-CX';
 
     // Role badge text and tailored luxury color tokens
     // الخلفية داكنة الآن (كلوحة الشريط السفلي)، فيُعرض شارة الدور كلون مُصبّغ
@@ -603,7 +602,7 @@ class UnifiedTactileHeader extends StatelessWidget {
                 ),
                 const SizedBox(width: 7),
 
-                // Customer Name (Top) & Customer ID + Role Badge (Below)
+                // Customer Name (Top) & Role Badge (Below)
                 Flexible(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,24 +622,11 @@ class UnifiedTactileHeader extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
 
-                      // ايدي العميل وبجانبه نوع الدور (role)
+                      // شارة الدور فقط: أُزيل معرّف الآيدي من الشريط العلوي، وبقي
+                      // متاحاً من زر الباركود في كتلة الأدوات اليمنى.
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Flexible(
-                            child: Text(
-                              '#$clientId',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.technicalCode(
-                                fontSize: 9.5,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.slate400,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
                           // شارة الدور قابلة للتقلّص: على العروض الضيقة (320dp) تمنع
                           // طفو الصف حين تضيق مساحة الهوية بسبب كتلة الأدوات اليمنى.
                           Flexible(

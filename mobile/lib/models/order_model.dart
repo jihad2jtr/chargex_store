@@ -1,3 +1,4 @@
+import 'app_model.dart';
 import 'service_template_model.dart';
 
 class OrderTimelineEventModel {
@@ -86,6 +87,9 @@ class OrderModel {
   final String appId;
   final String appName;
   final String? appIcon;
+  // نوع التطبيق المُرسَل مع التذكرة (game/app/service/subscription) — يُستعمل
+  // لتصنيف طلبات «طلباتي» إلى أنواع؛ القيمة الفارغة تعني سجلًا قديمًا بلا نوع
+  final String appType;
   final String productId;
   final String productName;
   final String type; // 'direct_api' | 'codes' | 'manual'
@@ -130,6 +134,7 @@ class OrderModel {
     required this.appId,
     required this.appName,
     this.appIcon,
+    this.appType = '',
     required this.productId,
     required this.productName,
     required this.type,
@@ -166,6 +171,21 @@ class OrderModel {
 
   bool get isManual => type.toLowerCase() == 'manual';
   String get productType => type;
+
+  /// نوع الخدمة في فلترة «طلباتي»: تطبيقات/ألعاب/خدمات.
+  /// الاشتراكات واليدوي وكل ما ليس تطبيقًا أو لعبة يصنَّف تحت «خدمات»،
+  /// فلا يختفي أي سجل من الفلاتر.
+  String get serviceKind {
+    switch (appType) {
+      case 'app':
+        return 'app';
+      case 'game':
+        return 'game';
+      default:
+        return 'service';
+    }
+  }
+
   String? get customerName => userName;
   bool get isCompleted => status == 'completed';
   bool get isDelivered => status == 'delivered';
@@ -228,6 +248,11 @@ class OrderModel {
       appIcon:
           json['appIcon'] ??
           (json['appId'] is Map ? json['appId']['iconUrl'] : null),
+      appType: AppItemModel.normalizeAppType(
+        json['appId'] is Map
+            ? json['appId']['appType']
+            : (json['appType'] ?? ''),
+      ),
       productId: json['productId'] is Map
           ? json['productId']['_id']
           : (json['productId'] ?? ''),
@@ -320,6 +345,7 @@ class OrderModel {
       'userId': userId,
       'appId': appId,
       'appName': appName,
+      'appType': appType,
       'productId': productId,
       'productName': productName,
       'type': type,

@@ -15,6 +15,22 @@ import { Notification, NotificationSchema } from './schemas/notification.schema'
 import { Banner, BannerSchema } from './schemas/banner.schema';
 import { ServiceTemplate, ServiceTemplateSchema } from './schemas/service-template.schema';
 import { ExchangeRate, ExchangeRateSchema } from './schemas/exchange-rate.schema';
+import {
+  VirtualNumberRequest,
+  VirtualNumberRequestSchema,
+} from './schemas/virtual-number-request.schema';
+import {
+  VirtualNumberCatalog,
+  VirtualNumberCatalogSchema,
+} from './schemas/virtual-number-catalog.schema';
+import {
+  VirtualNumberApp,
+  VirtualNumberAppSchema,
+} from './schemas/virtual-number-app.schema';
+import {
+  VirtualNumberProduct,
+  VirtualNumberProductSchema,
+} from './schemas/virtual-number-product.schema';
 
 const featureModels = [
   { name: User.name, schema: UserSchema },
@@ -32,6 +48,10 @@ const featureModels = [
   { name: Banner.name, schema: BannerSchema },
   { name: ServiceTemplate.name, schema: ServiceTemplateSchema },
   { name: ExchangeRate.name, schema: ExchangeRateSchema },
+  { name: VirtualNumberRequest.name, schema: VirtualNumberRequestSchema },
+  { name: VirtualNumberCatalog.name, schema: VirtualNumberCatalogSchema },
+  { name: VirtualNumberApp.name, schema: VirtualNumberAppSchema },
+  { name: VirtualNumberProduct.name, schema: VirtualNumberProductSchema },
 ];
 
 @Module({

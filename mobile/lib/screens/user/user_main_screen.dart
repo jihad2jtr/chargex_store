@@ -14,6 +14,7 @@ import '../../widgets/floating_role_dashboard_shield.dart';
 import 'app_products_screen.dart';
 import 'topup_screen.dart';
 import 'orders_history_screen.dart';
+import 'virtual_numbers_screen.dart';
 
 class UserMainScreen extends StatefulWidget {
   const UserMainScreen({super.key});
@@ -24,7 +25,7 @@ class UserMainScreen extends StatefulWidget {
 
 class _UserMainScreenState extends State<UserMainScreen> {
   int _currentIndex =
-      0; // 0 = التطبيقات, 1 = الألعاب, 2 = طلباتي, 3 = خدمات, 4 = الاشتراكات
+      0; // 0 = التطبيقات، 1 = الألعاب، 2 = طلباتي، 3 = خدمات، 4 = الأرقام الوهمية
 
   // طريقة عرض الكتالوج: أيقونات بنمط شاشة الهاتف (افتراضي) أو بطاقات التذاكر
   bool _catalogIconView = true;
@@ -54,10 +55,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
               _buildCatalogTab(context, categoryType: 'games'), // 1: الألعاب
               _buildOrdersTab(context), // 2: طلباتي (في الوسط)
               _buildCatalogTab(context, categoryType: 'services'), // 3: خدمات
-              _buildCatalogTab(
-                context,
-                categoryType: 'subscriptions',
-              ), // 4: الاشتراكات
+              _buildVirtualNumbersTab(context), // 4: الأرقام الوهمية
             ],
           ),
 
@@ -194,18 +192,15 @@ class _UserMainScreenState extends State<UserMainScreen> {
     AppCatalogProvider catalog, {
     String categoryType = 'apps',
   }) {
-    String titleText = "تطبيقات الشحن والخدمات";
+    String titleText = "شحن التطبيقات";
     String badgeText = "APPS ";
 
     if (categoryType == 'games') {
-      titleText = "شحن الألعاب والعملات";
+      titleText = "شحن الألعاب";
       badgeText = " GAMES";
     } else if (categoryType == 'services') {
-      titleText = "البطاقات والخدمات ";
+      titleText = "الخدمات والاشتراكات ";
       badgeText = "DIGITAL SERVICES";
-    } else if (categoryType == 'subscriptions') {
-      titleText = "اشتراكات المنصات";
-      badgeText = "SUBSCRIPTIONS";
     }
 
     return Row(
@@ -263,9 +258,8 @@ class _UserMainScreenState extends State<UserMainScreen> {
     );
   }
 
-  // صفحات تُعرض كبطاقات تذاكر دائماً ولا تقبل نمط الأيقونات
-  bool _isCardOnlyCategory(String categoryType) =>
-      categoryType == 'services' || categoryType == 'subscriptions';
+  // صفحة الخدمات تُعرض كبطاقات تذاكر دائماً ولا تقبل نمط الأيقونات
+  bool _isCardOnlyCategory(String categoryType) => categoryType == 'services';
 
   // كلمات وماركات تدل على أن العنصر اشتراك رقمي متجدد
   static const List<String> _subscriptionHints = [
@@ -418,26 +412,24 @@ class _UserMainScreenState extends State<UserMainScreen> {
     }
 
     // الصفحة التي يظهر فيها العنصر يحددها «النوع الرئيسي» من لوحة الإدارة:
-    // لعبة ← صفحة الألعاب، تطبيق ← صفحة التطبيقات، خدمة ← صفحة الخدمات،
-    // اشتراك ← صفحة الاشتراكات. لا تظهر البطاقة إلا في صفحة نوعها.
-    const typeByPage = {
-      'apps': 'app',
-      'games': 'game',
-      'services': 'service',
-      'subscriptions': 'subscription',
+    // لعبة ← صفحة الألعاب، تطبيق ← صفحة التطبيقات، خدمة أو اشتراك ← صفحة الخدمات.
+    // اشتراكات المنصات اندمجت في الخدمات بعد تحويل تبويب الاشتراكات إلى أرقام وهمية.
+    const typesByPage = {
+      'apps': ['app'],
+      'games': ['game'],
+      'services': ['service', 'subscription'],
     };
-    final pageType = typeByPage[categoryType];
-    final filteredApps = pageType == null
+    final pageTypes = typesByPage[categoryType];
+    final filteredApps = pageTypes == null
         ? catalog.apps
-        : catalog.apps.where((a) => _effectiveAppType(a) == pageType).toList();
+        : catalog.apps
+              .where((a) => pageTypes.contains(_effectiveAppType(a)))
+              .toList();
 
     if (filteredApps.isEmpty) {
       String emptyMessage = 'لا توجد عناصر متاحة حالياً';
       IconData emptyIcon = Icons.inbox_outlined;
-      if (categoryType == 'subscriptions') {
-        emptyMessage = 'لا توجد اشتراكات متاحة حالياً';
-        emptyIcon = Icons.card_membership_rounded;
-      } else if (categoryType == 'services') {
+      if (categoryType == 'services') {
         emptyMessage = 'لا توجد خدمات متاحة حالياً';
         emptyIcon = Icons.miscellaneous_services_rounded;
       } else if (categoryType == 'games') {
@@ -663,7 +655,32 @@ class _UserMainScreenState extends State<UserMainScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 11. FLOATING TICKET COUNTER / DOCK (التطبيقات - الألعاب - في الوسط طلباتي - خدمات - الاشتراكات)
+  // 9.b VIRTUAL NUMBERS TAB (أرقام التحقق الوهمية — محل صفحة الاشتراكات)
+  // ---------------------------------------------------------------------------
+
+  Widget _buildVirtualNumbersTab(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context);
+    final user = auth.currentUser;
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const SizedBox(height: 6),
+            _buildTactileHeader(context, user),
+            const SizedBox(height: 8),
+            const Expanded(child: VirtualNumbersScreen(showAppBar: false)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 11. FLOATING TICKET COUNTER / DOCK (التطبيقات - الألعاب - في الوسط طلباتي - خدمات - الأرقام)
   // ---------------------------------------------------------------------------
 
   Widget _buildFloatingDockNavBar(BuildContext context) {
@@ -731,7 +748,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
                           centerWidth +
                           (tabWidth - pillWidth) / 2;
                       break;
-                    case 4: // الاشتراكات (Left side in RTL)
+                    case 4: // الأرقام الوهمية (Left side in RTL)
                       startPos =
                           3 * tabWidth +
                           centerWidth +
@@ -835,13 +852,13 @@ class _UserMainScreenState extends State<UserMainScreen> {
                             ),
                           ),
 
-                          // Tab 4: الاشتراكات (Left side in RTL)
+                          // Tab 4: الأرقام الوهمية (Left side in RTL)
                           Expanded(
                             child: _buildDockItem(
                               index: 4,
-                              label: "الاشتراكات",
-                              iconActive: Icons.subscriptions_rounded,
-                              iconInactive: Icons.subscriptions_outlined,
+                              label: "الأرقام",
+                              iconActive: Icons.sim_card_rounded,
+                              iconInactive: Icons.sim_card_outlined,
                             ),
                           ),
                         ],

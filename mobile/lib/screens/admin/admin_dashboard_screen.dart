@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/virtual_numbers_provider.dart';
 import 'providers_management_screen.dart';
 import 'apps_products_management_screen.dart';
 import 'payment_accounts_screen.dart';
@@ -14,6 +15,7 @@ import 'banners_management_screen.dart';
 import 'manual_services_management_screen.dart';
 import 'users_management_screen.dart';
 import 'service_templates_screen.dart';
+import 'virtual_numbers_management_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 import '../../widgets/ops_console.dart';
@@ -61,6 +63,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     await Future.wait([
       admin.fetchDashboardStats(silent: true),
       admin.fetchPendingCounts(silent: true),
+      // إحصاءات الأرقام الوهمية خفيفة (تجميع بالحالة) وتُظهر النشِط في البلاطة
+      Provider.of<VirtualNumbersProvider>(
+        context,
+        listen: false,
+      ).fetchAdminStats(),
     ]);
   }
 
@@ -68,6 +75,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   Widget build(BuildContext context) {
     Provider.of<AuthProvider>(context);
     final admin = Provider.of<AdminProvider>(context);
+    final numbers = Provider.of<VirtualNumbersProvider>(context);
 
     final pendingOrdersCount = admin.pendingOrdersCount;
     final pendingTopupsCount = admin.pendingTopupsCount;
@@ -77,6 +85,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       admin,
       pendingOrdersCount,
       pendingTopupsCount,
+      numbers,
     );
     final filteredSections = _selectedCategory == 'all'
         ? sections
@@ -340,6 +349,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     AdminProvider admin,
     int pendingOrdersCount,
     int pendingTopupsCount,
+    VirtualNumbersProvider numbers,
   ) {
     final totalPending = pendingOrdersCount + pendingTopupsCount;
     final stats = admin.dashboardStats;
@@ -348,6 +358,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final activeAccounts = stats?.accountsActive ?? 0;
     final unusedCodes = stats?.codesAvailable ?? 0;
     final supervisorsCount = stats?.usersSupervisors ?? 0;
+    // الأرقام التي لم تُغلق بعد (تجهيز/انتظار/وصل الرمز)
+    final liveNumbers =
+        numbers.stats.countOf('pending') +
+        numbers.stats.countOf('waiting') +
+        numbers.stats.countOf('received');
 
     return [
       // 1. Providers Management
@@ -485,6 +500,47 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
+          );
+        },
+      ),
+
+      // 10. Virtual Numbers (أرقام التحقق الوهمية)
+      _AdminSectionItem(
+        title: 'الأرقام الوهمية',
+        icon: Icons.sim_card_rounded,
+        color: const Color(0xFF0891B2), // Deep Cyan
+        category: 'catalog',
+        statusText: numbers.stats.total > 0
+            ? '${numbers.stats.total} طلب • $liveNumbers نشط'
+            : (numbers.stats.provider?.name.isNotEmpty == true
+                  ? 'مزود: ${numbers.stats.provider!.name}'
+                  : 'لم يُضبط المزود'),
+        statusColor: liveNumbers > 0 ? AppColors.secondary : null,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const VirtualNumbersManagementScreen(),
+            ),
+          );
+        },
+      ),
+
+      // 11. Virtual Numbers Providers (منفصلة عن مزودي المتاجر)
+      _AdminSectionItem(
+        title: 'مزودو الأرقام الوهمية',
+        icon: Icons.perm_phone_msg_rounded,
+        color: const Color(0xFF155E75), // Cyan 800
+        category: 'catalog',
+        statusText: numbers.stats.provider == null
+            ? 'لم يُضبط المزود'
+            : '${numbers.stats.provider!.name} • \$${numbers.stats.provider!.balance.toStringAsFixed(2)}',
+        statusColor: numbers.stats.provider != null ? AppColors.tertiary : null,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  const ProvidersManagementScreen(virtualNumbersOnly: true),
+            ),
           );
         },
       ),

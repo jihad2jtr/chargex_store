@@ -6,6 +6,11 @@ import { Provider, ProviderDocument, ProviderStatus, ProviderType } from '../../
 import { ProviderProduct, ProviderProductDocument } from '../../database/schemas/provider-product.schema';
 import { Product, ProductDocument, ProfitMarginType, ProductType } from '../../database/schemas/product.schema';
 import { NotificationsService } from '../notifications/notifications.service';
+import {
+  createVirtualNumberClient,
+  detectVirtualNumberType,
+  isVirtualNumberProvider,
+} from '../virtual-numbers/virtual-number-clients';
 
 @Injectable()
 export class ProvidersService {
@@ -49,6 +54,21 @@ export class ProvidersService {
       provider.baseUrl?.toLowerCase().includes('foxreload') ||
       provider.name?.toLowerCase().includes('foxreload')
     );
+  }
+
+  // مزود أرقام التحقق الوهمية (5sim أو Hero-SMS) — تُخدم صفحة «أرقام وهمية»
+  private isVirtualNumbers(provider: ProviderDocument): boolean {
+    return isVirtualNumberProvider(provider);
+  }
+
+  private virtualNumberClient(provider: ProviderDocument) {
+    // المصنع نفسه الذي تستخدمه صفحة الأرقام: لا تتفرّع قاعدة البروتوكول هنا
+    return createVirtualNumberClient({
+      baseUrl: provider.baseUrl,
+      apiKey: provider.apiKey,
+      providerType: provider.providerType,
+      name: provider.name,
+    });
   }
 
   private getFoxReloadBaseUrl(provider: ProviderDocument): string {
@@ -97,11 +117,14 @@ export class ProvidersService {
       createDto.baseUrl?.toLowerCase().includes('foxreload') ||
       createDto.name?.toLowerCase().includes('foxreload');
 
+    // مزودو الأرقام الوهمية بنوعيهم (5sim / Hero-SMS) يُحدَّد نوعهم بالاسم أو الرابط
+    const virtualType = detectVirtualNumberType(createDto);
+
     const resolvedType = isBay
       ? ProviderType.BAY2GAME
       : isFox
       ? ProviderType.FOXRELOAD
-      : (createDto.providerType || ProviderType.CUSTOM);
+      : virtualType ?? (createDto.providerType || ProviderType.CUSTOM);
 
     const provider = new this.providerModel({
       ...createDto,
@@ -254,6 +277,12 @@ export class ProvidersService {
           provider.status = ProviderStatus.ERROR;
           provider.lastError = 'حساب المزود غير نشط أو مفتاح API غير صالح';
         }
+      } else if (this.isVirtualNumbers(provider)) {
+        // الأرقام الوهمية: رصيد الحساب لدى المزود نفسه (أيّاً كان بروتوكوله)
+        const profile = await this.virtualNumberClient(provider).getProfile();
+        provider.balance = profile.balance;
+        provider.status = ProviderStatus.ONLINE;
+        provider.lastError = undefined;
       } else {
         // Generic provider healthcheck fallback
         await axios.get(provider.baseUrl, {

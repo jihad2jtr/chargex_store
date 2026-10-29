@@ -18,6 +18,7 @@ import { AgentModule } from './modules/agent/agent.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ServiceTemplatesModule } from './modules/service-templates/service-templates.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
+import { VirtualNumbersModule } from './modules/virtual-numbers/virtual-numbers.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -57,6 +58,7 @@ import { AppService } from './app.service';
     DashboardModule,
     ServiceTemplatesModule,
     ExchangeRatesModule,
+    VirtualNumbersModule,
   ],
   controllers: [AppController],
   providers: [AppService],

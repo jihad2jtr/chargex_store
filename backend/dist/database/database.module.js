@@ -24,6 +24,10 @@ const notification_schema_1 = require("./schemas/notification.schema");
 const banner_schema_1 = require("./schemas/banner.schema");
 const service_template_schema_1 = require("./schemas/service-template.schema");
 const exchange_rate_schema_1 = require("./schemas/exchange-rate.schema");
+const virtual_number_request_schema_1 = require("./schemas/virtual-number-request.schema");
+const virtual_number_catalog_schema_1 = require("./schemas/virtual-number-catalog.schema");
+const virtual_number_app_schema_1 = require("./schemas/virtual-number-app.schema");
+const virtual_number_product_schema_1 = require("./schemas/virtual-number-product.schema");
 const featureModels = [
     { name: user_schema_1.User.name, schema: user_schema_1.UserSchema },
     { name: provider_schema_1.Provider.name, schema: provider_schema_1.ProviderSchema },
@@ -40,6 +44,10 @@ const featureModels = [
     { name: banner_schema_1.Banner.name, schema: banner_schema_1.BannerSchema },
     { name: service_template_schema_1.ServiceTemplate.name, schema: service_template_schema_1.ServiceTemplateSchema },
     { name: exchange_rate_schema_1.ExchangeRate.name, schema: exchange_rate_schema_1.ExchangeRateSchema },
+    { name: virtual_number_request_schema_1.VirtualNumberRequest.name, schema: virtual_number_request_schema_1.VirtualNumberRequestSchema },
+    { name: virtual_number_catalog_schema_1.VirtualNumberCatalog.name, schema: virtual_number_catalog_schema_1.VirtualNumberCatalogSchema },
+    { name: virtual_number_app_schema_1.VirtualNumberApp.name, schema: virtual_number_app_schema_1.VirtualNumberAppSchema },
+    { name: virtual_number_product_schema_1.VirtualNumberProduct.name, schema: virtual_number_product_schema_1.VirtualNumberProductSchema },
 ];
 let DatabaseModule = class DatabaseModule {
 };
