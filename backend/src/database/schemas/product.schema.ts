@@ -16,8 +16,14 @@ export enum ProfitMarginType {
 
 @Schema({ timestamps: true })
 export class Product {
-  @Prop({ type: Types.ObjectId, ref: 'App', required: true, index: true })
-  appId: Types.ObjectId;
+  // منتجات المتجر ترتبط بتطبيق متجر. أما «خدمات الأرقام اليدوية» فلا تطبيق
+  // متجر لها وترتبط بتطبيق أرقام عبر virtualNumberAppId، لذا appId اختياري.
+  @Prop({ type: Types.ObjectId, ref: 'App', index: true })
+  appId?: Types.ObjectId;
+
+  // خدمة يدوية للأرقام: تُربط بتطبيق أرقام (تليجرام/واتساب…) بدل تطبيق المتجر
+  @Prop({ type: Types.ObjectId, ref: 'VirtualNumberApp', index: true })
+  virtualNumberAppId?: Types.ObjectId;
 
   @Prop({ required: true, trim: true })
   name: string;

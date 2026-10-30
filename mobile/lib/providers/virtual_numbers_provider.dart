@@ -21,6 +21,7 @@ class VirtualNumbersProvider extends ChangeNotifier {
   VirtualNumberStats _stats = VirtualNumberStats.empty();
   List<VirtualNumberAppModel> _adminApps = const [];
   VirtualNumberAdminCatalog _adminCatalog = VirtualNumberAdminCatalog.empty();
+  List<VirtualNumberManualServiceModel> _adminManualServices = const [];
 
   bool _isLoadingOptions = false;
   bool _isLoadingRequests = false;
@@ -28,6 +29,7 @@ class VirtualNumbersProvider extends ChangeNotifier {
   bool _isAdminLoading = false;
   bool _isAppsLoading = false;
   bool _isCatalogLoading = false;
+  bool _isManualLoading = false;
   String? _errorMessage;
   String? _infoMessage;
 
@@ -42,12 +44,15 @@ class VirtualNumbersProvider extends ChangeNotifier {
   VirtualNumberStats get stats => _stats;
   List<VirtualNumberAppModel> get adminApps => _adminApps;
   VirtualNumberAdminCatalog get adminCatalog => _adminCatalog;
+  List<VirtualNumberManualServiceModel> get adminManualServices =>
+      _adminManualServices;
   bool get isLoadingOptions => _isLoadingOptions;
   bool get isLoadingRequests => _isLoadingRequests;
   bool get isSubmitting => _isSubmitting;
   bool get isAdminLoading => _isAdminLoading;
   bool get isAppsLoading => _isAppsLoading;
   bool get isCatalogLoading => _isCatalogLoading;
+  bool get isManualLoading => _isManualLoading;
   String? get errorMessage => _errorMessage;
   String? get infoMessage => _infoMessage;
 
@@ -81,8 +86,17 @@ class VirtualNumbersProvider extends ChangeNotifier {
       'vn_options',
       _serviceFromJson,
     );
-    if (cachedOptions != null && cachedOptions.isNotEmpty) {
-      _options = VirtualNumberOptions(available: true, services: cachedOptions);
+    final cachedManual = CacheService.instance.getList(
+      'vn_manual_services',
+      VirtualNumberManualServiceModel.fromJson,
+    );
+    if ((cachedOptions != null && cachedOptions.isNotEmpty) ||
+        (cachedManual != null && cachedManual.isNotEmpty)) {
+      _options = VirtualNumberOptions(
+        available: true,
+        services: cachedOptions ?? const [],
+        manualServices: cachedManual ?? const [],
+      );
     }
   }
 
@@ -119,9 +133,20 @@ class VirtualNumbersProvider extends ChangeNotifier {
             parsed.services,
             _serviceToJson,
           );
+        } else if (parsed.providerStopped || !parsed.available) {
+          // المزود موقوف أو لا خدمات مُنتقاة: يُمسح المخزّن حتى لا تبقى
+          // أرقام قديمة معروضة للعميل بعد الإخفاء أو تعطيل المزود.
+          await CacheService.instance.remove('vn_options');
         }
-        if (!parsed.available && parsed.services.isEmpty) {
-          _errorMessage = _failureMessage(parsed);
+        // خدمات «تفعيل مضمون» تُخزّن وحدها: offline يبقى القسم الأول معروضاً
+        if (parsed.manualServices.isNotEmpty) {
+          CacheService.instance.setList(
+            'vn_manual_services',
+            parsed.manualServices,
+            _manualServiceToJson,
+          );
+        } else {
+          await CacheService.instance.remove('vn_manual_services');
         }
       }
     } catch (e) {
@@ -145,12 +170,21 @@ class VirtualNumbersProvider extends ChangeNotifier {
   ) => {
     'code': service.code,
     'name': service.name,
+    'nameAr': service.nameAr,
+    'nameEn': service.nameEn,
+    'icon': service.icon,
+    'herosmsCode': service.herosmsCode,
+    'fivesimCode': service.fivesimCode,
     'fromPrice': service.fromPrice,
     'countries': service.countries
         .map(
           (c) => {
             'code': c.code,
             'name': c.name,
+            'nameAr': c.nameAr,
+            'nameEn': c.nameEn,
+            'flag': c.flag,
+            'iso': c.isoCode,
             'cost': c.cost,
             'salePrice': c.salePrice,
             'count': c.count,
@@ -162,14 +196,27 @@ class VirtualNumbersProvider extends ChangeNotifier {
         .toList(),
   };
 
-  /// رسالة الفحص للعميل: عبارة عامة بلا أسماء مزودين ولا أخطاء داخلية،
-  /// فمورد الخدمة شأن داخلي ولا يجوز أن يُستنتج من شاشة العميل
-  String _failureMessage(VirtualNumberOptions data) {
-    if (!data.providerOnline) {
-      return 'خدمة الأرقام غير متاحة حالياً، يرجى المحاولة لاحقاً';
-    }
-    return 'لا توجد أرقام متاحة حالياً، جرّب إعادة الجلب بعد قليل';
-  }
+  /// تخزين خدمات «تفعيل مضمون» محلياً (نفس الحقول التي يقرأها من `options`)
+  static Map<String, dynamic> _manualServiceToJson(
+    VirtualNumberManualServiceModel service,
+  ) => {
+    'id': service.id,
+    'name': service.name,
+    'description': service.description,
+    'instructions': service.instructions,
+    'price': service.price,
+    'requiredFields': service.requiredFields,
+    'sensitiveFields': service.sensitiveFields,
+    'isSensitive': service.isSensitive,
+    'estimatedMinutes': service.estimatedMinutes,
+    'isActive': service.isActive,
+    'appId': service.appId,
+    'appName': service.appName,
+    'appIcon': service.appIcon,
+    'appServiceCode': service.appServiceCode,
+    'supervisorId': service.supervisorId,
+    'supervisorName': service.supervisorName,
+  };
 
   // ===========================================================================
   // طلب رقم
@@ -600,6 +647,98 @@ class VirtualNumbersProvider extends ChangeNotifier {
     method: 'DELETE',
     fallback: 'تم حذف الدولة',
   );
+
+  // ===========================================================================
+  // خدمات الأرقام اليدوية (تفعيل مضمون): شاشة إدارة + قسم أول عند العميل
+  // ===========================================================================
+
+  Future<void> fetchAdminManualServices({bool quiet = false}) async {
+    if (!quiet) {
+      _isManualLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
+    try {
+      final res = await _api.get(ApiConstants.adminVirtualNumberManualServices);
+      _adminManualServices = (res is List)
+          ? res
+                .whereType<Map>()
+                .map(
+                  (e) => VirtualNumberManualServiceModel.fromJson(
+                    Map<String, dynamic>.from(e),
+                  ),
+                )
+                .toList()
+          : const [];
+    } catch (e) {
+      if (!quiet) _errorMessage = _clientError(e);
+    }
+    _isManualLoading = false;
+    notifyListeners();
+  }
+
+  Future<String?> createAdminManualService(Map<String, dynamic> body) =>
+      _manualAction(
+        ApiConstants.adminVirtualNumberManualServices,
+        method: 'POST',
+        body: body,
+        fallback: 'تمت إضافة الخدمة',
+      );
+
+  Future<String?> updateAdminManualService(
+    String id,
+    Map<String, dynamic> body,
+  ) => _manualAction(
+    '${ApiConstants.adminVirtualNumberManualServices}/$id',
+    method: 'PATCH',
+    body: body,
+    fallback: 'تم تحديث الخدمة',
+  );
+
+  Future<String?> toggleAdminManualService(String id) => _manualAction(
+    '${ApiConstants.adminVirtualNumberManualServices}/$id/toggle',
+    method: 'PATCH',
+    fallback: 'تم تحديث حالة الخدمة',
+  );
+
+  Future<String?> deleteAdminManualService(String id) => _manualAction(
+    '${ApiConstants.adminVirtualNumberManualServices}/$id',
+    method: 'DELETE',
+    fallback: 'تم حذف الخدمة',
+  );
+
+  Future<String?> _manualAction(
+    String path, {
+    required String method,
+    Object? body,
+    required String fallback,
+  }) async {
+    _errorMessage = null;
+    _infoMessage = null;
+    _isManualLoading = true;
+    notifyListeners();
+    try {
+      final res = await switch (method) {
+        'POST' => _api.post(path, body: body ?? const {}),
+        'PATCH' => _api.patch(path, body: body ?? const {}),
+        'DELETE' => _api.delete(path),
+        _ => _api.get(path),
+      };
+      final message = _messageFrom(res) ?? fallback;
+      _infoMessage = message;
+      await fetchAdminManualServices(quiet: true);
+      _isManualLoading = false;
+      notifyListeners();
+      return message;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = _clientError(e);
+    }
+    _isManualLoading = false;
+    notifyListeners();
+    return null;
+  }
 
   Future<String?> _curationAction(
     String path, {

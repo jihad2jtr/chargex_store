@@ -5,6 +5,10 @@
 class VirtualNumberCountryOption {
   final String code;
   final String name;
+  final String nameAr;
+  final String nameEn;
+  final String flag;
+  final String isoCode;
   final double cost;
   final double salePrice;
   final int count;
@@ -13,6 +17,10 @@ class VirtualNumberCountryOption {
   const VirtualNumberCountryOption({
     required this.code,
     required this.name,
+    this.nameAr = '',
+    this.nameEn = '',
+    this.flag = '🌐',
+    this.isoCode = '',
     required this.cost,
     required this.salePrice,
     this.count = 0,
@@ -23,6 +31,10 @@ class VirtualNumberCountryOption {
     return VirtualNumberCountryOption(
       code: (json['code'] ?? '').toString(),
       name: (json['name'] ?? json['code'] ?? '').toString(),
+      nameAr: (json['nameAr'] ?? '').toString(),
+      nameEn: (json['nameEn'] ?? '').toString(),
+      flag: (json['flag'] ?? '🌐').toString(),
+      isoCode: (json['iso'] ?? json['code'] ?? '').toString(),
       cost: _num(json['cost']),
       salePrice: _num(json['salePrice']),
       count: _num(json['count']).toInt(),
@@ -48,12 +60,22 @@ class VirtualNumberOperator {
 class VirtualNumberServiceOption {
   final String code;
   final String name;
+  final String nameAr;
+  final String nameEn;
+  final String icon;
+  final String herosmsCode;
+  final String fivesimCode;
   final double fromPrice;
   final List<VirtualNumberCountryOption> countries;
 
   const VirtualNumberServiceOption({
     required this.code,
     required this.name,
+    this.nameAr = '',
+    this.nameEn = '',
+    this.icon = '',
+    this.herosmsCode = '',
+    this.fivesimCode = '',
     required this.fromPrice,
     required this.countries,
   });
@@ -69,6 +91,11 @@ class VirtualNumberServiceOption {
     return VirtualNumberServiceOption(
       code: (json['code'] ?? '').toString(),
       name: (json['name'] ?? json['code'] ?? '').toString(),
+      nameAr: (json['nameAr'] ?? '').toString(),
+      nameEn: (json['nameEn'] ?? '').toString(),
+      icon: (json['icon'] ?? '').toString(),
+      herosmsCode: (json['herosmsCode'] ?? '').toString(),
+      fivesimCode: (json['fivesimCode'] ?? '').toString(),
       fromPrice: _num(json['fromPrice']),
       countries: countries,
     );
@@ -80,6 +107,86 @@ class VirtualNumberServiceOption {
       : (countries.isEmpty ? 0 : countries.first.salePrice);
 }
 
+/// خدمة يدوية للأرقام (تفعيل مضمون) — القسم الأول في صفحة أرقام العميل.
+/// هي منتج (type=manual) بلا تطبيق متجر، مرتبطة بتطبيق أرقام ومُسندة لمشرف؛
+/// طلبها يمر عبر `/orders` نفسه فيظهر في «طلباتي» وفي مساحة المشرف.
+class VirtualNumberManualServiceModel {
+  final String id;
+  final String name;
+  final String description;
+  final String instructions;
+  final double price;
+  final List<String> requiredFields;
+  final List<String> sensitiveFields;
+  final bool isSensitive;
+  final int estimatedMinutes;
+  final bool isActive;
+  final String appId;
+  final String appName;
+  final String appIcon;
+  final String appServiceCode;
+  final String supervisorId;
+  final String supervisorName;
+  final int openOrders;
+
+  const VirtualNumberManualServiceModel({
+    required this.id,
+    required this.name,
+    this.description = '',
+    this.instructions = '',
+    required this.price,
+    this.requiredFields = const [],
+    this.sensitiveFields = const [],
+    this.isSensitive = false,
+    this.estimatedMinutes = 120,
+    this.isActive = true,
+    this.appId = '',
+    this.appName = '',
+    this.appIcon = '',
+    this.appServiceCode = '',
+    this.supervisorId = '',
+    this.supervisorName = '',
+    this.openOrders = 0,
+  });
+
+  factory VirtualNumberManualServiceModel.fromJson(Map<String, dynamic> json) {
+    return VirtualNumberManualServiceModel(
+      id: (json['id'] ?? json['_id'] ?? '').toString(),
+      name: (json['name'] ?? '').toString(),
+      description: (json['description'] ?? '').toString(),
+      instructions: (json['instructions'] ?? '').toString(),
+      price: _num(json['price']),
+      requiredFields: (json['requiredFields'] as List? ?? const <dynamic>[])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      sensitiveFields: (json['sensitiveFields'] as List? ?? const <dynamic>[])
+          .map((e) => e.toString())
+          .where((e) => e.isNotEmpty)
+          .toList(),
+      isSensitive: json['isSensitive'] == true,
+      estimatedMinutes: _num(json['estimatedMinutes']).toInt(),
+      isActive: json['isActive'] != false,
+      appId: (json['appId'] ?? '').toString(),
+      appName: (json['appName'] ?? '').toString(),
+      appIcon: (json['appIcon'] ?? '').toString(),
+      appServiceCode: (json['appServiceCode'] ?? '').toString(),
+      supervisorId: (json['supervisorId'] ?? '').toString(),
+      supervisorName: (json['supervisorName'] ?? '').toString(),
+      openOrders: _num(json['openOrders']).toInt(),
+    );
+  }
+
+  /// الوقت المتوقع للتنفيذ بصيغة مختصرة عربية
+  String get etaLabel {
+    if (estimatedMinutes <= 0) return '';
+    if (estimatedMinutes < 60) return '$estimatedMinutes دقيقة';
+    final hours = (estimatedMinutes / 60).floor();
+    final mins = estimatedMinutes % 60;
+    return mins == 0 ? '$hours ساعة' : '$hours س و $mins د';
+  }
+}
+
 /// استجابة `GET /virtual-numbers/options`
 class VirtualNumberOptions {
   /// مهلة الانتظار المعتمدة في الخادم (VIRTUAL_NUMBER_TTL_MINUTES)
@@ -87,16 +194,24 @@ class VirtualNumberOptions {
 
   final bool available;
   final bool providerOnline;
+
+  /// المزود مُسجَّل لكنه موقوف: تُخفى الصفحة ويُمسح المخزّن
+  final bool providerStopped;
   final int waitMinutes;
   final List<VirtualNumberServiceOption> services;
+
+  /// القسم الأول في صفحة الأرقام: خدمات التفعيل المضمون (يدوية بمشرف)
+  final List<VirtualNumberManualServiceModel> manualServices;
 
   // لا اسم للمزود ولا رسائله الداخلية هنا: الصفحة للعميل، ومورد الخدمة
   // شأن داخلي؛ لذا تُتجاهل أي حقول أسماء تصل من الخادم
   const VirtualNumberOptions({
     this.available = false,
     this.providerOnline = false,
+    this.providerStopped = false,
     this.waitMinutes = _defaultWaitMinutes,
     this.services = const [],
+    this.manualServices = const [],
   });
 
   factory VirtualNumberOptions.fromJson(Map<String, dynamic> json) {
@@ -104,12 +219,21 @@ class VirtualNumberOptions {
     return VirtualNumberOptions(
       available: json['available'] == true,
       providerOnline: json['providerOnline'] == true,
+      providerStopped: json['providerStopped'] == true,
       // صفر أو غياب: تبقى مهلة الخادم الافتراضية حتى لا تقرأ الصفحة «0 دقيقة»
       waitMinutes: wait > 0 ? wait : _defaultWaitMinutes,
       services: (json['services'] as List? ?? const <dynamic>[])
           .whereType<Map>()
           .map(
             (e) => VirtualNumberServiceOption.fromJson(
+              Map<String, dynamic>.from(e),
+            ),
+          )
+          .toList(),
+      manualServices: (json['manualServices'] as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map(
+            (e) => VirtualNumberManualServiceModel.fromJson(
               Map<String, dynamic>.from(e),
             ),
           )
@@ -126,8 +250,12 @@ class VirtualNumberRequestModel {
   final String requestNumber;
   final String service;
   final String serviceName;
+  final String nameAr;
+  final String nameEn;
+  final String icon;
   final String country;
   final String countryName;
+  final String flag;
   final String operator;
   final double amount;
   final String? phoneNumber;
@@ -158,8 +286,12 @@ class VirtualNumberRequestModel {
     required this.requestNumber,
     this.service = '',
     this.serviceName = '',
+    this.nameAr = '',
+    this.nameEn = '',
+    this.icon = '',
     this.country = '',
     this.countryName = '',
+    this.flag = '🌐',
     this.operator = '',
     this.amount = 0,
     this.phoneNumber,
@@ -188,8 +320,12 @@ class VirtualNumberRequestModel {
       requestNumber: (json['requestNumber'] ?? '').toString(),
       service: (json['service'] ?? '').toString(),
       serviceName: (json['serviceName'] ?? '').toString(),
+      nameAr: (json['nameAr'] ?? '').toString(),
+      nameEn: (json['nameEn'] ?? '').toString(),
+      icon: (json['icon'] ?? '').toString(),
       country: (json['country'] ?? '').toString(),
       countryName: (json['countryName'] ?? '').toString(),
+      flag: (json['flag'] ?? '🌐').toString(),
       operator: (json['operator'] ?? '').toString(),
       amount: _num(json['amount']),
       phoneNumber: _text(json['phoneNumber']),
@@ -386,6 +522,7 @@ class VirtualNumberAppModel {
   final int sortOrder;
   final int productCount;
   final int activeProductCount;
+  final List<VirtualNumberAppCountry> countries;
 
   const VirtualNumberAppModel({
     required this.id,
@@ -396,6 +533,7 @@ class VirtualNumberAppModel {
     this.sortOrder = 0,
     this.productCount = 0,
     this.activeProductCount = 0,
+    this.countries = const [],
   });
 
   factory VirtualNumberAppModel.fromJson(Map<String, dynamic> json) =>
@@ -408,16 +546,48 @@ class VirtualNumberAppModel {
         sortOrder: _num(json['sortOrder']).toInt(),
         productCount: _num(json['productCount']).toInt(),
         activeProductCount: _num(json['activeProductCount']).toInt(),
+        countries:
+            (json['countries'] as List?)
+                ?.map(
+                  (e) => VirtualNumberAppCountry.fromJson(
+                    Map<String, dynamic>.from(e as Map),
+                  ),
+                )
+                .toList() ??
+            const [],
       );
 
   /// العميل لا يرى الخدمة إلا إذا كان للتطبيق دولة مفعّلة واحدة على الأقل
   bool get visibleToClients => isActive && activeProductCount > 0;
 }
 
+/// دولة داخل بطاقة تطبيق الأرقام (تُعرض مباشرة بدون فتح الكتالوج)
+class VirtualNumberAppCountry {
+  final String code;
+  final String name;
+  final bool active;
+
+  const VirtualNumberAppCountry({
+    required this.code,
+    required this.name,
+    this.active = true,
+  });
+
+  factory VirtualNumberAppCountry.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberAppCountry(
+        code: (json['code'] ?? '').toString(),
+        name: (json['name'] ?? json['code'] ?? '').toString(),
+        active: json['active'] != false,
+      );
+}
+
 /// دولة داخل كتالوج المزود مع حالة انتقائها (من `admin/catalog`)
 class VirtualNumberCatalogCountry {
   final String code;
   final String name;
+  final String nameAr;
+  final String nameEn;
+  final String flag;
   final double cost;
   final int count;
   final List<VirtualNumberOperator> operators;
@@ -429,6 +599,9 @@ class VirtualNumberCatalogCountry {
   const VirtualNumberCatalogCountry({
     required this.code,
     required this.name,
+    this.nameAr = '',
+    this.nameEn = '',
+    this.flag = '🌐',
     this.cost = 0,
     this.count = 0,
     this.operators = const [],
@@ -442,6 +615,9 @@ class VirtualNumberCatalogCountry {
       VirtualNumberCatalogCountry(
         code: (json['code'] ?? '').toString(),
         name: (json['name'] ?? json['code'] ?? '').toString(),
+        nameAr: (json['nameAr'] ?? '').toString(),
+        nameEn: (json['nameEn'] ?? '').toString(),
+        flag: (json['flag'] ?? '🌐').toString(),
         cost: _num(json['cost']),
         count: _num(json['count']).toInt(),
         operators: _operators(json['operators']),
@@ -456,6 +632,9 @@ class VirtualNumberCatalogCountry {
 class VirtualNumberCatalogService {
   final String code;
   final String name;
+  final String nameAr;
+  final String nameEn;
+  final String icon;
   final int countryCount;
   final String appId;
   final String appName;
@@ -465,6 +644,9 @@ class VirtualNumberCatalogService {
   const VirtualNumberCatalogService({
     required this.code,
     required this.name,
+    this.nameAr = '',
+    this.nameEn = '',
+    this.icon = '',
     this.countryCount = 0,
     this.appId = '',
     this.appName = '',
@@ -476,6 +658,9 @@ class VirtualNumberCatalogService {
       VirtualNumberCatalogService(
         code: (json['code'] ?? '').toString(),
         name: (json['name'] ?? json['code'] ?? '').toString(),
+        nameAr: (json['nameAr'] ?? '').toString(),
+        nameEn: (json['nameEn'] ?? '').toString(),
+        icon: (json['icon'] ?? '').toString(),
         countryCount: _num(json['countryCount']).toInt(),
         appId: (json['appId'] ?? '').toString(),
         appName: (json['appName'] ?? '').toString(),

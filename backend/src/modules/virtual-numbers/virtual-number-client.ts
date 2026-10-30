@@ -60,9 +60,18 @@ export interface VirtualNumberCancelParams {
 export interface VirtualNumberServiceEntry {
   code: string;
   name: string;
+  nameAr?: string;
+  nameEn?: string;
+  icon?: string;
+  herosmsCode?: string;
+  fivesimCode?: string;
   countries: Array<{
     code: string;
     name: string;
+    nameAr?: string;
+    nameEn?: string;
+    flag?: string;
+    iso?: string;
     cost: number;
     count?: number;
     operators: Array<{ code: string; name: string }>;

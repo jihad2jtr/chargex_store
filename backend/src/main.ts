@@ -16,8 +16,15 @@ async function bootstrap() {
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
 
-  // تقديم الصور المرفوعة كملفات ثابتة على /uploads
   app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+
+  // دعم مسار الويب هوك مع أو بدون بادئة /api لضمان استقبال إشعارات المزودين في الحالتين
+  app.use((req: any, _res: any, next: any) => {
+    if (req.url && req.url.startsWith('/virtual-numbers/webhook')) {
+      req.url = '/api' + req.url;
+    }
+    next();
+  });
 
   // Enable CORS for Flutter Web, Mobile, and Desktop
   app.enableCors({

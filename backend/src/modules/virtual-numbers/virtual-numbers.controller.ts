@@ -229,4 +229,44 @@ export class VirtualNumbersController {
   async removeProduct(@Param('id') id: string) {
     return this.service.removeProduct(id);
   }
+
+  // --- 4. خدمات الأرقام اليدوية (تفعيل مضمون) ---
+
+  @Get('admin/manual-services')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async listAdminManualServices() {
+    return this.service.listAdminManualServices();
+  }
+
+  @Post('admin/manual-services')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async createManualService(@Body() body: any) {
+    return this.service.createManualService(body);
+  }
+
+  @Patch('admin/manual-services/:id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async updateManualService(
+    @Param('id') id: string,
+    @Body() body: any,
+  ) {
+    return this.service.updateManualService(id, body);
+  }
+
+  @Patch('admin/manual-services/:id/toggle')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async toggleManualService(@Param('id') id: string) {
+    return this.service.toggleManualService(id);
+  }
+
+  @Delete('admin/manual-services/:id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async deleteManualService(@Param('id') id: string) {
+    return this.service.deleteManualService(id);
+  }
 }

@@ -88,8 +88,14 @@ export class Order {
   @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
-  @Prop({ type: Types.ObjectId, ref: 'App', required: true, index: true })
-  appId: Types.ObjectId;
+  // اختياري: أوامر المنتجات العادية ترتبط بتطبيق متجر، أما أوامر «خدمات الأرقام
+  // اليدوية» فللمنتج تطبيق أرقام (virtualNumberAppId) بلا تطبيق متجر.
+  @Prop({ type: Types.ObjectId, ref: 'App', index: true })
+  appId?: Types.ObjectId;
+
+  // تطبيق الأرقام المستهدف لخدمات الأرقام اليدوية (تليجرام/واتساب…) بلا تطبيق متجر
+  @Prop({ type: Types.ObjectId, ref: 'VirtualNumberApp', index: true })
+  virtualNumberAppId?: Types.ObjectId;
 
   @Prop({ type: Types.ObjectId, ref: 'Product', required: true, index: true })
   productId: Types.ObjectId;

@@ -191,7 +191,7 @@ describe('normalizeHeroSmsCatalog', () => {
     const entries = normalizeHeroSmsCatalog({
       prices: {
         USD: {
-          telgr: { '1': { price: '0.05' } },
+          tg: { '1': { price: '0.05' } },
           whts: { '1': { price: '0' } },
           dmcr: {},
         },
@@ -199,9 +199,9 @@ describe('normalizeHeroSmsCatalog', () => {
     });
 
     expect(entries).toHaveLength(1);
-    expect(entries[0].code).toBe('telgr');
-    expect(entries[0].name).toBe('telgr'); // بلا قائمة أسماء: الرمز نفسه اسم
-    expect(entries[0].countries[0].name).toBe('1');
+    expect(entries[0].code).toBe('tg');
+    expect(entries[0].name).toBe('Telegram (تيليجرام)'); // بلا قائمة أسماء من المزود: القاموس يترجم الرمز تلقائياً
+    expect(entries[0].countries[0].name).toBe('أوكرانيا');
     expect(entries[0].countries[0].operators).toEqual([]);
   });
 

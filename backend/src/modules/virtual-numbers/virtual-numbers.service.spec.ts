@@ -1,9 +1,9 @@
 import { Types } from 'mongoose';
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { VirtualNumbersService } from './virtual-numbers.service';
 import { VirtualNumberStatus } from '../../database/schemas/virtual-number-request.schema';
 import { ProviderStatus, ProviderType } from '../../database/schemas/provider.schema';
-import { ProfitMarginType } from '../../database/schemas/product.schema';
+import { ProductType, ProfitMarginType } from '../../database/schemas/product.schema';
 import { TransactionType } from '../../database/schemas/wallet-transaction.schema';
 import { FiveSimClient } from './fivesim.client';
 import { HeroSmsClient } from './herosms.client';
@@ -51,6 +51,10 @@ const matchesValue = (value: any, condition: any): boolean => {
           return toNum(value) <= toNum(operand);
         case '$exists':
           return (value !== undefined) === Boolean(operand);
+        case '$regex':
+          return operand instanceof RegExp
+            ? operand.test(String(value ?? ''))
+            : new RegExp(String(operand)).test(String(value ?? ''));
         default:
           return false;
       }
@@ -77,6 +81,7 @@ const queryOf = (rows: any[]) => {
   const query: any = {
     sort: () => query,
     limit: () => query,
+    select: () => query,
     populate: () => query,
     lean: () => query,
     exec: async () => rows,
@@ -276,6 +281,9 @@ const makeHarness = (options: { balance?: number; providerBalance?: number } = {
     catalogModel as any,
     appModel as any,
     productModel as any,
+    // خدمات الأرقام اليدوية وطلباتها: لا شيء مُعرّف في هذه الاختبارات
+    makeCollectionModel([]) as any,
+    { aggregate: async () => [] } as any,
     providerModel as any,
     userModel as any,
     transactionModel as any,
@@ -314,6 +322,170 @@ describe('VirtualNumbersService.getOptions', () => {
     expect(result).not.toHaveProperty('providerName');
     expect(result).not.toHaveProperty('lastError');
     expect(JSON.stringify(result)).not.toContain('5sim');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// خدمات «تفعيل مضمون»: منتج يدوي مرتبط بتطبيق أرقام ومُسند لمشرف
+// ---------------------------------------------------------------------------
+
+const makeManualServiceDoc = (
+  appDoc: FakeDoc,
+  overrides: Record<string, any> = {},
+): FakeDoc =>
+  makeDoc({
+    name: 'تفعيل تيليجرام يدوي',
+    type: ProductType.MANUAL,
+    virtualNumberAppId: appDoc._id,
+    costPrice: 0,
+    profitMarginType: ProfitMarginType.FIXED,
+    profitMarginValue: 0,
+    salePrice: 2.5,
+    kind: 'service',
+    requiredFields: ['رقم الهاتف'],
+    estimatedMinutes: 90,
+    isSensitive: false,
+    sensitiveFields: [],
+    instructions: '',
+    isActive: true,
+    ...overrides,
+  });
+
+/** خدمة بقاعدة فارغة إلا من تطبيقات الأرقام ومنتجاتها اليدوية وطلباتها */
+const makeManualHarness = (
+  manualDocs: FakeDoc[] = [],
+  orderDocs: FakeDoc[] = [],
+  users: FakeDoc[] = [],
+  appDocs: FakeDoc[] = [
+    makeDoc({ name: 'Telegram', serviceCode: 'telegram', isActive: true }),
+  ],
+) => {
+  const provider = makeDoc({
+    name: '5sim',
+    status: ProviderStatus.OFFLINE,
+    isActive: true,
+    profitMarginType: ProfitMarginType.PERCENTAGE,
+    profitMarginValue: 0,
+  });
+  const service = new VirtualNumbersService(
+    makeRequestModel([]) as any,
+    { findOne: async () => null, findOneAndUpdate: async () => null } as any,
+    makeCollectionModel(appDocs) as any,
+    makeCollectionModel([]) as any,
+    makeCollectionModel(manualDocs) as any,
+    {
+      ...makeCollectionModel(orderDocs),
+      aggregate: async () => [],
+    } as any,
+    { findOne: async () => provider, findById: async () => provider } as any,
+    makeUserModel(users) as any,
+    { create: async () => null } as any,
+    { createNotification: async () => undefined } as any,
+    { get: () => undefined } as any,
+  );
+  return { service, appDocs, manualDocs, orderDocs };
+};
+
+describe('VirtualNumbersService.manualServices (تفعيل مضمون)', () => {
+  it('قائمة العميل تعرض اليدويات الفعّالة المرتبطة بتطبيق فقط', async () => {
+    const appDocs = [makeDoc({ name: 'Telegram', serviceCode: 'telegram', isActive: true })];
+    const active = makeManualServiceDoc(appDocs[0]);
+    const stopped = makeManualServiceDoc(appDocs[0], { isActive: false });
+    const storeProduct = makeManualServiceDoc(appDocs[0], {
+      type: 'code',
+      virtualNumberAppId: null,
+    });
+    const { service } = makeManualHarness(
+      [active, stopped, storeProduct],
+      [],
+      [],
+      appDocs,
+    );
+
+    const list = await service.listActiveManualServices();
+
+    expect(list.map((s: any) => s.id)).toEqual([String(active._id)]);
+    expect(list[0]).toMatchObject({ name: active.name, price: 2.5 });
+    expect(JSON.stringify(list)).not.toContain('5sim');
+  });
+
+  it('createManualService يحرس الاسم والتطبيق والسعر ثم يحفظ منتجاً يدوياً', async () => {
+    const { service, appDocs, manualDocs } = makeManualHarness();
+
+    await expect(
+      service.createManualService({ vnAppId: appDocs[0]._id.toString(), price: 1 }),
+    ).rejects.toThrow(BadRequestException);
+    await expect(service.createManualService({ name: 'خدمة', price: 1 })).rejects.toThrow(
+      BadRequestException,
+    );
+    await expect(
+      service.createManualService({ name: 'خدمة', vnAppId: appDocs[0]._id.toString(), price: 0 }),
+    ).rejects.toThrow(BadRequestException);
+
+    const res = await service.createManualService({
+      name: 'تفعيل واتساب يدوي',
+      vnAppId: appDocs[0]._id.toString(),
+      price: 3,
+      requiredFields: ['  ', 'المستخدم'],
+    });
+
+    expect(res.message).toContain('تمت إضافة');
+    const created = manualDocs[manualDocs.length - 1] as any;
+    expect(created.type).toBe(ProductType.MANUAL);
+    expect(created.salePrice).toBe(3);
+    expect(created.costPrice).toBe(0);
+    expect(created.requiredFields).toEqual(['المستخدم']);
+  });
+
+  it('الحذف يوقف الخدمة إن كان عليها طلب جارٍ، وإلا يحذفها نهائياً', async () => {
+    const { service, appDocs } = makeManualHarness();
+    const live = makeManualServiceDoc(appDocs[0]);
+    const gone = makeManualServiceDoc(appDocs[0]);
+    const docs = [live, gone];
+    // findById يُرجع المستند الحقيقي نفسه مع deleteOne يزيله من المجموعة،
+    // كي ينعكس تعديل isActive (الإيقاف عند وجود طلب جارٍ) على live/gone مباشرة
+    (service as any).manualServiceModel = {
+      findById: async (id: any) => {
+        const doc = docs.find((d) => matches(d, { _id: id }));
+        if (!doc) return null;
+        (doc as any).deleteOne = async () => {
+          docs.splice(docs.indexOf(doc), 1);
+          return { acknowledged: true };
+        };
+        return doc;
+      },
+    };
+    let openCount = 0;
+    (service as any).orderModel = { countDocuments: async () => openCount };
+
+    openCount = 1;
+    const deactivated = await service.deleteManualService(String(live._id));
+    expect(deactivated).toMatchObject({ deactivated: true });
+    expect(live.isActive).toBe(false);
+    expect(docs).toHaveLength(2);
+
+    openCount = 0;
+    const removed = await service.deleteManualService(String(gone._id));
+    expect(removed).toMatchObject({ deactivated: false });
+    expect(docs).toHaveLength(1);
+
+    await expect(
+      service.deleteManualService('5f0000000000000000000000'),
+    ).rejects.toThrow(NotFoundException);
+  });
+
+  it('تبديل الحالة يعكس isActive ويحفظ التغيير', async () => {
+    const { service, appDocs, manualDocs } = makeManualHarness();
+    const doc = makeManualServiceDoc(appDocs[0]);
+    manualDocs.push(doc);
+
+    expect(await service.toggleManualService(String(doc._id))).toMatchObject({
+      isActive: false,
+    });
+    expect(doc.isActive).toBe(false);
+    expect(await service.toggleManualService(String(doc._id))).toMatchObject({
+      isActive: true,
+    });
   });
 });
 
@@ -683,6 +855,9 @@ const makeResolverService = (
     // appModel/productModel غير مستعملين في resolveProvider: شواغل موضع فقط
     { find: () => queryOf([]), findOne: async () => null, countDocuments: async () => 0 } as any,
     { find: () => queryOf([]) } as any,
+    // manualServiceModel/orderModel: شواغل موضع أيضاً (لا خدمات يدوية هنا)
+    { find: () => queryOf([]), aggregate: async () => [] } as any,
+    { aggregate: async () => [] } as any,
     {
       findOne: async (filter: any = {}) =>
         providers.find((p) => matches(p, filter)) ?? null,
@@ -833,6 +1008,8 @@ const makeCuratedHarness = (
     catalogModel as any,
     appModel as any,
     productModel as any,
+    makeCollectionModel([]) as any,
+    { aggregate: async () => [] } as any,
     providerModel as any,
     makeUserModel([]) as any,
     { create: async () => null } as any,
@@ -878,6 +1055,67 @@ describe('VirtualNumbersService curation (تطبيقات ودول الأرقام
 
     expect(result.available).toBe(false);
     expect(result.services).toHaveLength(0);
+  });
+
+  it('مزود مُسجَّل لكنه موقوف: getOptions يُبلِغ providerStopped بدل الرمي', async () => {
+    // نموذج مزود يحترم الفلترة (على عكس makeCuratedHarness) ليُفرَّق بين
+    // النشط والموقوف، فيُرجع getOptions مؤشر إيقاف بدل استثناء يكسر الصفحة
+    const providerId = new Types.ObjectId();
+    const stopped = makeDoc({
+      _id: providerId,
+      name: '5sim',
+      baseUrl: 'https://api.5sim.net/v1/user',
+      apiKey: 'k',
+      providerType: ProviderType.FIVESIM,
+      status: ProviderStatus.ONLINE,
+      isActive: false,
+      profitMarginType: ProfitMarginType.PERCENTAGE,
+      profitMarginValue: 25,
+    });
+    const providers = [stopped];
+    const providerModel = {
+      findOne: async (filter: any = {}) =>
+        providers.find((p) => matches(p, filter)) ?? null,
+      findById: async () => stopped,
+    };
+    const appDocs = [makeDoc({ providerId, isActive: true, name: 'Telegram', serviceCode: 'telegram', sortOrder: 0 })];
+    const productDocs = [makeDoc({ appId: appDocs[0]._id, serviceCode: 'telegram', countryCode: '20', countryName: 'مصر', cost: 0.4, count: 12, operators: [], isActive: true })];
+    const service = new VirtualNumbersService(
+      makeRequestModel([]) as any,
+      { findOne: async () => makeDoc({ providerId, services: curatedCatalog, fetchedAt: new Date(), lastError: '' }) } as any,
+      makeCollectionModel(appDocs) as any,
+      makeCollectionModel(productDocs) as any,
+      makeCollectionModel([]) as any,
+      { aggregate: async () => [] } as any,
+      providerModel as any,
+      makeUserModel([]) as any,
+      { create: async () => null } as any,
+      { createNotification: async () => undefined } as any,
+      { get: () => undefined } as any,
+    );
+
+    const result: any = await service.getOptions();
+
+    // الصفحة تعرف أن المزود موقوف فتُخفي الأرقام وتمسح المخزّن (بدل استثناء)
+    expect(result.available).toBe(false);
+    expect(result.providerStopped).toBe(true);
+    expect(result.services).toHaveLength(0);
+  });
+
+  it('listAdminApps يُرجع التطبيقات ودولها حتى مع تعطّل المزود (يقرأ قاعدة البيانات)', async () => {
+    const { service, appDocs } = makeCuratedHarness(
+      [{ name: 'Telegram', serviceCode: 'telegram' }],
+      [{ serviceCode: 'telegram', countryCode: '20', countryName: 'مصر', cost: 0.4 }],
+    );
+
+    const result: any = await service.listAdminApps();
+
+    // لا يعتمد على المزود: التطبيق ودوله الظاهرة في اللوحة حتى لو موقوف
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe('Telegram');
+    expect(result[0].productCount).toBe(1);
+    expect(result[0].countries.map((c: any) => c.name)).toEqual(['مصر']);
+    expect(appDocs[0].serviceCode).toBe('telegram');
   });
 
   it('addCountriesToApp يجعل الدولة تظهر وtoggleProduct يُخفيها', async () => {
@@ -930,5 +1168,104 @@ describe('VirtualNumbersService curation (تطبيقات ودول الأرقام
     await expect(
       service.createApp({ name: 'تيليجرام', serviceCode: 'telegram' }),
     ).rejects.toThrow(/تطبيق لهذا الخدمة/);
+  });
+
+  describe('Webhook إشعارات مزودي الأرقام الوهمية', () => {
+    it('يستقبل كود التحقق بنجاح عبر providerRef ويحدث حالة الطلب إلى RECEIVED', async () => {
+      const { service, user, requests } = makeHarness();
+      const res = await service.requestNumber({
+        userId: user._id.toString(),
+        service: 'telegram',
+        country: '20',
+      });
+      const req = requests[0];
+      expect(req.status).toBe(VirtualNumberStatus.WAITING);
+
+      const webhookRes = await service.processIncomingWebhook({
+        order_id: req.providerRef,
+        code: '98765',
+        text: 'Your Telegram code: 98765',
+      });
+
+      expect(webhookRes.success).toBe(true);
+      expect(webhookRes.action).toBe('code_received');
+      expect(webhookRes.code).toBe('98765');
+      expect(req.status).toBe(VirtualNumberStatus.RECEIVED);
+      expect(req.smsCode).toBe('98765');
+    });
+
+    it('يستخرج كود التحقق من نص الرسالة تلقائياً إن لم يرسل المزود حقلاً منفصلاً للكود', async () => {
+      const { service, user, requests } = makeHarness();
+      await service.requestNumber({
+        userId: user._id.toString(),
+        service: 'telegram',
+        country: '20',
+      });
+      const req = requests[0];
+
+      const webhookRes = await service.processIncomingWebhook({
+        activationId: req.providerRef,
+        smsText: 'رمز التحقق الخاص بك هو 456789، لا تشاركه مع أحد.',
+      });
+
+      expect(webhookRes.success).toBe(true);
+      expect(webhookRes.code).toBe('456789');
+      expect(req.smsCode).toBe('456789');
+      expect(req.status).toBe(VirtualNumberStatus.RECEIVED);
+    });
+
+    it('يطابق الطلب بواسطة رقم الهاتف عند غياب order_id', async () => {
+      const { service, user, requests } = makeHarness();
+      await service.requestNumber({
+        userId: user._id.toString(),
+        service: 'telegram',
+        country: '20',
+      });
+      const req = requests[0];
+      expect(req.phoneNumber).toBeTruthy();
+
+      const webhookRes = await service.processIncomingWebhook({
+        phone: req.phoneNumber,
+        code: '112233',
+        message: 'WhatsApp code 112233',
+      });
+
+      expect(webhookRes.success).toBe(true);
+      expect(req.smsCode).toBe('112233');
+      expect(req.status).toBe(VirtualNumberStatus.RECEIVED);
+    });
+
+    it('يلغي الطلب ويرجع المبلغ لمحفظة العميل عند استلام إشعار إلغاء من المزود', async () => {
+      const { service, user, requests } = makeHarness();
+      await service.requestNumber({
+        userId: user._id.toString(),
+        service: 'telegram',
+        country: '20',
+      });
+      const req = requests[0];
+      const balanceBefore = user.balance;
+
+      const webhookRes = await service.processIncomingWebhook({
+        order_id: req.providerRef,
+        status: 'STATUS_CANCEL',
+      });
+
+      expect(webhookRes.success).toBe(true);
+      expect(webhookRes.action).toBe('cancelled_and_refunded');
+      expect(req.status).toBe(VirtualNumberStatus.EXPIRED);
+      expect(req.refundedAt).toBeTruthy();
+      expect(user.balance).toBeGreaterThan(balanceBefore);
+    });
+
+    it('يتعامل بلباقة مع الطلبات غير الموجودة دون إلقاء استثناء', async () => {
+      const { service } = makeHarness();
+      const webhookRes = await service.processIncomingWebhook({
+        order_id: 'non_existent_id',
+        code: '12345',
+      });
+
+      expect(webhookRes.success).toBe(false);
+      expect(webhookRes.message).toMatch(/No matching/);
+    });
   });
 });

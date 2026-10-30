@@ -16,6 +16,8 @@ import 'manual_services_management_screen.dart';
 import 'users_management_screen.dart';
 import 'service_templates_screen.dart';
 import 'virtual_numbers_management_screen.dart';
+import 'virtual_number_apps_screen.dart';
+import 'virtual_number_manual_services_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 import '../../widgets/ops_console.dart';
@@ -29,9 +31,27 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  final String _selectedCategory = 'all'; // 'all' | 'catalog' | 'finance'
+  String _selectedCategory =
+      'all'; // 'all' | 'numbers' | 'catalog' | 'finance' | 'people'
   Timer? _autoRefreshTimer;
   int _statsTick = 0;
+
+  // Tabs الفرز حسب المهمة: الكل ثم كل مجموعة بتمثيلها الأول في الشبكة
+  static const List<(String, String, IconData)> _categoryTabs = [
+    ('all', 'الكل', Icons.dashboard_rounded),
+    ('numbers', 'إدارة الأرقام', Icons.sim_card_rounded),
+    ('catalog', 'المتجر والمنتجات', Icons.grid_view_rounded),
+    ('finance', 'المالية والطلبات', Icons.account_balance_wallet_rounded),
+    ('people', 'المستخدمون والإشراف', Icons.manage_accounts_rounded),
+  ];
+
+  // عناوين المجموعات الظاهرة فوق كل قسم عند عرض «الكل»
+  static const Map<String, (String, IconData)> _groupTitles = {
+    'numbers': ('إدارة الأرقام الوهمية', Icons.sim_card_rounded),
+    'catalog': ('المتجر والمنتجات', Icons.grid_view_rounded),
+    'finance': ('المالية والطلبات', Icons.account_balance_wallet_rounded),
+    'people': ('المستخدمون والإشراف', Icons.manage_accounts_rounded),
+  };
 
   @override
   void initState() {
@@ -87,9 +107,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       pendingTopupsCount,
       numbers,
     );
-    final filteredSections = _selectedCategory == 'all'
-        ? sections
-        : sections.where((s) => s.category == _selectedCategory).toList();
+    // عند «الكل» تُعرض المجموعات مرتّبة تحت عناوينها، وعند تبويب محدد
+    // تُفلتر الأقسام على تلك المهمة فقط
+    final visibleKeys = _selectedCategory == 'all'
+        ? _groupTitles.keys.toList()
+        : [_selectedCategory];
+    final visibleCount = _selectedCategory == 'all'
+        ? sections.length
+        : sections.where((s) => s.category == _selectedCategory).length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -117,34 +142,47 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     const SizedBox(height: 28),
 
                     // Management Sections Header with Interactive Category Tabs
-                    _buildManagementHeader(sections.length, totalPending),
+                    _buildManagementHeader(visibleCount, totalPending),
                     const SizedBox(height: 14),
 
-                    // Category Filter Tabs
+                    // Category Filter Tabs (فرز الأقسام حسب المهمة)
+                    _buildCategoryTabs(),
                     const SizedBox(height: 16),
 
                     // Management Sections Grid (نمط أيقونات الهاتف)
-                    GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: filteredSections.length,
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount:
-                            MediaQuery.of(context).size.width >= 1200
-                            ? 6
-                            : MediaQuery.of(context).size.width >= 700
-                            ? 5
-                            : 4,
-                        crossAxisSpacing: 6,
-                        mainAxisSpacing: 10,
-                        mainAxisExtent: 126,
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = filteredSections[index];
-                        return _buildSectionTile(item);
-                      },
-                    ),
-                    const SizedBox(height: 24),
+                    ...visibleKeys.map((key) {
+                      final groupSections = sections
+                          .where((s) => s.category == key)
+                          .toList();
+                      if (groupSections.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // عنوان المجموعة يظهر فقط في عرض «الكل»
+                          if (_selectedCategory == 'all') ...[
+                            _buildGroupHeader(key, groupSections.length),
+                            const SizedBox(height: 10),
+                          ],
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: groupSections.length,
+                            gridDelegate:
+                                SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: _gridColumns(),
+                                  crossAxisSpacing: 6,
+                                  mainAxisSpacing: 10,
+                                  mainAxisExtent: 126,
+                                ),
+                            itemBuilder: (context, index) =>
+                                _buildSectionTile(groupSections[index]),
+                          ),
+                          const SizedBox(height: 22),
+                        ],
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -235,6 +273,117 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               fontSize: 11,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // --- عدد أعمدة الشبكة حسب عرض الشاشة ---
+  int _gridColumns() {
+    final width = MediaQuery.of(context).size.width;
+    if (width >= 1200) return 6;
+    if (width >= 700) return 5;
+    return 4;
+  }
+
+  // --- Category Filter Tabs: فرز الأقسام حسب المهمة ---
+  Widget _buildCategoryTabs() {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      physics: const BouncingScrollPhysics(),
+      child: Row(
+        children: [
+          for (final (key, label, icon) in _categoryTabs) ...[
+            _buildCategoryChip(key, label, icon),
+            const SizedBox(width: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryChip(String key, String label, IconData icon) {
+    final bool selected = _selectedCategory == key;
+    return InkWell(
+      onTap: () => setState(() => _selectedCategory = key),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primaryBlue : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.primaryBlue : AppColors.outline,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 15,
+              color: selected ? Colors.white : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: AppTypography.cairo(
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+                color: selected ? Colors.white : AppColors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // --- عنوان مجموعة الأقسام (يظهر في عرض «الكل») ---
+  Widget _buildGroupHeader(String key, int count) {
+    final (title, icon) = _groupTitles[key]!;
+    return Row(
+      children: [
+        Icon(icon, size: 17, color: AppColors.primaryBlue),
+        const SizedBox(width: 7),
+        Text(
+          title,
+          style: AppTypography.cairo(
+            fontSize: 13.5,
+            fontWeight: FontWeight.w900,
+            color: AppColors.textPrimary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
+          decoration: BoxDecoration(
+            color: AppColors.primaryBlue.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            '$count',
+            style: AppTypography.cairo(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w900,
+              color: AppColors.primaryBlue,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Container(
+            height: 1.4,
+            margin: const EdgeInsets.only(left: 4),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppColors.outline,
+                  AppColors.outline.withValues(alpha: 0),
+                ],
+              ),
             ),
           ),
         ),
@@ -365,7 +514,82 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         numbers.stats.countOf('received');
 
     return [
-      // 1. Providers Management
+      // ───── إدارة الأرقام الوهمية ─────
+      // 1. Virtual Numbers (أرقام التحقق الوهمية)
+      _AdminSectionItem(
+        title: 'الأرقام الوهمية',
+        icon: Icons.sim_card_rounded,
+        color: const Color(0xFF0891B2), // Deep Cyan
+        category: 'numbers',
+        statusText: numbers.stats.total > 0
+            ? '${numbers.stats.total} طلب • $liveNumbers نشط'
+            : (numbers.stats.provider?.name.isNotEmpty == true
+                  ? 'مزود: ${numbers.stats.provider!.name}'
+                  : 'لم يُضبط المزود'),
+        statusColor: liveNumbers > 0 ? AppColors.secondary : null,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const VirtualNumbersManagementScreen(),
+            ),
+          );
+        },
+      ),
+
+      // 2. تطبيقات الأرقام الوهمية: صفحة الانتقاء معزولة كقسم مستقل
+      //    (كانت خلف زر أيقوني داخل «الأرقام الوهمية» فقط)
+      _AdminSectionItem(
+        title: 'إدارة تطبيقات الأرقام',
+        icon: Icons.apps_rounded,
+        color: const Color(0xFF0D9488), // Teal — هوية صفحة الانتقاء نفسها
+        category: 'numbers',
+        statusText: 'إنشاء وتفعيل دول التطبيقات',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const VirtualNumberAppsScreen()),
+          );
+        },
+      ),
+
+      // 2b. خدمات الأرقام اليدوية «تفعيل مضمون»: صفحة مستقلة إلى جانب أخواتها
+      //     (كانت خلف زر درعي داخل «الأرقام الوهمية» فقط)
+      _AdminSectionItem(
+        title: 'خدمات التفعيل المضمون',
+        icon: Icons.verified_user_rounded,
+        color: const Color(0xFF059669), // Emerald — هوية قسم العميل
+        category: 'numbers',
+        statusText: 'كروت الخدمات اليدوية للعميل',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const VirtualNumberManualServicesScreen(),
+            ),
+          );
+        },
+      ),
+
+      // 3. Virtual Numbers Providers (منفصلة عن مزودي المتاجر)
+      _AdminSectionItem(
+        title: 'مزودو الأرقام الوهمية',
+        icon: Icons.perm_phone_msg_rounded,
+        color: const Color(0xFF155E75), // Cyan 800
+        category: 'numbers',
+        statusText: numbers.stats.provider == null
+            ? 'لم يُضبط المزود'
+            : '${numbers.stats.provider!.name} • \$${numbers.stats.provider!.balance.toStringAsFixed(2)}',
+        statusColor: numbers.stats.provider != null ? AppColors.tertiary : null,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  const ProvidersManagementScreen(virtualNumbersOnly: true),
+            ),
+          );
+        },
+      ),
+
+      // ───── المتجر والمنتجات ─────
+      // 3. Providers Management (مزودو المتاجر)
       _AdminSectionItem(
         title: 'إدارة المزودين',
         icon: Icons.hub_rounded,
@@ -383,7 +607,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 2. Apps & Products (Merged)
+      // 4. Apps & Products (Merged)
       _AdminSectionItem(
         title: 'التطبيقات والمنتجات',
         icon: Icons.grid_view_rounded,
@@ -400,7 +624,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 3. Service Templates (أنواع قوالب الخدمة)
+      // 5. Service Templates (أنواع قوالب الخدمة)
       _AdminSectionItem(
         title: 'أنواع قوالب الخدمة',
         icon: Icons.description_outlined,
@@ -414,67 +638,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 4. Manual Services & Supervisors
+      // 6. Billboard & Ads
       _AdminSectionItem(
-        title: 'الخدمات اليدوية والمشرفين',
-        icon: Icons.assignment_ind_rounded,
-        color: const Color(0xFF0D9488), // Teal
+        title: 'لوحة الإعلانات',
+        icon: Icons.view_carousel_rounded,
+        color: const Color(0xFFF59E0B), // Amber Gold
         category: 'catalog',
-        statusText: '$supervisorsCount مشرف • متابعة SLA',
-        statusColor: AppColors.secondary,
+        statusText: '$activeBanners نشط',
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const ManualServicesManagementScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
           );
         },
       ),
 
-      // 5. Users Management
-      _AdminSectionItem(
-        title: 'إدارة المستخدمين',
-        icon: Icons.manage_accounts_rounded,
-        color: const Color(0xFF0EA5E9), // Sky Blue
-        category: 'finance',
-        statusText: '${stats?.usersTotal ?? 0} مستخدم',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const UsersManagementScreen()),
-          );
-        },
-      ),
-
-      // 6. Payment Accounts & Barcode
-      _AdminSectionItem(
-        title: 'حسابات الدفع',
-        icon: Icons.account_balance_wallet_rounded,
-        color: const Color(0xFF10B981), // Emerald
-        category: 'finance',
-        statusText: '$activeAccounts مفعل',
-        statusColor: AppColors.tertiary,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const PaymentAccountsScreen()),
-          );
-        },
-      ),
-
-      // 7. Shipping & Voucher Codes
-      _AdminSectionItem(
-        title: 'أكواد الشحن',
-        icon: Icons.confirmation_number_rounded,
-        color: const Color(0xFF8B5CF6), // Purple
-        category: 'finance',
-        statusText: '$unusedCodes كود متاح',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ShippingCodesScreen()),
-          );
-        },
-      ),
-
-      // 8. Orders & Requests Review
+      // ───── المالية والطلبات ─────
+      // 7. Orders & Requests Review
       _AdminSectionItem(
         title: 'الطلبات والمراجعة',
         icon: Icons.fact_check_rounded,
@@ -490,56 +669,62 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 9. Billboard & Ads
+      // 8. Payment Accounts & Barcode
       _AdminSectionItem(
-        title: 'لوحة الإعلانات',
-        icon: Icons.view_carousel_rounded,
-        color: const Color(0xFFF59E0B), // Amber Gold
-        category: 'catalog',
-        statusText: '$activeBanners نشط',
+        title: 'حسابات الدفع',
+        icon: Icons.account_balance_wallet_rounded,
+        color: const Color(0xFF10B981), // Emerald
+        category: 'finance',
+        statusText: '$activeAccounts مفعل',
+        statusColor: AppColors.tertiary,
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
+            MaterialPageRoute(builder: (_) => const PaymentAccountsScreen()),
           );
         },
       ),
 
-      // 10. Virtual Numbers (أرقام التحقق الوهمية)
+      // 9. Shipping & Voucher Codes
       _AdminSectionItem(
-        title: 'الأرقام الوهمية',
-        icon: Icons.sim_card_rounded,
-        color: const Color(0xFF0891B2), // Deep Cyan
-        category: 'catalog',
-        statusText: numbers.stats.total > 0
-            ? '${numbers.stats.total} طلب • $liveNumbers نشط'
-            : (numbers.stats.provider?.name.isNotEmpty == true
-                  ? 'مزود: ${numbers.stats.provider!.name}'
-                  : 'لم يُضبط المزود'),
-        statusColor: liveNumbers > 0 ? AppColors.secondary : null,
+        title: 'أكواد الشحن',
+        icon: Icons.confirmation_number_rounded,
+        color: const Color(0xFF8B5CF6), // Purple
+        category: 'finance',
+        statusText: '$unusedCodes كود متاح',
         onTap: () {
           Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const VirtualNumbersManagementScreen(),
-            ),
+            MaterialPageRoute(builder: (_) => const ShippingCodesScreen()),
           );
         },
       ),
 
-      // 11. Virtual Numbers Providers (منفصلة عن مزودي المتاجر)
+      // ───── المستخدمون والإشراف ─────
+      // 10. Users Management
       _AdminSectionItem(
-        title: 'مزودو الأرقام الوهمية',
-        icon: Icons.perm_phone_msg_rounded,
-        color: const Color(0xFF155E75), // Cyan 800
-        category: 'catalog',
-        statusText: numbers.stats.provider == null
-            ? 'لم يُضبط المزود'
-            : '${numbers.stats.provider!.name} • \$${numbers.stats.provider!.balance.toStringAsFixed(2)}',
-        statusColor: numbers.stats.provider != null ? AppColors.tertiary : null,
+        title: 'إدارة المستخدمين',
+        icon: Icons.manage_accounts_rounded,
+        color: const Color(0xFF0EA5E9), // Sky Blue
+        category: 'people',
+        statusText: '${stats?.usersTotal ?? 0} مستخدم',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const UsersManagementScreen()),
+          );
+        },
+      ),
+
+      // 11. Manual Services & Supervisors
+      _AdminSectionItem(
+        title: 'الخدمات اليدوية والمشرفين',
+        icon: Icons.assignment_ind_rounded,
+        color: const Color(0xFF0D9488), // Teal
+        category: 'people',
+        statusText: '$supervisorsCount مشرف • متابعة SLA',
+        statusColor: AppColors.secondary,
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (_) =>
-                  const ProvidersManagementScreen(virtualNumbersOnly: true),
+              builder: (_) => const ManualServicesManagementScreen(),
             ),
           );
         },

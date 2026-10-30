@@ -336,7 +336,9 @@ class _VirtualNumberCatalogScreenState
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          service.name,
+                          service.nameAr.isNotEmpty
+                              ? service.nameAr
+                              : service.name,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: AppTypography.cairo(
@@ -347,6 +349,7 @@ class _VirtualNumberCatalogScreenState
                         ),
                         const SizedBox(height: 2),
                         Text(
+                          '${service.nameEn.isNotEmpty ? '${service.nameEn} • ' : ''}'
                           '${service.code} • ${service.countries.length} دولة'
                           '${service.addedCount > 0 ? ' • مُنتقى ${service.addedCount}' : ''}',
                           style: AppTypography.cairo(
@@ -442,7 +445,7 @@ class _VirtualNumberCatalogScreenState
               }
             }),
             title: Text(
-              '${country.name} (${country.code})',
+              _countryLabel(country),
               style: AppTypography.cairo(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -450,6 +453,7 @@ class _VirtualNumberCatalogScreenState
               ),
             ),
             subtitle: Text(
+              'رمز المزود ${country.code} • '
               'تكلفة \$${country.cost.toStringAsFixed(2)} • '
               'سعر العميل \$${country.salePrice.toStringAsFixed(2)} • '
               'متاح ${country.count}',
@@ -537,6 +541,17 @@ class _VirtualNumberCatalogScreenState
     );
   }
 
+  /// اسم الدولة من المعجم: عربي أولاً مع الإنجليزي والعلم، وإن غاب الاسم
+  /// المترجم يبقى الاسم كما وصل من المزود
+  String _countryLabel(VirtualNumberCatalogCountry country) {
+    final ar = country.nameAr.isNotEmpty ? country.nameAr : country.name;
+    final flag = country.flag.isNotEmpty ? '${country.flag} ' : '';
+    final en = country.nameEn.isNotEmpty && country.nameEn != ar
+        ? ' (${country.nameEn})'
+        : '';
+    return '$flag$ar$en';
+  }
+
   /// سطر دولة مُنتقاة: تبديل التفعيل + حذف من التطبيق
   Widget _addedRow(VirtualNumberCatalogCountry country) {
     return ListTile(
@@ -550,7 +565,7 @@ class _VirtualNumberCatalogScreenState
         color: country.productActive ? AppColors.emerald : AppColors.slate400,
       ),
       title: Text(
-        '${country.name} (${country.code})',
+        _countryLabel(country),
         style: AppTypography.cairo(
           fontSize: 12,
           fontWeight: FontWeight.w700,

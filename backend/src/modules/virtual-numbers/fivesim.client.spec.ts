@@ -80,8 +80,26 @@ describe('normalizeFiveSimCatalog', () => {
     // virtual52 أرخص (0.12) لكن مخزونه صفر، فيُعتمد virtual34 (0.15)
     expect(russia.cost).toBeCloseTo(0.15);
     expect(russia.count).toBe(120);
-    // المشغّلون المتاحون فقط، مرتبين بالأرخص
-    expect(russia.operators.map((op) => op.code)).toEqual(['virtual34']);
+    // أسماء سيرفرات المزوّد الداخلية (virtualN) تُخفى عن الواجهات
+    expect(russia.operators).toEqual([]);
+  });
+
+  it('يبقي المشغّلين الظاهرين ويخفي سيرفرات virtual وحدها', () => {
+    const entries = normalizeFiveSimCatalog({
+      prices: {
+        russia: {
+          telegram: {
+            any: { cost: 0.2, count: 30 },
+            virtual34: { cost: 0.15, count: 120 },
+          },
+        },
+      },
+      countries: { russia: { text_en: 'Russia' } },
+    });
+
+    expect(entries[0].countries[0].operators.map((op) => op.code)).toEqual([
+      'any',
+    ]);
   });
 
   it('يعود لأرخص مشغّل بلا مخزون حين لا مخزون لأي مشغّل', () => {

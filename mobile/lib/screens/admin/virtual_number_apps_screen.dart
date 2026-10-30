@@ -28,6 +28,8 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      // listAdminApps يقرأ الدول من قاعدة البيانات مباشرة، فتظهر التطبيقات
+      // ودولها في اللوحة حتى لو كان المزود معطلاً (لا جلب كتالوج هنا).
       if (mounted) context.read<VirtualNumbersProvider>().fetchAdminApps();
     });
   }
@@ -346,6 +348,25 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   // ---------------------------------------------------------------------------
 
   Widget _appCard(VirtualNumberAppModel app) {
+    // الدول تُقرأ مباشرة من `app.countries` (ناتج listAdminApps الذي يقرأ
+    // قاعدة البيانات)، حتى تظهر التطبيقات ودولها في اللوحة ولو كان المزود
+    // معطلاً (يحاول جلب الكتالوج فيفشل). الكتالوج يُستعمل احتياطاً فقط.
+    final List<(String, bool)> countries;
+    if (app.countries.isNotEmpty) {
+      countries = app.countries.map((c) => (c.name, c.active)).toList();
+    } else {
+      final catalog = context.read<VirtualNumbersProvider>().adminCatalog;
+      final service = catalog.services
+          .cast<VirtualNumberCatalogService?>()
+          .firstWhere((s) => s!.code == app.serviceCode, orElse: () => null);
+      countries =
+          service?.countries
+              .where((c) => c.added)
+              .map((c) => (c.name, c.productActive))
+              .toList() ??
+          const [];
+    }
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -474,6 +495,37 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             ),
           ),
+          // عرض أسماء الدول المفعّلة مباشرة داخل البطاقة
+          if (countries.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 5,
+              runSpacing: 4,
+              children: countries.map((c) {
+                final (name, isActive) = c;
+                final tone = isActive ? AppColors.emerald : AppColors.slate400;
+                return Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
+                  decoration: BoxDecoration(
+                    color: tone.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(7),
+                    border: Border.all(color: tone.withValues(alpha: 0.3)),
+                  ),
+                  child: Text(
+                    name,
+                    style: AppTypography.cairo(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: tone,
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
         ],
       ),
     );

@@ -7,6 +7,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:layan_chargex/core/services/cache_service.dart';
+import 'package:layan_chargex/providers/app_catalog_provider.dart';
+import 'package:layan_chargex/providers/auth_provider.dart';
 import 'package:layan_chargex/providers/virtual_numbers_provider.dart';
 import 'package:layan_chargex/providers/wallet_provider.dart';
 import 'package:layan_chargex/screens/user/virtual_numbers_screen.dart';
@@ -92,6 +94,21 @@ final List<Map<String, dynamic>> _catalog = <Map<String, dynamic>>[
   ),
 ];
 
+/// بذرة خدمة يدوية («تفعيل مضمون») كما يرسلها الخادم في `manualServices`
+Map<String, dynamic> _manualService({
+  String id = 'ms1',
+  String name = 'تفعيل تيليجرام يدوي',
+  double price = 2.50,
+  List<String> requiredFields = const ['رقم الهاتف'],
+}) => {
+  'id': id,
+  'name': name,
+  'price': price,
+  'requiredFields': requiredFields,
+  'estimatedMinutes': 90,
+  'appName': 'Telegram',
+};
+
 Map<String, dynamic> _request({
   required String id,
   required String status,
@@ -133,6 +150,7 @@ Map<String, dynamic> _request({
 Future<void> _pumpPage(
   WidgetTester w, {
   List<Map<String, dynamic>> options = const [],
+  List<Map<String, dynamic>> manual = const [],
   List<Map<String, dynamic>> requests = const [],
   bool richWallet = false,
   double width = 380,
@@ -140,7 +158,10 @@ Future<void> _pumpPage(
   SharedPreferences.setMockInitialValues(<String, Object>{});
   await CacheService.instance.clearAll();
   if (options.isNotEmpty) {
-    await CacheService.instance.set('vn_options', options);
+    await CacheService.instance.setRawList('vn_options', options);
+  }
+  if (manual.isNotEmpty) {
+    await CacheService.instance.setRawList('vn_manual_services', manual);
   }
   if (requests.isNotEmpty) {
     await CacheService.instance.set('vn_my_requests', requests);
@@ -159,6 +180,11 @@ Future<void> _pumpPage(
         ),
         ChangeNotifierProvider<VirtualNumbersProvider>(
           create: (_) => VirtualNumbersProvider(),
+        ),
+        // قسم «تفعيل مضمون» يرسل طلبه عبر /orders نفسه (AppCatalogProvider)
+        ChangeNotifierProvider<AuthProvider>(create: (_) => AuthProvider()),
+        ChangeNotifierProvider<AppCatalogProvider>(
+          create: (_) => AppCatalogProvider(),
         ),
       ],
       child: MaterialApp(
@@ -220,6 +246,38 @@ void main() {
     );
     expect(find.textContaining('مهلة الانتظار'), findsNothing);
     expect(find.text('لا توجد أرقام متاحة'), findsNothing);
+
+    _expectNoOverflow(w);
+  });
+
+  testWidgets('قسم تفعيل مضمون يسبق شبكة الأيقونات الكبيرة', (
+    WidgetTester w,
+  ) async {
+    await _pumpPage(w, options: _catalog, manual: [_manualService()]);
+
+    // القسم الأول: كروت الخدمات اليدوية
+    expect(find.text('تفعيل مضمون'), findsOneWidget);
+    expect(find.text('تفعيل تيليجرام يدوي'), findsOneWidget);
+    // شارة السعر وشارة «التنفيذ البشري» داخل الكرت
+    expect(find.text('\$2.50'), findsOneWidget);
+    expect(find.text('تنفيذ بشري مضمون'), findsOneWidget);
+    // القسم الثاني: كتالوج المزود يبقى بشبكته المعهودة
+    expect(find.text('اختر الخدمة'), findsOneWidget);
+    expect(find.textContaining('دولة • من \$0.50'), findsOneWidget);
+
+    // النقر على الكرت يفتح نافذة طلب الخدمة اليدوية بحقولها المطلوبة
+    await w.tap(find.text('تفعيل تيليجرام يدوي'));
+    await w.pump();
+    await w.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(BottomSheet), findsOneWidget);
+    expect(find.text('رقم الهاتف'), findsOneWidget);
+    // الرصيد صفر: زر التأكيد محجوب ويطلب الشحن أولاً
+    expect(find.text('رصيد غير كافٍ (\$2.50)'), findsOneWidget);
+    final confirmButton = w.widget<ElevatedButton>(
+      find.widgetWithText(ElevatedButton, 'رصيد غير كافٍ (\$2.50)'),
+    );
+    expect(confirmButton.onPressed, isNull);
 
     _expectNoOverflow(w);
   });

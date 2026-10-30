@@ -82,6 +82,11 @@ class ApiConstants {
   static const String adminVirtualNumbersCheck =
       '/virtual-numbers/admin/check-provider';
   static const String adminVirtualNumbersSweep = '/virtual-numbers/admin/sweep';
+  static const String virtualNumbersWebhook = '/virtual-numbers/webhook';
+
+  /// رابط الويب هوك الكامل لاستقبال إشعارات مزودي الأرقام الوهمية
+  static String get virtualNumbersWebhookUrl =>
+      '${baseUrl.replaceAll(RegExp(r'/+$'), '')}$virtualNumbersWebhook';
 
   // المُنتقَى: تطبيقات الأرقام ودولها — نفس نموذج تطبيقات المتجر
   static const String adminVirtualNumberApps = '/virtual-numbers/admin/apps';
@@ -91,6 +96,10 @@ class ApiConstants {
       '/virtual-numbers/admin/catalog';
   static const String adminVirtualNumberAddCountries =
       '/virtual-numbers/admin/catalog/add-countries';
+
+  // خدمات الأرقام اليدوية (تفعيل مضمون) — تُدار من لوحة الأرقام وتظهر في صفحة العميل
+  static const String adminVirtualNumberManualServices =
+      '/virtual-numbers/admin/manual-services';
 
   // Manual Services & Supervisor Workflow Endpoints
   static const String supervisorOrders = '/orders/supervisor/my-orders';

@@ -1805,8 +1805,14 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   /// أيقونة الخدمة: من سجل الأيقونات المربعة باسم الخدمة، وإلا سلسلة فارغة
   /// فيستعمل AppThumb رمزه الافتراضي
   AppItemModel _numberAppItem(VirtualNumberRequestModel r) {
-    final String name = r.title;
-    final String? icon = builtinIconAssetForName(name);
+    final String name = r.nameAr.isNotEmpty ? r.nameAr : r.title;
+    String? icon = r.icon.isNotEmpty
+        ? (r.icon.startsWith('assets/') ? r.icon : 'assets/icons/${r.icon}.png')
+        : null;
+    icon ??= builtinIconAssetExact(r.icon) ??
+        builtinIconAssetForQuery(r.icon) ??
+        builtinIconAssetForName(name) ??
+        builtinIconAssetForName(r.service);
     return AppItemModel(
       id: r.service,
       name: name.isNotEmpty ? name : 'رقم تحقق',
@@ -1959,7 +1965,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                               Flexible(
                                 flex: 3,
                                 child: Text(
-                                  request.countryName,
+                                  '${request.flag.isNotEmpty ? "${request.flag} " : ""}${request.countryName}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: AppTypography.cairo(

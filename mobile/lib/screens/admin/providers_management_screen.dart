@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/api_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/provider_model.dart';
@@ -203,6 +204,8 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     ),
 
                     const SizedBox(height: 16),
+
+                    if (_virtualOnly) _buildWebhookInfoCard(),
 
                     // 2. تذاكر المزودين
                     _sectionHeader(
@@ -555,6 +558,216 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                 onPressed: _isCheckingAll ? null : _checkAllProviders,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebhookInfoCard() {
+    final webhookUrl = ApiConstants.virtualNumbersWebhookUrl;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              AppColors.primaryBlue.withValues(alpha: 0.08),
+              AppColors.tertiary.withValues(alpha: 0.04),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: AppColors.primaryBlue.withValues(alpha: 0.25),
+          ),
+        ),
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.bolt_rounded,
+                    size: 18,
+                    color: AppColors.primaryBlue,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'رابط الويب هوك لاستقبال الأكواد فورياً',
+                        style: AppTypography.cairo(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.slate900,
+                        ),
+                      ),
+                      Text(
+                        'Webhook URL · يُرسل المزود الأكواد إليه في نفس اللحظة',
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          color: AppColors.slate500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'طريقة الربط',
+                  icon: const Icon(
+                    Icons.help_outline_rounded,
+                    color: AppColors.primaryBlue,
+                    size: 20,
+                  ),
+                  onPressed: _showWebhookHelpDialog,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.outline),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      webhookUrl,
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11.5,
+                        color: AppColors.slate800,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () {
+                      Clipboard.setData(ClipboardData(text: webhookUrl));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            'تم نسخ رابط الويب هوك بنجاح ✅',
+                            style: AppTypography.cairo(),
+                          ),
+                          backgroundColor: AppColors.emerald,
+                          behavior: SnackBarBehavior.floating,
+                        ),
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryBlue,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.copy_rounded,
+                            size: 13,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'نسخ',
+                            style: AppTypography.cairo(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showWebhookHelpDialog() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.bolt_rounded, color: AppColors.primaryBlue),
+            const SizedBox(width: 8),
+            Text(
+              'دليل تفعيل الويب هوك',
+              style: AppTypography.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'لتسريع استلام أكواد التحقق للعملاء دون انتظار، ضع رابط الويب هوك في إعدادات حسابك لدى المزود:',
+              style: AppTypography.cairo(fontSize: 13),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '1. مزود Hero-SMS / SMS-Activate:',
+              style: AppTypography.cairo(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.primaryBlue,
+              ),
+            ),
+            Text(
+              'توجه إلى إعدادات الحساب (Settings/API) وضع الرابط في حقل Push URL أو Webhook URL.',
+              style: AppTypography.cairo(fontSize: 12, color: AppColors.slate700),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              '2. مزود 5sim:',
+              style: AppTypography.cairo(
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: AppColors.emerald,
+              ),
+            ),
+            Text(
+              'توجه إلى لوحة تحكم 5sim في قسم الإشعارات (Notifications) وضع الرابط لاستقبال تحديثات الطلبات.',
+              style: AppTypography.cairo(fontSize: 12, color: AppColors.slate700),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('حسناً', style: AppTypography.cairo(fontWeight: FontWeight.bold)),
           ),
         ],
       ),

@@ -336,8 +336,11 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('المنتج غير متاح حالياً');
     }
 
-    const app = await this.appModel.findById(product.appId);
-    if (!app || !app.isActive) {
+    // التطبيق اختياري: خدمة الأرقام اليدوية بلا تطبيق متجر (لها virtualNumberAppId)
+    const app = product.appId
+      ? await this.appModel.findById(product.appId)
+      : null;
+    if (product.appId && (!app || !app.isActive)) {
       throw new BadRequestException('هذه الخدمة معطلة حالياً');
     }
 
@@ -434,7 +437,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const orderDoc = {
       orderNumber,
       userId: user._id,
-      appId: app._id,
+      appId: app?._id,
+      virtualNumberAppId: product.virtualNumberAppId,
       productId: product._id,
       providerId: product.providerId,
       type: product.type,
@@ -457,7 +461,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       cleanRequestId,
       user,
       price,
-      ledgerDescription: `شراء ${product.name} (${app.name})`,
+      // اسم التطبيق للسياق؛ خدمات الأرقام اليدوية بلا تطبيق متجر فيُكتفى باسم المنتج
+      ledgerDescription: `شراء ${product.name}${app?.name ? ` (${app.name})` : ''}`,
     });
     if (commit.kind === 'duplicate') {
       // إعادة إرسال بنفس requestId: لم يُسحب شيء في المعاملة، أو عُوِّض في المسار التتابعي
@@ -1091,6 +1096,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       // appType يُرسل مع التطبيق كي تصنّف شاشة «طلباتي» كل طلب إلى نوع
       // (تطبيقات/ألعاب/خدمات)؛ الأرقام الوهمية تُدمج من مسارها الخاص
       .populate('appId', 'name iconUrl appType')
+      // خدمات الأرقام اليدوية بلا تطبيق متجر: اسم التطبيق يُقرأ من تطبيق الأرقام
+      .populate('virtualNumberAppId', 'name iconUrl')
       .populate('productId', 'name type costPrice salePrice isSensitive')
       .populate('assignedSupervisorId', 'name email phone role')
       .sort({ createdAt: -1 });
@@ -1101,6 +1108,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       .findById(id)
       .populate('userId', 'name email phone balance userId')
       .populate('appId', 'name iconUrl')
+      .populate('virtualNumberAppId', 'name iconUrl')
       .populate({
         path: 'productId',
         select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
@@ -1122,6 +1130,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       .find(query)
       .populate('userId', 'name email phone userId')
       .populate('appId', 'name iconUrl')
+      .populate('virtualNumberAppId', 'name iconUrl')
       .populate({
         path: 'productId',
         select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
@@ -1171,6 +1180,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       .select('-chatMessages -timeline')
       .populate('userId', 'name email phone balance userId')
       .populate('appId', 'name iconUrl')
+      .populate('virtualNumberAppId', 'name iconUrl')
       .populate('productId', 'name type costPrice salePrice isSensitive')
       .populate('assignedSupervisorId', 'name email phone role userId')
       .sort({ createdAt: -1 })

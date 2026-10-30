@@ -104,6 +104,7 @@ class _VirtualNumbersManagementScreenState
             onPressed: _openApps,
             icon: const Icon(Icons.apps_rounded),
           ),
+          // خدمات التفعيل المضمون انتقلت إلى بطاقة مستقلة في لوحة الأدمن
           // مزودو الأرقام في صفحة مستقلة عن مزودي المتاجر
           IconButton(
             tooltip: 'إدارة مزودي الأرقام',
@@ -122,11 +123,7 @@ class _VirtualNumbersManagementScreenState
         child: ListView(
           padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
           children: [
-            _providerCard(stats.provider),
-            const SizedBox(height: 12),
-            _statsCard(stats),
-            const SizedBox(height: 12),
-            _controlsRow(provider),
+            _overviewTicket(provider, stats),
             const SizedBox(height: 14),
             _searchField(),
             const SizedBox(height: 10),
@@ -147,8 +144,10 @@ class _VirtualNumbersManagementScreenState
               )
             else if (rows.isEmpty)
               _emptyState()
-            else
+            else ...[
+              _sectionHeader('طلبات العملاء'),
               ...rows.map((request) => _requestCard(request)),
+            ],
           ],
         ),
       ),
@@ -173,119 +172,122 @@ class _VirtualNumbersManagementScreenState
   }
 
   // ---------------------------------------------------------------------------
-  // المؤشرات
+  // بطاقة النظرة العامة (تذكرة): مؤشرات + خط تمزّق + أدوار التشغيل والمزود
   // ---------------------------------------------------------------------------
 
-  Widget _providerCard(VirtualNumberProviderInfo? provider) {
-    final info = provider;
-    return InkWell(
-      onTap: _openProviders,
-      borderRadius: BorderRadius.circular(16),
-      child: Container(
-        padding: const EdgeInsets.all(13),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.outlineVariant),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  Widget _overviewTicket(
+    VirtualNumbersProvider provider,
+    VirtualNumberStats stats,
+  ) {
+    final info = stats.provider;
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceCard,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outline),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+            child: Row(
               children: [
                 Container(
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: AppColors.slate900,
+                    color: const Color(0xFF0891B2).withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
+                    border: Border.all(
+                      color: const Color(0xFF0891B2).withValues(alpha: 0.22),
+                    ),
                   ),
                   child: const Icon(
-                    Icons.hub_rounded,
-                    color: Color(0xFFFDE047),
+                    Icons.numbers_rounded,
                     size: 18,
+                    color: Color(0xFF0891B2),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        info?.name.isNotEmpty == true
-                            ? info!.name
-                            : 'لم يُضبط مزود بعد',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.cairo(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.slate900,
-                        ),
-                      ),
-                      Text(
-                        info == null
-                            ? 'أضف مزود أرقام (5sim أو Hero-SMS)، ثم انتقِ دوله لتطبيقات الأرقام'
-                            : 'الرصيد \$${info.balance.toStringAsFixed(2)} • ${info.status}',
-                        style: AppTypography.cairo(
-                          fontSize: 10.5,
-                          color: AppColors.slate500,
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    'نظرة عامة',
+                    style: AppTypography.cairo(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
-                if (info != null)
-                  StatusPill(status: info.isActive ? info.status : 'inactive'),
-                // سهم: البطاقة تُفتح صفحة مزودي الأرقام المستقلة
-                const Icon(
-                  Icons.chevron_left_rounded,
-                  size: 18,
-                  color: AppColors.slate400,
+                StatusPill(
+                  status: info == null
+                      ? 'inactive'
+                      : (info.isActive ? info.status : 'inactive'),
+                  label: info == null ? 'بلا مزود' : null,
                 ),
               ],
             ),
-            if (info != null && info.lastError.isNotEmpty) ...[
-              const SizedBox(height: 9),
-              Text(
-                'آخر خطأ: ${info.lastError}',
-                style: AppTypography.cairo(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.errorLight,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statsCard(VirtualNumberStats stats) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 13, horizontal: 6),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Row(
-        children: [
-          _kpi('${stats.total}', 'إجمالي', Colors.white),
-          _kpi(
-            '\$${stats.revenue.toStringAsFixed(2)}',
-            'إيراد',
-            const Color(0xFFFDE047),
           ),
-          _kpi('\$${stats.cost.toStringAsFixed(2)}', 'تكلفة', Colors.white70),
-          _kpi(
-            '\$${stats.profit.toStringAsFixed(2)}',
-            'ربح',
-            const Color(0xFF6EE7B7),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            child: Row(
+              children: [
+                _kpi('${stats.total}', 'إجمالي', Colors.white),
+                _kpi(
+                  '\$${stats.revenue.toStringAsFixed(2)}',
+                  'إيراد',
+                  const Color(0xFFFDE047),
+                ),
+                _kpi(
+                  '\$${stats.cost.toStringAsFixed(2)}',
+                  'تكلفة',
+                  Colors.white70,
+                ),
+                _kpi(
+                  '\$${stats.profit.toStringAsFixed(2)}',
+                  'ربح',
+                  const Color(0xFF6EE7B7),
+                ),
+              ],
+            ),
+          ),
+          const OpsTearLine(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 0, 12, 10),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _controlButton(
+                  label: 'مزامنة الكتالوج',
+                  icon: Icons.sync_rounded,
+                  enabled: !_busy,
+                  onTap: () => provider.adminSyncCatalog(),
+                  reloadList: false,
+                ),
+                _controlButton(
+                  label: 'فحص المزود',
+                  icon: Icons.monitor_heart_outlined,
+                  enabled: !_busy,
+                  onTap: () => provider.adminCheckProvider(),
+                  reloadList: false,
+                ),
+                _controlButton(
+                  label: 'المسح الدوري',
+                  icon: Icons.autorenew_rounded,
+                  enabled: !_busy,
+                  onTap: () => provider.adminRunSweep(),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -294,52 +296,32 @@ class _VirtualNumbersManagementScreenState
 
   Widget _kpi(String value, String label, Color tone) {
     return Expanded(
-      child: Column(
-        children: [
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.balance(color: tone, fontSize: 14),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: AppTypography.cairo(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: Colors.white.withValues(alpha: 0.6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+        decoration: BoxDecoration(
+          color: AppColors.slate800,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          children: [
+            Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.balance(color: tone, fontSize: 13.5),
             ),
-          ),
-        ],
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: AppTypography.cairo(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withValues(alpha: 0.6),
+              ),
+            ),
+          ],
+        ),
       ),
-    );
-  }
-
-  Widget _controlsRow(VirtualNumbersProvider provider) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        _controlButton(
-          label: 'مزامنة الكتالوج',
-          icon: Icons.sync_rounded,
-          enabled: !_busy,
-          onTap: () => _run(provider.adminSyncCatalog, reloadList: false),
-        ),
-        _controlButton(
-          label: 'فحص المزود',
-          icon: Icons.monitor_heart_outlined,
-          enabled: !_busy,
-          onTap: () => _run(provider.adminCheckProvider, reloadList: false),
-        ),
-        _controlButton(
-          label: 'تشغيل المسح الدوري',
-          icon: Icons.autorenew_rounded,
-          enabled: !_busy,
-          onTap: () => _run(provider.adminRunSweep),
-        ),
-      ],
     );
   }
 
@@ -347,17 +329,19 @@ class _VirtualNumbersManagementScreenState
     required String label,
     required IconData icon,
     required bool enabled,
-    required VoidCallback onTap,
+    required Future<String?> Function() onTap,
+    bool reloadList = true,
   }) {
-    return OutlinedButton.icon(
-      onPressed: enabled ? onTap : null,
-      icon: Icon(icon, size: 16),
-      label: Text(label, style: AppTypography.cairo(fontSize: 11.5)),
-      style: OutlinedButton.styleFrom(
-        foregroundColor: AppColors.slate900,
-        side: const BorderSide(color: AppColors.slate300),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+    return TextButton.icon(
+      onPressed: enabled ? () => _run(onTap, reloadList: reloadList) : null,
+      icon: Icon(icon, size: 15),
+      label: Text(label, style: AppTypography.cairo(fontSize: 11)),
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.slate700,
+        disabledForegroundColor: AppColors.slate400,
+        visualDensity: VisualDensity.compact,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(9)),
+        padding: const EdgeInsets.symmetric(horizontal: 9),
       ),
     );
   }
@@ -476,6 +460,37 @@ class _VirtualNumbersManagementScreenState
   // بطاقة طلب في اللوحة
   // ---------------------------------------------------------------------------
 
+  /// عنوان قسم داخل قائمة التذاكر: شريط بلون التذكرة مع خط جانبي
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, top: 2),
+      child: Row(
+        children: [
+          Container(
+            width: 4,
+            height: 14,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0891B2),
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            title,
+            style: AppTypography.cairo(
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+              color: AppColors.slate700,
+            ),
+          ),
+          const Expanded(
+            child: Divider(color: AppColors.outlineVariant, indent: 10),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _requestCard(VirtualNumberRequestModel request) {
     final accent = request.hasCode
         ? AppColors.emerald
@@ -494,7 +509,9 @@ class _VirtualNumbersManagementScreenState
       icon: Icons.sim_card_rounded,
       tag: '#${request.requestNumber}',
       title: '${request.title} • ${request.countryName}',
-      subtitle: customer.isEmpty ? request.operator : customer,
+      subtitle: customer.isNotEmpty
+          ? customer
+          : (request.operator.isEmpty ? 'أي مشغّل' : request.operator),
       amount: Text(
         '\$${request.amount.toStringAsFixed(2)}',
         style: AppTypography.price(fontSize: 13, color: AppColors.slate900),

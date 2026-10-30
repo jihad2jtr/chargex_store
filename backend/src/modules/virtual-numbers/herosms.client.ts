@@ -20,6 +20,10 @@ import {
   toNumberValue,
   unwrapPayload,
 } from './virtual-number-client';
+import {
+  resolveAppMeta,
+  resolveCountryMeta,
+} from './virtual-numbers-dictionary';
 
 /**
  * موصل Hero-SMS (أرقام التحقق الوهمية) — بروتوكول متوافق مع SMS-Activate:
@@ -181,17 +185,32 @@ function pickCurrencyBlock(root: any): any {
   return root['USD'] ?? root[keys[0]] ?? {};
 }
 
-/** نص → حقل تعريفي: يُستخدم لربط الأسماء بالرموز */
+/**
+ * نص → حقل تعريفي: يُستخدم لربط الأسماء بالرموز.
+ * لا يُخزَّن الرمز اسماً لنفسه: فالمفتاح بلا اسم حقيقي يُترك للقاموس الذي
+ * يعرف الترجمة، وإلا عُرض الرمز (ccu / aq…) مكان اسم الخدمة والدولة.
+ */
 function indexNames(source: any, nameKeys: string[], codeKeys: string[]): Map<string, string> {
   const map = new Map<string, string>();
   for (const entry of toEntries(source)) {
     const value = entry.value && typeof entry.value === 'object' ? entry.value : {};
-    const code =
-      pickStringValue(value, codeKeys) || entry.key || '';
-    const name = pickStringValue(value, nameKeys) || code;
-    if (code) map.set(String(code).trim(), name || String(code).trim());
+    const code = pickStringValue(value, codeKeys) || entry.key || '';
+    const name = pickStringValue(value, nameKeys);
+    if (code && name) map.set(String(code).trim(), name.trim());
   }
   return map;
+}
+
+/**
+ * قائمة أسماء الخدمات تصل مغلَّفة في `{ status, services: [...] }` عبر
+ * `getServicesList` (أسماء الأعمال الأخرى غير مدعومة على hero-sms فترد 404).
+ */
+function serviceListRows(source: any): any[] | null {
+  const node = unwrapPayload(source);
+  if (Array.isArray(node)) return node;
+  if (!node || typeof node !== 'object') return null;
+  const rows = node.services ?? node.list ?? node.data;
+  return Array.isArray(rows) ? rows : null;
 }
 
 /**
@@ -296,17 +315,34 @@ export function normalizeHeroSmsCatalog(input: {
   const entries: VirtualNumberServiceEntry[] = [];
   for (const [code, countries] of byService) {
     if (!code || countries.size === 0) continue;
+    const rawName = serviceNames.get(code);
+    // يُمرَّر رمز الخدمة لا اسم المزود: المعجم يربط الرمز بالاسم العربي والإنجليزي
+    const appMeta = resolveAppMeta(code, 'herosms');
     entries.push({
       code,
-      name: serviceNames.get(code) || code,
+      name: rawName || appMeta.name,
+      nameAr: appMeta.nameAr,
+      nameEn: appMeta.nameEn,
+      icon: appMeta.icon,
+      herosmsCode: appMeta.herosmsCode,
+      fivesimCode: appMeta.fivesimCode,
       countries: [...countries.entries()]
-        .map(([countryCode, row]) => ({
-          code: countryCode,
-          name: countryNames.get(countryCode) || countryCode,
-          cost: row.cost,
-          count: row.count,
-          operators: row.operators,
-        }))
+        .map(([countryCode, row]) => {
+          const rawCountryName = countryNames.get(countryCode);
+          // رمز الدولة (معرّفها لدى المزود) يُطابق صف المعجم مباشرة
+          const cMeta = resolveCountryMeta(countryCode, 'herosms');
+          return {
+            code: countryCode,
+            name: rawCountryName || cMeta.nameAr || cMeta.nameEn || countryCode,
+            nameAr: cMeta.nameAr,
+            nameEn: cMeta.nameEn,
+            flag: cMeta.flag,
+            iso: cMeta.iso,
+            cost: row.cost,
+            count: row.count,
+            operators: row.operators,
+          };
+        })
         .filter((country) => country.cost > 0)
         .sort((a, b) => a.cost - b.cost),
     });
@@ -435,8 +471,14 @@ export class HeroSmsClient implements VirtualNumberClient {
     });
 
     const [services, countries] = await Promise.all([
-      this.call(['getServicesJson', 'getServices'], {}, HeroSmsClient.CATALOG_TIMEOUT_MS)
-        .then((reply) => reply.object)
+      // أسماء الخدمات تأتي من getServicesList وحدها؛ أسماء الأعمال الأخرى
+      // (getServices / getServicesJson) غير مدعومة فتسقط بلا أسماء
+      this.call(
+        ['getServicesList', 'getServicesListJson', 'getServicesJson', 'getServices'],
+        {},
+        HeroSmsClient.CATALOG_TIMEOUT_MS,
+      )
+        .then((reply) => serviceListRows(reply.object))
         .catch(() => null),
       this.call(['getCountriesJson', 'getCountries'], {}, HeroSmsClient.CATALOG_TIMEOUT_MS)
         .then((reply) => reply.object)

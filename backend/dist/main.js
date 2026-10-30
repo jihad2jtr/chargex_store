@@ -13,6 +13,12 @@ async function bootstrap() {
     app.use((0, express_1.json)({ limit: '10mb' }));
     app.use((0, express_1.urlencoded)({ extended: true, limit: '10mb' }));
     app.useStaticAssets((0, path_1.join)(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+    app.use((req, _res, next) => {
+        if (req.url && req.url.startsWith('/virtual-numbers/webhook')) {
+            req.url = '/api' + req.url;
+        }
+        next();
+    });
     app.enableCors({
         origin: '*',
         methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',

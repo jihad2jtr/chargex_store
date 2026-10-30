@@ -40,11 +40,23 @@ import {
   toNumberValue,
   unwrapPayload,
 } from './virtual-number-client';
+import {
+  resolveAppMeta,
+  resolveCountryMeta,
+} from './virtual-numbers-dictionary';
 
 export const FIVESIM_DEFAULT_BASE = 'https://5sim.net/v1';
 
 /** المضيف القديم أُزيل من المزوّد، فسجلات اللوحة القديمة تُعاد توجيهها حيّاً */
 const LEGACY_HOST = /^https?:\/\/api\.5sim\.net/i;
+
+/**
+ * سيرفرات المزوّد الداخلية تصل بأسماء تقنية بلا معنى للعميل (virtual4، virtual21…)
+ * فتُخفى من قائمة المشغّلين المعروضة، ويبقى أثرها في حساب السعر والمخزون وحده.
+ */
+export function isHiddenServerName(name: string): boolean {
+  return /^virtual\d*$/i.test((name || '').trim());
+}
 
 /**
  * جذر مسارات API الحيّ: يقبل ما تحفظه الإدارة (رابط الموقع، أو …/v1، أو
@@ -147,20 +159,38 @@ export function normalizeFiveSimCatalog(input: {
         const stocked = row.operators.filter((op) => op.count > 0);
         const pool = stocked.length > 0 ? stocked : row.operators;
         const cheapest = pool.reduce((best, op) => (op.cost < best.cost ? op : best));
+        // رمز الدولة (slug) يُطابق صف المعجم مباشرة، والاسم العربي يأتي منه
+        const cMeta = resolveCountryMeta(row.code, 'fivesim');
         return {
           code: row.code,
-          name: row.name,
+          name: row.name || cMeta.nameAr || cMeta.nameEn || row.code,
+          nameAr: cMeta.nameAr,
+          nameEn: cMeta.nameEn,
+          flag: cMeta.flag,
+          iso: cMeta.iso,
           cost: cheapest.cost,
           count: row.operators.reduce((sum, op) => sum + op.count, 0),
           operators: pool
-            .slice()
+            .filter((op) => !isHiddenServerName(op.code) && !isHiddenServerName(op.name))
             .sort((a, b) => a.cost - b.cost)
             .map((op) => ({ code: op.code, name: op.name })),
         };
       })
       .sort((a, b) => a.cost - b.cost);
 
-    if (countries.length > 0) entries.push({ code, name: code, countries });
+    if (countries.length > 0) {
+      const appMeta = resolveAppMeta(code, 'fivesim');
+      entries.push({
+        code,
+        name: appMeta.name,
+        nameAr: appMeta.nameAr,
+        nameEn: appMeta.nameEn,
+        icon: appMeta.icon,
+        herosmsCode: appMeta.herosmsCode,
+        fivesimCode: appMeta.fivesimCode,
+        countries,
+      });
+    }
   }
 
   return entries.sort((a, b) => a.countries[0].cost - b.countries[0].cost);
