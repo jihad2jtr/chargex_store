@@ -24,6 +24,8 @@ var ProviderType;
     ProviderType["FOXRELOAD"] = "foxreload";
     ProviderType["FIVESIM"] = "fivesim";
     ProviderType["HEROSMS"] = "herosms";
+    ProviderType["DOGESMS"] = "dogesms";
+    ProviderType["SMSPOOL"] = "smspool";
     ProviderType["CUSTOM"] = "custom";
 })(ProviderType || (exports.ProviderType = ProviderType = {}));
 let Provider = class Provider {
@@ -85,6 +87,10 @@ __decorate([
     (0, mongoose_1.Prop)({ default: true }),
     __metadata("design:type", Boolean)
 ], Provider.prototype, "isActive", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ trim: true }),
+    __metadata("design:type", String)
+], Provider.prototype, "serverLabel", void 0);
 exports.Provider = Provider = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], Provider);

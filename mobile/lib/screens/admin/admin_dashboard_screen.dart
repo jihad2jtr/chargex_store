@@ -18,6 +18,7 @@ import 'service_templates_screen.dart';
 import 'virtual_numbers_management_screen.dart';
 import 'virtual_number_apps_screen.dart';
 import 'virtual_number_manual_services_screen.dart';
+import 'virtual_number_quality_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 import '../../widgets/ops_console.dart';
@@ -31,26 +32,16 @@ class AdminDashboardScreen extends StatefulWidget {
 }
 
 class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
-  String _selectedCategory =
-      'all'; // 'all' | 'numbers' | 'catalog' | 'finance' | 'people'
   Timer? _autoRefreshTimer;
   int _statsTick = 0;
 
-  // Tabs الفرز حسب المهمة: الكل ثم كل مجموعة بتمثيلها الأول في الشبكة
-  static const List<(String, String, IconData)> _categoryTabs = [
-    ('all', 'الكل', Icons.dashboard_rounded),
-    ('numbers', 'إدارة الأرقام', Icons.sim_card_rounded),
-    ('catalog', 'المتجر والمنتجات', Icons.grid_view_rounded),
-    ('finance', 'المالية والطلبات', Icons.account_balance_wallet_rounded),
-    ('people', 'المستخدمون والإشراف', Icons.manage_accounts_rounded),
-  ];
-
-  // عناوين المجموعات الظاهرة فوق كل قسم عند عرض «الكل»
+  // عناوين المجموعات الظاهرة فوق كل قسم
   static const Map<String, (String, IconData)> _groupTitles = {
-    'numbers': ('إدارة الأرقام الوهمية', Icons.sim_card_rounded),
+    'numbers': ('إدارة الأرقام', Icons.sim_card_rounded),
     'catalog': ('المتجر والمنتجات', Icons.grid_view_rounded),
     'finance': ('المالية والطلبات', Icons.account_balance_wallet_rounded),
     'people': ('المستخدمون والإشراف', Icons.manage_accounts_rounded),
+    'general': ('عام', Icons.category_rounded),
   };
 
   @override
@@ -88,6 +79,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         context,
         listen: false,
       ).fetchAdminStats(),
+      // ملخص الجودة للبلاطة: يُطلب سلّة الموقوف وحدها لأن الملخص يُحسب على
+      // كامل المنتجات في الخادم مهما كان المرشّح، فترد صفوف أقل
+      Provider.of<VirtualNumbersProvider>(
+        context,
+        listen: false,
+      ).fetchAdminQuality(bucket: 'disabled', quiet: true),
     ]);
   }
 
@@ -107,14 +104,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       pendingTopupsCount,
       numbers,
     );
-    // عند «الكل» تُعرض المجموعات مرتّبة تحت عناوينها، وعند تبويب محدد
-    // تُفلتر الأقسام على تلك المهمة فقط
-    final visibleKeys = _selectedCategory == 'all'
-        ? _groupTitles.keys.toList()
-        : [_selectedCategory];
-    final visibleCount = _selectedCategory == 'all'
-        ? sections.length
-        : sections.where((s) => s.category == _selectedCategory).length;
+    // المجموعات مرتّبة تحت عناوينها
+    final visibleKeys = _groupTitles.keys.toList();
+    final visibleCount = sections.length;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -128,26 +120,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
+                  horizontal: 12,
+                  vertical: 6,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const UnifiedTactileHeader(isDashboard: true),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
 
                     // KPI Stats Grid
                     _buildOpsConsole(admin),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 6),
 
-                    // Management Sections Header with Interactive Category Tabs
+                    // Management Sections Header
                     _buildManagementHeader(visibleCount, totalPending),
-                    const SizedBox(height: 14),
-
-                    // Category Filter Tabs (فرز الأقسام حسب المهمة)
-                    _buildCategoryTabs(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 6),
 
                     // Management Sections Grid (نمط أيقونات الهاتف)
                     ...visibleKeys.map((key) {
@@ -160,11 +148,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // عنوان المجموعة يظهر فقط في عرض «الكل»
-                          if (_selectedCategory == 'all') ...[
-                            _buildGroupHeader(key, groupSections.length),
-                            const SizedBox(height: 10),
-                          ],
+                          _buildGroupHeader(key, groupSections.length),
+                          const SizedBox(height: 3),
                           GridView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
@@ -172,14 +157,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridColumns(),
-                                  crossAxisSpacing: 6,
-                                  mainAxisSpacing: 10,
-                                  mainAxisExtent: 126,
+                                  crossAxisSpacing: 5,
+                                  mainAxisSpacing: 8,
+                                  mainAxisExtent: 94,
                                 ),
                             itemBuilder: (context, index) =>
                                 _buildSectionTile(groupSections[index]),
                           ),
-                          const SizedBox(height: 22),
+                          const SizedBox(height: 5),
                         ],
                       );
                     }),
@@ -242,18 +227,18 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         Row(
           children: [
             Container(
-              width: 3.5,
-              height: 18,
+              width: 3,
+              height: 14,
               decoration: BoxDecoration(
                 gradient: AppColors.brandGradient,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Text(
               'أقسام الإدارة والتحكم',
               style: AppTypography.cairo(
-                fontSize: 16.5,
+                fontSize: 13.5,
                 fontWeight: FontWeight.w900,
                 color: AppColors.textPrimary,
               ),
@@ -261,16 +246,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           ],
         ),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(9),
             border: Border.all(color: AppColors.outline),
           ),
           child: Text(
             '$totalSections أقسام رئيسية',
             style: AppTypography.cairo(
-              fontSize: 11,
+              fontSize: 9.5,
               color: AppColors.textSecondary,
               fontWeight: FontWeight.bold,
             ),
@@ -288,86 +273,32 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return 4;
   }
 
-  // --- Category Filter Tabs: فرز الأقسام حسب المهمة ---
-  Widget _buildCategoryTabs() {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          for (final (key, label, icon) in _categoryTabs) ...[
-            _buildCategoryChip(key, label, icon),
-            const SizedBox(width: 8),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(String key, String label, IconData icon) {
-    final bool selected = _selectedCategory == key;
-    return InkWell(
-      onTap: () => setState(() => _selectedCategory = key),
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
-        decoration: BoxDecoration(
-          color: selected ? AppColors.primaryBlue : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? AppColors.primaryBlue : AppColors.outline,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 15,
-              color: selected ? Colors.white : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: AppTypography.cairo(
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-                color: selected ? Colors.white : AppColors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // --- عنوان مجموعة الأقسام (يظهر في عرض «الكل») ---
+  // --- عنوان مجموعة الأقسام ---
   Widget _buildGroupHeader(String key, int count) {
     final (title, icon) = _groupTitles[key]!;
     return Row(
       children: [
-        Icon(icon, size: 17, color: AppColors.primaryBlue),
-        const SizedBox(width: 7),
+        Icon(icon, size: 15, color: AppColors.primaryBlue),
+        const SizedBox(width: 6),
         Text(
           title,
           style: AppTypography.cairo(
-            fontSize: 13.5,
+            fontSize: 12,
             fontWeight: FontWeight.w900,
             color: AppColors.textPrimary,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 6),
         Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 1),
           decoration: BoxDecoration(
             color: AppColors.primaryBlue.withValues(alpha: 0.08),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(7),
           ),
           child: Text(
             '$count',
             style: AppTypography.cairo(
-              fontSize: 10.5,
+              fontSize: 9.5,
               fontWeight: FontWeight.w900,
               color: AppColors.primaryBlue,
             ),
@@ -375,7 +306,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         Expanded(
           child: Container(
-            height: 1.4,
+            height: 1.2,
             margin: const EdgeInsets.only(left: 4),
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -405,7 +336,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 
     return InkWell(
       onTap: item.onTap,
-      borderRadius: BorderRadius.circular(18),
+      borderRadius: BorderRadius.circular(14),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -413,8 +344,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 58,
-                height: 58,
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -425,16 +356,16 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(18),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: accent.withValues(alpha: 0.34),
-                      blurRadius: 12,
-                      offset: const Offset(0, 5),
+                      blurRadius: 9,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-                child: Icon(item.icon, color: Colors.white, size: 28),
+                child: Icon(item.icon, color: Colors.white, size: 22),
               ),
               if (badgeCount != null)
                 Positioned(
@@ -442,20 +373,20 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   right: -4,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1.5,
+                      horizontal: 4,
+                      vertical: 1,
                     ),
-                    constraints: const BoxConstraints(minWidth: 18),
+                    constraints: const BoxConstraints(minWidth: 16),
                     decoration: BoxDecoration(
                       color: const Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(9),
-                      border: Border.all(color: Colors.white, width: 1.5),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.white, width: 1.3),
                     ),
                     child: Text(
                       badgeCount,
                       textAlign: TextAlign.center,
                       style: AppTypography.cairo(
-                        fontSize: 9.5,
+                        fontSize: 8.5,
                         fontWeight: FontWeight.w900,
                         color: Colors.white,
                       ),
@@ -464,26 +395,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 5),
           Text(
             item.title,
             textAlign: TextAlign.center,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: AppTypography.cairo(
-              fontSize: 10.5,
+              fontSize: 9.5,
               fontWeight: FontWeight.w800,
               color: AppColors.textPrimary,
             ),
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: 1.5),
           Text(
             item.statusText,
             textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTypography.cairo(
-              fontSize: 9.5,
+              fontSize: 8.6,
               fontWeight: FontWeight.bold,
               color: item.statusColor ?? AppColors.textSecondary,
             ),
@@ -503,7 +434,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     final totalPending = pendingOrdersCount + pendingTopupsCount;
     final stats = admin.dashboardStats;
     final onlineProviders = stats?.providersOnline ?? 0;
-    final activeBanners = stats?.bannersActive ?? 0;
+
     final activeAccounts = stats?.accountsActive ?? 0;
     final unusedCodes = stats?.codesAvailable ?? 0;
     final supervisorsCount = stats?.usersSupervisors ?? 0;
@@ -512,12 +443,88 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         numbers.stats.countOf('pending') +
         numbers.stats.countOf('waiting') +
         numbers.stats.countOf('received');
+    // ملخص الجودة: عدد الموقوف والمراقَب من عدّادات كل سيرفر، يُجلب بهدوء
+    // كي لا تُبطِئ اللوحةُ شاشةَ الإدارة عند فتحها
+    final quality = numbers.qualityBoard.summary;
 
     return [
-      // ───── إدارة الأرقام الوهمية ─────
-      // 1. Virtual Numbers (أرقام التحقق الوهمية)
+      // 3. Virtual Numbers Providers (منفصلة عن مزودي المتاجر)
       _AdminSectionItem(
-        title: 'الأرقام الوهمية',
+        title: 'مزودو الأرقام الوهمية',
+        icon: Icons.perm_phone_msg_rounded,
+        color: const Color(0xFF155E75), // Cyan 800
+        category: 'numbers',
+        statusText: '',
+        statusColor: numbers.stats.provider != null ? AppColors.tertiary : null,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) =>
+                  const ProvidersManagementScreen(virtualNumbersOnly: true),
+            ),
+          );
+        },
+      ),
+
+      // 2. تطبيقات الأرقام الوهمية: صفحة الانتقاء معزولة كقسم مستقل
+      //    (كانت خلف زر أيقوني داخل «الأرقام الوهمية» فقط)
+      _AdminSectionItem(
+        title: 'إدارة تطبيقات الارقام',
+        icon: Icons.apps_rounded,
+        color: const Color(0xFF0D9488), // Teal — هوية صفحة الانتقاء نفسها
+        category: 'numbers',
+        statusText: '',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const VirtualNumberAppsScreen()),
+          );
+        },
+      ),
+
+      // 2b. مراقبة جودة الأرقام: عدّادات كل سيرفر وإيقافه التلقائي وإعادة تفعيله
+      _AdminSectionItem(
+        title: 'مراقبة جودة الأرقام',
+        icon: Icons.monitor_heart_rounded,
+        color: const Color(0xFFBE123C), // Rose 700 — هوية المراقبة والتنبيه
+        category: 'numbers',
+        statusText: quality.disabled > 0
+            ? '${quality.disabled} موقوف • ${quality.watching} مراقَب'
+            : (quality.watching > 0
+                  ? '${quality.watching} دولة تحت المراقبة'
+                  : '${quality.active} دولة بحالة جيدة'),
+        statusColor: quality.disabled > 0 || quality.watching > 0
+            ? AppColors.rose
+            : null,
+        isAlert: quality.disabled > 0,
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const VirtualNumberQualityScreen(),
+            ),
+          );
+        },
+      ),
+
+      //1b. خدمات الأرقام اليدوية «تفعيل مضمون»: صفحة مستقلة إلى جانب أخواتها
+      //     (كانت خلف زر درعي داخل «الأرقام الوهمية» فقط)
+      _AdminSectionItem(
+        title: 'خدمات التفعيل المضمون',
+        icon: Icons.verified_user_rounded,
+        color: const Color(0xFF059669), // Emerald — هوية قسم العميل
+        category: 'numbers',
+        statusText: '',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const VirtualNumberManualServicesScreen(),
+            ),
+          );
+        },
+      ),
+      // ───── إدارة الأرقام  ─────
+      //2. Virtual Numbers (أرقام التحقق الوهمية)
+      _AdminSectionItem(
+        title: 'سجل التفعيلات التلقائية',
         icon: Icons.sim_card_rounded,
         color: const Color(0xFF0891B2), // Deep Cyan
         category: 'numbers',
@@ -535,63 +542,10 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
           );
         },
       ),
-
-      // 2. تطبيقات الأرقام الوهمية: صفحة الانتقاء معزولة كقسم مستقل
-      //    (كانت خلف زر أيقوني داخل «الأرقام الوهمية» فقط)
-      _AdminSectionItem(
-        title: 'إدارة تطبيقات الأرقام',
-        icon: Icons.apps_rounded,
-        color: const Color(0xFF0D9488), // Teal — هوية صفحة الانتقاء نفسها
-        category: 'numbers',
-        statusText: 'إنشاء وتفعيل دول التطبيقات',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const VirtualNumberAppsScreen()),
-          );
-        },
-      ),
-
-      // 2b. خدمات الأرقام اليدوية «تفعيل مضمون»: صفحة مستقلة إلى جانب أخواتها
-      //     (كانت خلف زر درعي داخل «الأرقام الوهمية» فقط)
-      _AdminSectionItem(
-        title: 'خدمات التفعيل المضمون',
-        icon: Icons.verified_user_rounded,
-        color: const Color(0xFF059669), // Emerald — هوية قسم العميل
-        category: 'numbers',
-        statusText: 'كروت الخدمات اليدوية للعميل',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => const VirtualNumberManualServicesScreen(),
-            ),
-          );
-        },
-      ),
-
-      // 3. Virtual Numbers Providers (منفصلة عن مزودي المتاجر)
-      _AdminSectionItem(
-        title: 'مزودو الأرقام الوهمية',
-        icon: Icons.perm_phone_msg_rounded,
-        color: const Color(0xFF155E75), // Cyan 800
-        category: 'numbers',
-        statusText: numbers.stats.provider == null
-            ? 'لم يُضبط المزود'
-            : '${numbers.stats.provider!.name} • \$${numbers.stats.provider!.balance.toStringAsFixed(2)}',
-        statusColor: numbers.stats.provider != null ? AppColors.tertiary : null,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) =>
-                  const ProvidersManagementScreen(virtualNumbersOnly: true),
-            ),
-          );
-        },
-      ),
-
       // ───── المتجر والمنتجات ─────
       // 3. Providers Management (مزودو المتاجر)
       _AdminSectionItem(
-        title: 'إدارة المزودين',
+        title: 'مزودو خدمات الشحن',
         icon: Icons.hub_rounded,
         color: const Color(0xFF6366F1), // Electric Indigo
         category: 'catalog',
@@ -613,8 +567,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         icon: Icons.grid_view_rounded,
         color: const Color(0xFF0EA5E9), // Cyan / Sky Blue
         category: 'catalog',
-        statusText:
-            '${stats?.appsActive ?? 0} تطبيق • ${stats?.productsActive ?? 0} باقة',
+        statusText: '',
         onTap: () {
           Navigator.of(context).push(
             MaterialPageRoute(
@@ -624,41 +577,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 5. Service Templates (أنواع قوالب الخدمة)
-      _AdminSectionItem(
-        title: 'أنواع قوالب الخدمة',
-        icon: Icons.description_outlined,
-        color: const Color(0xFF7C3AED), // Violet
-        category: 'catalog',
-        statusText: '${stats?.serviceTemplates ?? 0} قالب',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const ServiceTemplatesScreen()),
-          );
-        },
-      ),
-
-      // 6. Billboard & Ads
-      _AdminSectionItem(
-        title: 'لوحة الإعلانات',
-        icon: Icons.view_carousel_rounded,
-        color: const Color(0xFFF59E0B), // Amber Gold
-        category: 'catalog',
-        statusText: '$activeBanners نشط',
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
-          );
-        },
-      ),
-
-      // ───── المالية والطلبات ─────
-      // 7. Orders & Requests Review
+      // 5. Orders & Requests Review (ضمن متجر ومنتجات)
       _AdminSectionItem(
         title: 'الطلبات والمراجعة',
         icon: Icons.fact_check_rounded,
         color: const Color(0xFFF43F5E), // Rose / Red
-        category: 'finance',
+        category: 'catalog',
         isAlert: totalPending > 0,
         statusText: totalPending > 0 ? '$totalPending معلق' : 'مكتمل ✅',
         statusColor: totalPending > 0 ? AppColors.error : AppColors.tertiary,
@@ -669,7 +593,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 8. Payment Accounts & Barcode
+      // ───── المالية والطلبات ─────
+
+      // 6. Payment Accounts & Barcode
       _AdminSectionItem(
         title: 'حسابات الدفع',
         icon: Icons.account_balance_wallet_rounded,
@@ -684,7 +610,34 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 9. Shipping & Voucher Codes
+      // 5. Service Templates (أنواع قوالب الخدمة) — قسم عام
+      _AdminSectionItem(
+        title: 'أنواع قوالب الخدمة',
+        icon: Icons.description_outlined,
+        color: const Color(0xFF7C3AED), // Violet
+        category: 'general',
+        statusText: '',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const ServiceTemplatesScreen()),
+          );
+        },
+      ),
+
+      // 7. Billboard & Ads — قسم عام
+      _AdminSectionItem(
+        title: 'لوحة إدارة الأعلانات',
+        icon: Icons.view_carousel_rounded,
+        color: const Color(0xFFF59E0B), // Amber Gold
+        category: 'general',
+        statusText: '',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const BannersManagementScreen()),
+          );
+        },
+      ),
+      // 8. Shipping & Voucher Codes
       _AdminSectionItem(
         title: 'أكواد الشحن',
         icon: Icons.confirmation_number_rounded,
@@ -699,7 +652,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       ),
 
       // ───── المستخدمون والإشراف ─────
-      // 10. Users Management
+      // 9. Users Management
       _AdminSectionItem(
         title: 'إدارة المستخدمين',
         icon: Icons.manage_accounts_rounded,
@@ -713,7 +666,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 11. Manual Services & Supervisors
+      // 10. Manual Services & Supervisors
       _AdminSectionItem(
         title: 'الخدمات اليدوية والمشرفين',
         icon: Icons.assignment_ind_rounded,

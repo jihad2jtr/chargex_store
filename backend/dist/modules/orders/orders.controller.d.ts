@@ -68,7 +68,8 @@ export declare class OrdersController {
         orderNumber: string;
         requestId?: string;
         userId: import("mongoose").Types.ObjectId;
-        appId: import("mongoose").Types.ObjectId;
+        appId?: import("mongoose").Types.ObjectId;
+        virtualNumberAppId?: import("mongoose").Types.ObjectId;
         productId: import("mongoose").Types.ObjectId;
         providerId?: import("mongoose").Types.ObjectId;
         type: ProductType;

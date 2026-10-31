@@ -16,7 +16,8 @@ export declare class ProductsService {
         availableCodesCount: number;
         inventoryCodes: undefined;
         providerAvailable: boolean;
-        appId: Types.ObjectId;
+        appId?: Types.ObjectId;
+        virtualNumberAppId?: Types.ObjectId;
         name: string;
         serviceTemplateId?: Types.ObjectId;
         quantityLabel: string;
@@ -52,7 +53,8 @@ export declare class ProductsService {
     }[]>;
     findAllAdmin(appId?: string): Promise<{
         availableCodesCount: number;
-        appId: Types.ObjectId;
+        appId?: Types.ObjectId;
+        virtualNumberAppId?: Types.ObjectId;
         name: string;
         serviceTemplateId?: Types.ObjectId;
         quantityLabel: string;
@@ -140,7 +142,8 @@ export declare class ProductsService {
     findAssignedToSupervisor(supervisorId: string): Promise<{
         availableCodesCount: number;
         inventoryCodes: undefined;
-        appId: Types.ObjectId;
+        appId?: Types.ObjectId;
+        virtualNumberAppId?: Types.ObjectId;
         name: string;
         serviceTemplateId?: Types.ObjectId;
         quantityLabel: string;

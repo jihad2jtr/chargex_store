@@ -62,17 +62,21 @@ VirtualNumberAppModel _app({
   activeProductCount: activeProductCount,
 );
 
-VirtualNumberCatalogCountry _addedCountry() =>
-    const VirtualNumberCatalogCountry(
-      code: '20',
-      name: 'مصر',
-      cost: 0.4,
-      count: 12,
-      salePrice: 0.5,
-      added: true,
-      productId: 'prod-eg',
-      productActive: true,
-    );
+VirtualNumberCatalogCountry _addedCountry({
+  bool stoppedByQuality = false,
+  int consecutiveFailures = 0,
+}) => VirtualNumberCatalogCountry(
+  code: '20',
+  name: 'مصر',
+  cost: 0.4,
+  count: 12,
+  salePrice: 0.5,
+  added: true,
+  productId: 'prod-eg',
+  productActive: !stoppedByQuality,
+  productAutoDisabled: stoppedByQuality,
+  productConsecutiveFailures: consecutiveFailures,
+);
 
 VirtualNumberCatalogCountry _freshCountry() =>
     const VirtualNumberCatalogCountry(
@@ -83,25 +87,30 @@ VirtualNumberCatalogCountry _freshCountry() =>
       salePrice: 1.0,
     );
 
-VirtualNumberAdminCatalog _catalog({String appActiveState = 'active'}) =>
-    VirtualNumberAdminCatalog(
-      providerId: 'p-vn',
-      providerName: '5sim',
-      providerStatus: 'online',
-      marginType: 'percentage',
-      marginValue: 25,
-      services: [
-        VirtualNumberCatalogService(
-          code: 'telegram',
-          name: 'Telegram',
-          countryCount: 2,
-          appId: appActiveState == 'none' ? '' : 'a1',
-          appName: 'Telegram',
-          appActive: appActiveState != 'inactive',
-          countries: [_addedCountry(), _freshCountry()],
-        ),
-      ],
-    );
+VirtualNumberAdminCatalog _catalog({
+  String appActiveState = 'active',
+  VirtualNumberCatalogCountry? addedCountry,
+}) => VirtualNumberAdminCatalog(
+  providerId: 'p-vn',
+  providerName: '5sim',
+  providerStatus: 'online',
+  // الاسم الوهمي يُوسم به سطر كل دولة: بلا وسم يخلط الأدمن دولةً من
+  // سيرفر بدولتها المطابقة عند مزود آخر
+  providerServerLabel: 'Server 1',
+  marginType: 'percentage',
+  marginValue: 25,
+  services: [
+    VirtualNumberCatalogService(
+      code: 'telegram',
+      name: 'Telegram',
+      countryCount: 2,
+      appId: appActiveState == 'none' ? '' : 'a1',
+      appName: 'Telegram',
+      appActive: appActiveState != 'inactive',
+      countries: [addedCountry ?? _addedCountry(), _freshCountry()],
+    ),
+  ],
+);
 
 class _SeededVn extends VirtualNumbersProvider {
   _SeededVn({
@@ -116,6 +125,9 @@ class _SeededVn extends VirtualNumbersProvider {
   final List<String> toggledApps = <String>[];
   final List<String> toggledProducts = <String>[];
   final List<String> removedProducts = <String>[];
+  // إعادة التفعيل بسبب الجودة: معرّف المنتج والملاحظة المُرسلة معه
+  final List<String> reactivated = <String>[];
+  String? lastReactivateNote;
   int bulkCalls = 0;
   Map<String, dynamic>? lastAddCountries;
   Map<String, dynamic>? lastCreateApp;
@@ -207,6 +219,13 @@ class _SeededVn extends VirtualNumbersProvider {
   Future<String?> removeAdminProduct(String id) async {
     removedProducts.add(id);
     return 'تم حذف الدولة';
+  }
+
+  @override
+  Future<String?> reactivateProduct(String productId, {String? note}) async {
+    reactivated.add(productId);
+    lastReactivateNote = note;
+    return 'تم إعادة تفعيل السيرفر';
   }
 }
 
@@ -410,18 +429,21 @@ void main() {
           height: 1000,
         );
 
-        // الدولة المُنتقاة: سطر تفعيل/إخفاء + حالة الظهور
-        await _scrollUntil(w, find.text('مصر (20)'));
-        expect(find.text('مصر (20)'), findsOneWidget);
+        // الدولة المُنتقاة: سطر تفعيل/إخفاء + حالة الظهور + وسم السيرفر
+        await _scrollUntil(w, find.textContaining('مصر'));
+        expect(find.textContaining('مصر'), findsOneWidget);
         expect(find.textContaining('ظاهرة للعميل'), findsWidgets);
         expect(find.byType(Switch), findsOneWidget);
+        // وسم السيرفر الوهمي بجانب الدولة، وفي سطر السعر يُذكر المزود لأنه
+        // شاشة إدارة لا شاشة عميل
+        expect(find.text('Server 1'), findsWidgets);
+        expect(find.textContaining('5sim — Server 1'), findsOneWidget);
         // الدولة غير المنتقاة: اختيار متعدد ضمن كتالوج المزود
-        expect(find.text('كندا (1)'), findsOneWidget);
+        expect(find.textContaining('كندا'), findsOneWidget);
         expect(find.byType(Checkbox), findsOneWidget);
-        expect(
-          find.text('دول متاحة في كتالوج المزود — أضِفها إلى التطبيق'),
-          findsOneWidget,
-        );
+        // عنوانا القسمان يذكوران السيرفر: الإضافة هنا منتج تحت هذا السيرفر وحده
+        expect(find.textContaining('دول هذا السيرفر'), findsOneWidget);
+        expect(find.textContaining('دول كتالوج هذا السيرفر'), findsOneWidget);
       },
     );
 
@@ -448,6 +470,44 @@ void main() {
       await _settle(w);
       expect(vn.removedProducts, ['prod-eg']);
     });
+
+    testWidgets(
+      'دولة أوقفتها الجودة تُوسم بحالتها، وزر التفعيل يصفّر المتتالي',
+      (w) async {
+        final vn = _SeededVn(
+          catalog: _catalog(
+            addedCountry: _addedCountry(
+              stoppedByQuality: true,
+              consecutiveFailures: 3,
+            ),
+          ),
+        );
+        await _pumpApp(
+          w,
+          VirtualNumberCatalogScreen(
+            focusApp: _app(id: 'a1', name: 'Telegram', serviceCode: 'telegram'),
+          ),
+          vn: vn,
+          width: 420,
+          height: 1000,
+        );
+
+        // الحالة ظاهرة في السطر: إيقاف جودة بثلاث فشل متتالٍ، لا إخفاء يدوي
+        await _scrollUntil(w, find.textContaining('موقوف جودةً'));
+        expect(
+          find.textContaining('موقوف جودةً (3 فشل متتالٍ)'),
+          findsOneWidget,
+        );
+
+        await w.tap(
+          find.byTooltip('إعادة التفعيل (يصفّر الفشل المتتالي ويُبقي التاريخ)'),
+        );
+        await _settle(w);
+        // الوصول لنفس المعرّف مع ملاحظة تُذكر في سجل الأحداث الإداري
+        expect(vn.reactivated, ['prod-eg']);
+        expect(vn.lastReactivateNote, 'إعادة تفعيل من كتالوج المزود');
+      },
+    );
 
     testWidgets(
       'الخدمة بلا تطبيق: شارة «بلا تطبيق» والإضافة تُنشئ التطبيق أولاً',

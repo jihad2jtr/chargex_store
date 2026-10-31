@@ -25,7 +25,7 @@ class ProviderFormDialog extends StatefulWidget {
   final ProviderModel? provider;
 
   /// `true`: النافذة تُفتح من صفحة مزودي الأرقام، فتُعرض اختصارات
-  /// 5sim و Hero-SMS وحدها ولا تظهر اختصارات مزودي المتاجر.
+  /// 5sim و Hero-SMS و DogeSMS و SMSPool وحدها ولا تظهر اختصارات مزودي المتاجر.
   final bool virtualNumbersOnly;
 
   @override
@@ -38,6 +38,7 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
   late final TextEditingController _keyCtrl;
   late final TextEditingController _secretCtrl;
   late final TextEditingController _marginCtrl;
+  late final TextEditingController _serverLabelCtrl;
 
   bool _busy = false;
   String? _error;
@@ -57,6 +58,14 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
     _marginCtrl = TextEditingController(
       text: (p?.profitMarginValue ?? 10.0).toString(),
     );
+    // اسم السيرفر الوهمي لمزودي الأرقام وحدهم: يُقترح بالتتابع ويُعدَّل يدوياً
+    _serverLabelCtrl = TextEditingController(
+      text: _virtualOnly
+          ? ((_isEdit && (p?.serverLabel ?? '').isNotEmpty)
+                ? p!.serverLabel.trim()
+                : _suggestedServerLabel())
+          : '',
+    );
   }
 
   @override
@@ -66,7 +75,15 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
     _keyCtrl.dispose();
     _secretCtrl.dispose();
     _marginCtrl.dispose();
+    _serverLabelCtrl.dispose();
     super.dispose();
+  }
+
+  /// «Server N» بعدد مزودي الأرقام الحالي + 1، وهو نفس ما يعينه الخادم حين
+  /// يُترك الحقل فارغاً: الاقتراح هنا مرئي للأدمن لا سلوك مختلف
+  String _suggestedServerLabel() {
+    final count = widget.admin.providers.where((p) => p.isVirtualNumber).length;
+    return 'Server ${count + 1}';
   }
 
   Future<void> _submit() async {
@@ -99,6 +116,14 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
       'profitMarginType': 'percentage',
       'profitMarginValue': margin,
     };
+    // الاسم الوهمي يُرسل لمزود الأرقام فقط: هو ما يراه العميل على بطاقة العرض،
+    // وحين يُترك فارغاً يتولّى الخادم تسميته بالتتابع
+    if (_virtualOnly) {
+      final label = _serverLabelCtrl.text.trim();
+      // التحرير بحقل فارغ لا يمحو الاسم الموجود: يُرسل فقط عند وجود اسم أو
+      // عند الإنشاء (والخادم يسمّيه بالتتابع حين يخلو)
+      if (label.isNotEmpty || !_isEdit) data['serverLabel'] = label;
+    }
 
     final bool ok = _isEdit
         ? await widget.admin.updateProvider(widget.provider!.id, data)
@@ -190,7 +215,7 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
           children: [
             Text(
               _virtualOnly
-                  ? 'بيانات مزود أرقام التحقق (5sim / Hero-SMS) عبر API المباشر'
+                  ? 'بيانات مزود أرقام التحقق (5sim / Hero-SMS / DogeSMS / SMSPool) عبر API المباشر'
                   : 'بيانات الربط عبر API المباشر لجلب المنتجات والأسعار',
               style: AppTypography.cairo(
                 color: AppColors.slate500,
@@ -242,6 +267,26 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                       url: 'https://hero-sms.com/stubs/handler_api.php',
                     ),
                   ),
+                  // DogeSMS (dogesms): شراء غير متزامن، الرقم يصل بعد تخصيص الطلب
+                  _quickChip(
+                    label: 'DogeSMS للأرقام الوهمية',
+                    icon: Icons.pets_rounded,
+                    color: AppColors.ticketAmber,
+                    onTap: () => _fillQuick(
+                      name: 'DogeSMS',
+                      url: 'https://api.dogesms.com',
+                    ),
+                  ),
+                  // SMSPool (smspool): يرد بترميز msgpack والرقم يصل فور الشراء
+                  _quickChip(
+                    label: 'SMSPool للأرقام الوهمية',
+                    icon: Icons.pool_rounded,
+                    color: AppColors.secondaryBright,
+                    onTap: () => _fillQuick(
+                      name: 'SMSPool',
+                      url: 'https://api.smspool.net',
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -255,7 +300,10 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                     color: AppColors.primaryBlue.withValues(alpha: 0.22),
                   ),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     const Icon(
@@ -281,7 +329,9 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                       borderRadius: BorderRadius.circular(5),
                       onTap: () {
                         Clipboard.setData(
-                          ClipboardData(text: ApiConstants.virtualNumbersWebhookUrl),
+                          ClipboardData(
+                            text: ApiConstants.virtualNumbersWebhookUrl,
+                          ),
                         );
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
@@ -295,7 +345,10 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                         );
                       },
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
                         child: Text(
                           'نسخ',
                           style: AppTypography.cairo(
@@ -316,11 +369,31 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
             _field(
               controller: _nameCtrl,
               label: _virtualOnly
-                  ? 'اسم المزود (5sim أو Hero-SMS)'
+                  ? 'اسم المزود (5sim أو Hero-SMS أو DogeSMS أو SMSPool)'
                   : 'اسم المزود (مثال: Smile One, SEAGM)',
               icon: Icons.business_rounded,
             ),
             const SizedBox(height: 11),
+            // الحقول الخاصة بمزود الأرقام: الاسم الوهمي بدل اسم المزود الحقيقي
+            if (_virtualOnly) ...[
+              _field(
+                controller: _serverLabelCtrl,
+                label: 'اسم السيرفر الظاهر للعميل',
+                icon: Icons.badge_rounded,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'هذا الاسم وحده يراه العميل على بطاقات الدول والأسعار '
+                '(مثل: Server 1). أما اسم المزود الحقيقي فلا يظهر في أي شاشة عميل، '
+                'ويبقى في صفحات الإدارة فقط.',
+                style: AppTypography.cairo(
+                  color: AppColors.slate500,
+                  fontSize: 10.5,
+                  height: 1.5,
+                ),
+              ),
+              const SizedBox(height: 11),
+            ],
             _field(
               controller: _urlCtrl,
               label: 'Base URL رابط الـ API الرئيسي',

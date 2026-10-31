@@ -14,6 +14,10 @@ class VirtualNumberCountryOption {
   final int count;
   final List<VirtualNumberOperator> operators;
 
+  /// عروض السيرفرات لهذه الدولة: قد تُباع الدولة الواحدة من أكثر من مزود، وكل
+  /// عرض يبقى مستقلاً بسعره ومخزونه ومشغّلاته
+  final List<VirtualNumberOffer> offers;
+
   const VirtualNumberCountryOption({
     required this.code,
     required this.name,
@@ -25,6 +29,7 @@ class VirtualNumberCountryOption {
     required this.salePrice,
     this.count = 0,
     this.operators = const [],
+    this.offers = const [],
   });
 
   factory VirtualNumberCountryOption.fromJson(Map<String, dynamic> json) {
@@ -39,8 +44,29 @@ class VirtualNumberCountryOption {
       salePrice: _num(json['salePrice']),
       count: _num(json['count']).toInt(),
       operators: _operators(json['operators']),
+      offers: (json['offers'] as List? ?? const <dynamic>[])
+          .whereType<Map>()
+          .map((e) => VirtualNumberOffer.fromJson(Map<String, dynamic>.from(e)))
+          .toList(),
     );
   }
+
+  /// صف الدولة يعرض «من $X»: أقل العروض سعراً، ولو غابت العروض يُقرأ السعر نفسه
+  /// من الحقول القديمة للكتالوج أحادي المزود
+  List<VirtualNumberOffer> get effectiveOffers =>
+      offers.isNotEmpty ? offers : [VirtualNumberOffer.fromCountry(this)];
+
+  double get lowestPrice => effectiveOffers.fold(
+    salePrice,
+    (lowest, offer) => offer.salePrice < lowest ? offer.salePrice : lowest,
+  );
+
+  VirtualNumberOffer get cheapestOffer =>
+      effectiveOffers.reduce((a, b) => a.salePrice <= b.salePrice ? a : b);
+
+  /// أكثر من سيرفر يبيع الدولة: الشاشة تعرض بطاقات عروض بدل سعر واحد
+  bool get hasMultipleServers =>
+      effectiveOffers.where((o) => o.serverLabel.isNotEmpty).length > 1;
 }
 
 class VirtualNumberOperator {
@@ -55,6 +81,89 @@ class VirtualNumberOperator {
       name: (json['name'] ?? json['code'] ?? '').toString(),
     );
   }
+}
+
+/// عرض سيرفر واحد لدولة داخل تطبيق (منتج عند مزود بعينه). الدولة نفسها قد
+/// تُباع من أكثر من سيرفر: لكل عرض سعره ومخزونه ومشغّلوه، ولا يُدمج عرضان
+/// ولا يُختار أرخصهما تلقائياً — الاختيار للعميل.
+class VirtualNumberOffer {
+  /// معرّف المنتج لدى الخادم: به يُشترى الرقم وبه تُسجَّل جودة هذا السيرفر
+  final String productId;
+  final String providerId;
+  final String serverLabel;
+  final String service;
+  final String country;
+  final String countryName;
+  final double cost;
+  final double salePrice;
+  final int count;
+  final List<VirtualNumberOperator> operators;
+
+  const VirtualNumberOffer({
+    required this.salePrice,
+    this.productId = '',
+    this.providerId = '',
+    this.serverLabel = '',
+    this.service = '',
+    this.country = '',
+    this.countryName = '',
+    this.cost = 0,
+    this.count = 0,
+    this.operators = const [],
+  });
+
+  factory VirtualNumberOffer.fromJson(Map<String, dynamic> json) {
+    return VirtualNumberOffer(
+      productId: (json['productId'] ?? '').toString(),
+      providerId: (json['providerId'] ?? '').toString(),
+      serverLabel: (json['serverLabel'] ?? '').toString(),
+      service: (json['service'] ?? '').toString(),
+      country: (json['country'] ?? '').toString(),
+      countryName: (json['countryName'] ?? '').toString(),
+      cost: _num(json['cost']),
+      salePrice: _num(json['salePrice']),
+      count: _num(json['count']).toInt(),
+      operators: _operators(json['operators']),
+    );
+  }
+
+  /// يُبنى عرض من دولة بلا قائمة عروض: بيانات قديمة مخزّنة أو كتالوج مزود واحد
+  factory VirtualNumberOffer.fromCountry(VirtualNumberCountryOption country) {
+    return VirtualNumberOffer(
+      country: country.code,
+      countryName: country.name,
+      salePrice: country.salePrice,
+      cost: country.cost,
+      count: country.count,
+      operators: country.operators,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+    'productId': productId,
+    'providerId': providerId,
+    'serverLabel': serverLabel,
+    'service': service,
+    'country': country,
+    'countryName': countryName,
+    'cost': cost,
+    'salePrice': salePrice,
+    'count': count,
+    'operators': operators
+        .map((o) => {'code': o.code, 'name': o.name})
+        .toList(),
+  };
+
+  /// الاسم الوهمي وحده يُعرض؛ وغيابه يعني بيانات قديمة فلا يُختار به منتج
+  String get label => serverLabel.isNotEmpty ? serverLabel : 'سيرفر';
+
+  bool get isPurchasable => productId.isNotEmpty;
+
+  /// مفتاح تظليل البطاقة المختارة: معرّف المنتج إن وُجد وإلا الاسم الوهمي.
+  /// الاعتماد على كائن العرض نفسه لا يصلح لأن عرض الدولة القديمة يُبنى جديداً
+  /// في كل بناء، فلا تتطابق البطاقة مع المختار أبداً
+  String get selectionKey =>
+      productId.isNotEmpty ? productId : 'label:$serverLabel';
 }
 
 class VirtualNumberServiceOption {
@@ -248,6 +357,10 @@ class VirtualNumberOptions {
 class VirtualNumberRequestModel {
   final String id;
   final String requestNumber;
+  final String productId;
+
+  /// الاسم الوهمي للسيرفر الذي زوّد هذا الرقم: يُعرض بدل اسم المزود الحقيقي
+  final String serverLabel;
   final String service;
   final String serviceName;
   final String nameAr;
@@ -284,6 +397,8 @@ class VirtualNumberRequestModel {
   const VirtualNumberRequestModel({
     required this.id,
     required this.requestNumber,
+    this.productId = '',
+    this.serverLabel = '',
     this.service = '',
     this.serviceName = '',
     this.nameAr = '',
@@ -318,6 +433,8 @@ class VirtualNumberRequestModel {
     return VirtualNumberRequestModel(
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       requestNumber: (json['requestNumber'] ?? '').toString(),
+      productId: (json['productId'] ?? '').toString(),
+      serverLabel: (json['serverLabel'] ?? '').toString(),
       service: (json['service'] ?? '').toString(),
       serviceName: (json['serviceName'] ?? '').toString(),
       nameAr: (json['nameAr'] ?? '').toString(),
@@ -373,6 +490,7 @@ class VirtualNumberRequestModel {
   String get subtitle {
     final parts = <String>[
       if (countryName.isNotEmpty) countryName,
+      if (serverLabel.isNotEmpty) serverLabel,
       if (operator.isNotEmpty) operator,
     ];
     return parts.join(' • ');
@@ -563,22 +681,58 @@ class VirtualNumberAppModel {
 
 /// دولة داخل بطاقة تطبيق الأرقام (تُعرض مباشرة بدون فتح الكتالوج)
 class VirtualNumberAppCountry {
+  /// معرّف المنتج: به تُفعَّل الدولة وتُوقف، وهو عقدة تسجيل الجودة
+  final String id;
   final String code;
   final String name;
   final bool active;
+  final String providerId;
+
+  /// اسم السيرفر الوهمي: نفس ما يراه العميل على بطاقة العرض
+  final String serverLabel;
+
+  /// موقوف جودةً بعد تكرار الفشل المتتالي
+  final bool autoDisabled;
+  final int consecutiveFailures;
+  final int totalOrders;
+  final int success;
+  final int failure;
 
   const VirtualNumberAppCountry({
     required this.code,
     required this.name,
+    this.id = '',
     this.active = true,
+    this.providerId = '',
+    this.serverLabel = '',
+    this.autoDisabled = false,
+    this.consecutiveFailures = 0,
+    this.totalOrders = 0,
+    this.success = 0,
+    this.failure = 0,
   });
 
   factory VirtualNumberAppCountry.fromJson(Map<String, dynamic> json) =>
       VirtualNumberAppCountry(
+        id: (json['id'] ?? '').toString(),
         code: (json['code'] ?? '').toString(),
         name: (json['name'] ?? json['code'] ?? '').toString(),
         active: json['active'] != false,
+        providerId: (json['providerId'] ?? '').toString(),
+        serverLabel: (json['serverLabel'] ?? '').toString(),
+        autoDisabled: json['autoDisabled'] == true,
+        consecutiveFailures: _num(json['consecutiveFailures']).toInt(),
+        totalOrders: _num(json['totalOrders']).toInt(),
+        success: _num(json['success']).toInt(),
+        failure: _num(json['failure']).toInt(),
       );
+
+  /// نقطة حالة الجودة في اللوحة: أخضر / تحذير / موقوف
+  String get qualityState {
+    if (autoDisabled) return 'disabled';
+    if (consecutiveFailures >= 1) return 'watching';
+    return 'healthy';
+  }
 }
 
 /// دولة داخل كتالوج المزود مع حالة انتقائها (من `admin/catalog`)
@@ -596,6 +750,10 @@ class VirtualNumberCatalogCountry {
   final String productId;
   final bool productActive;
 
+  /// حالة جودة منتج هذا المزود: الدولة قد تكون موقوفة لدى سيرفر ومفعّلة بآخر
+  final bool productAutoDisabled;
+  final int productConsecutiveFailures;
+
   const VirtualNumberCatalogCountry({
     required this.code,
     required this.name,
@@ -609,6 +767,8 @@ class VirtualNumberCatalogCountry {
     this.added = false,
     this.productId = '',
     this.productActive = false,
+    this.productAutoDisabled = false,
+    this.productConsecutiveFailures = 0,
   });
 
   factory VirtualNumberCatalogCountry.fromJson(Map<String, dynamic> json) =>
@@ -625,6 +785,10 @@ class VirtualNumberCatalogCountry {
         added: json['added'] == true,
         productId: (json['productId'] ?? '').toString(),
         productActive: json['productActive'] == true,
+        productAutoDisabled: json['productAutoDisabled'] == true,
+        productConsecutiveFailures: _num(
+          json['productConsecutiveFailures'],
+        ).toInt(),
       );
 }
 
@@ -683,6 +847,9 @@ class VirtualNumberAdminCatalog {
   final String providerId;
   final String providerName;
   final String providerStatus;
+
+  /// الاسم الوهمي للسيرفر: تُوسَم به دول هذا الكتالوج في شاشة الانتقاء
+  final String providerServerLabel;
   final String marginType;
   final double marginValue;
   final List<VirtualNumberCatalogService> services;
@@ -691,6 +858,7 @@ class VirtualNumberAdminCatalog {
     this.providerId = '',
     this.providerName = '',
     this.providerStatus = '',
+    this.providerServerLabel = '',
     this.marginType = 'percentage',
     this.marginValue = 0,
     this.services = const [],
@@ -707,6 +875,7 @@ class VirtualNumberAdminCatalog {
       providerId: (provider['id'] ?? '').toString(),
       providerName: (provider['name'] ?? '').toString(),
       providerStatus: (provider['status'] ?? '').toString(),
+      providerServerLabel: (provider['serverLabel'] ?? '').toString(),
       marginType: (margin['type'] ?? 'percentage').toString(),
       marginValue: _num(margin['value']),
       services: (json['services'] as List? ?? const <dynamic>[])
@@ -721,6 +890,357 @@ class VirtualNumberAdminCatalog {
   }
 
   static VirtualNumberAdminCatalog empty() => const VirtualNumberAdminCatalog();
+}
+
+// ===========================================================================
+// لوحة مراقبة الجودة: كل منتج (سيرفر + تطبيق + دولة) بعدّاداته وسجل أحداثه.
+// التقييم يُحسب لكل مزود على حدة، فلا يُدمج تقييم سيرفر مع تقييم غيره مهما
+// باعا التطبيق والدولة نفسيهما.
+// ===========================================================================
+
+/// صف منتج في `GET /virtual-numbers/admin/quality`
+class VirtualNumberQualityRow {
+  final String productId;
+
+  /// active | watching | disabled — كما يقررها الخادم من العدّادات
+  final String bucket;
+  final String providerId;
+  final String serverLabel;
+  final String providerName;
+  final bool providerMissing;
+  final bool providerActive;
+  final String appId;
+  final String appName;
+  final String appIcon;
+  final String serviceCode;
+  final String countryCode;
+  final String countryName;
+  final String flag;
+  final bool isActive;
+  final bool autoDisabled;
+  final int totalOrders;
+  final int success;
+  final int failure;
+  final int cancelled;
+  final int outOfStock;
+  final int pending;
+  final int consecutiveFailures;
+
+  /// نسبة وصول الأكواد من المحتسب فقط؛ null إن لا نتيجة محتسبة بعد
+  final double? codeRate;
+  final DateTime? disabledAt;
+  final String disabledReason;
+  final String disabledBy;
+
+  const VirtualNumberQualityRow({
+    required this.productId,
+    this.bucket = 'active',
+    this.providerId = '',
+    this.serverLabel = '',
+    this.providerName = '',
+    this.providerMissing = false,
+    this.providerActive = true,
+    this.appId = '',
+    this.appName = '',
+    this.appIcon = '',
+    this.serviceCode = '',
+    this.countryCode = '',
+    this.countryName = '',
+    this.flag = '🌐',
+    this.isActive = true,
+    this.autoDisabled = false,
+    this.totalOrders = 0,
+    this.success = 0,
+    this.failure = 0,
+    this.cancelled = 0,
+    this.outOfStock = 0,
+    this.pending = 0,
+    this.consecutiveFailures = 0,
+    this.codeRate,
+    this.disabledAt,
+    this.disabledReason = '',
+    this.disabledBy = '',
+  });
+
+  factory VirtualNumberQualityRow.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberQualityRow(
+        productId: (json['productId'] ?? '').toString(),
+        bucket: (json['bucket'] ?? 'active').toString(),
+        providerId: (json['providerId'] ?? '').toString(),
+        serverLabel: (json['serverLabel'] ?? '').toString(),
+        providerName: (json['providerName'] ?? '').toString(),
+        providerMissing: json['providerMissing'] == true,
+        providerActive: json['providerActive'] != false,
+        appId: (json['appId'] ?? '').toString(),
+        appName: (json['appName'] ?? '').toString(),
+        appIcon: (json['appIcon'] ?? '').toString(),
+        serviceCode: (json['serviceCode'] ?? '').toString(),
+        countryCode: (json['countryCode'] ?? '').toString(),
+        countryName: (json['countryName'] ?? '').toString(),
+        flag: (json['flag'] ?? '🌐').toString(),
+        isActive: json['isActive'] != false,
+        autoDisabled: json['autoDisabled'] == true,
+        totalOrders: _num(json['totalOrders']).toInt(),
+        success: _num(json['success']).toInt(),
+        failure: _num(json['failure']).toInt(),
+        cancelled: _num(json['cancelled']).toInt(),
+        outOfStock: _num(json['outOfStock']).toInt(),
+        pending: _num(json['pending']).toInt(),
+        consecutiveFailures: _num(json['consecutiveFailures']).toInt(),
+        codeRate: json['codeRate'] is num
+            ? (json['codeRate'] as num).toDouble()
+            : null,
+        disabledAt: _date(json['disabledAt']),
+        disabledReason: (json['disabledReason'] ?? '').toString(),
+        disabledBy: (json['disabledBy'] ?? '').toString(),
+      );
+
+  /// عنوان البطاقة: الاسم الوهمي للسيرفر، وإلا اسم المزود (للوحات الداخلية)
+  String get title {
+    if (serverLabel.isNotEmpty) return serverLabel;
+    if (providerName.isNotEmpty) return providerName;
+    return 'سيرفر';
+  }
+
+  /// نسبة وصول الأكواد: تُحسب من العدّادات إن لم يرها الخادم في الرد
+  double? get effectiveCodeRate {
+    if (codeRate != null) return codeRate;
+    final counted = success + failure;
+    return counted > 0 ? success / counted : null;
+  }
+
+  String get codeRateLabel {
+    final rate = effectiveCodeRate;
+    if (rate == null) return '—';
+    return '${(rate * 100).round()}%';
+  }
+
+  bool get needsAttention => autoDisabled || consecutiveFailures > 0;
+
+  static List<VirtualNumberQualityRow> listFrom(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map(
+          (e) => VirtualNumberQualityRow.fromJson(Map<String, dynamic>.from(e)),
+        )
+        .toList();
+  }
+}
+
+/// عدد المنتجات في كل سلّة (`summary` في استجابة اللوحة)
+class VirtualNumberQualitySummary {
+  final int all;
+  final int active;
+  final int watching;
+  final int disabled;
+
+  const VirtualNumberQualitySummary({
+    this.all = 0,
+    this.active = 0,
+    this.watching = 0,
+    this.disabled = 0,
+  });
+
+  factory VirtualNumberQualitySummary.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberQualitySummary(
+        all: _num(json['all']).toInt(),
+        active: _num(json['active']).toInt(),
+        watching: _num(json['watching']).toInt(),
+        disabled: _num(json['disabled']).toInt(),
+      );
+
+  int of(String bucket) => switch (bucket) {
+    'active' => active,
+    'watching' => watching,
+    'disabled' => disabled,
+    _ => all,
+  };
+
+  static VirtualNumberQualitySummary empty() =>
+      const VirtualNumberQualitySummary();
+}
+
+/// استجابة اللوحة كاملة: ملخص السلال + صفوف المرشَّح
+class VirtualNumberQualityBoard {
+  final VirtualNumberQualitySummary summary;
+  final List<VirtualNumberQualityRow> rows;
+
+  const VirtualNumberQualityBoard({
+    this.summary = const VirtualNumberQualitySummary(),
+    this.rows = const [],
+  });
+
+  factory VirtualNumberQualityBoard.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberQualityBoard(
+        summary: json['summary'] is Map
+            ? VirtualNumberQualitySummary.fromJson(
+                Map<String, dynamic>.from(json['summary'] as Map),
+              )
+            : VirtualNumberQualitySummary.empty(),
+        rows: VirtualNumberQualityRow.listFrom(json['rows']),
+      );
+
+  static VirtualNumberQualityBoard empty() => const VirtualNumberQualityBoard();
+}
+
+/// نتيجة واحدة في سجل أحداث المنتج
+class VirtualNumberQualityEvent {
+  final String id;
+  final String outcome;
+
+  /// هل دخلت النتيجة في تقييم المزود؟ الإلغاء ونفاد المخزون لا تدخل
+  final bool counted;
+  final String source;
+  final String reason;
+  final String requestNumber;
+  final String requestId;
+  final DateTime? createdAt;
+
+  const VirtualNumberQualityEvent({
+    required this.id,
+    required this.outcome,
+    this.counted = false,
+    this.source = '',
+    this.reason = '',
+    this.requestNumber = '',
+    this.requestId = '',
+    this.createdAt,
+  });
+
+  factory VirtualNumberQualityEvent.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberQualityEvent(
+        id: (json['id'] ?? '').toString(),
+        outcome: (json['outcome'] ?? '').toString(),
+        counted: json['counted'] == true,
+        source: (json['source'] ?? '').toString(),
+        reason: (json['reason'] ?? '').toString(),
+        requestNumber: (json['requestNumber'] ?? '').toString(),
+        requestId: (json['requestId'] ?? '').toString(),
+        createdAt: _date(json['createdAt']),
+      );
+
+  static const success = 'success';
+  static const failed = 'failed';
+  static const cancelled = 'cancelled';
+  static const outOfStock = 'out_of_stock';
+  static const pending = 'pending';
+  static const autoDisabled = 'auto_disabled';
+  static const reactivated = 'reactivated';
+
+  static String labelOf(String outcome) => switch (outcome) {
+    success => 'رمز وصل',
+    failed => 'رقم بلا رمز',
+    cancelled => 'إلغاء',
+    outOfStock => 'نفاد المخزون',
+    pending => 'غير محسوم',
+    autoDisabled => 'إيقاف تلقائي',
+    reactivated => 'إعادة تفعيل',
+    _ => outcome,
+  };
+
+  String get label => labelOf(outcome);
+
+  /// المصدر بالعربي: من أين وصلت النتيجة (ويب هوك، مسح، عميل، إدارة…)
+  String get sourceLabel => switch (source) {
+    'request' => 'عند الطلب',
+    'sync' => 'فحص الحالة',
+    'sweep' => 'المسح الدوري',
+    'webhook' => 'إشعار المزود',
+    'client' => 'العميل',
+    'admin' => 'الإدارة',
+    'system' => 'النظام',
+    _ => source,
+  };
+
+  static List<VirtualNumberQualityEvent> listFrom(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map(
+          (e) =>
+              VirtualNumberQualityEvent.fromJson(Map<String, dynamic>.from(e)),
+        )
+        .toList();
+  }
+}
+
+/// طلب من آخر طلبات المنتج كما تعرضه ورقة التفاصيل
+class VirtualNumberQualityRequest {
+  final String id;
+  final String requestNumber;
+  final String status;
+  final String phoneNumber;
+  final String operator;
+  final double amount;
+  final bool hasCode;
+  final String? smsCode;
+  final String qualityOutcome;
+  final DateTime? createdAt;
+  final DateTime? closedAt;
+
+  const VirtualNumberQualityRequest({
+    required this.id,
+    required this.requestNumber,
+    this.status = '',
+    this.phoneNumber = '',
+    this.operator = '',
+    this.amount = 0,
+    this.hasCode = false,
+    this.smsCode,
+    this.qualityOutcome = '',
+    this.createdAt,
+    this.closedAt,
+  });
+
+  factory VirtualNumberQualityRequest.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberQualityRequest(
+        id: (json['id'] ?? '').toString(),
+        requestNumber: (json['requestNumber'] ?? '').toString(),
+        status: (json['status'] ?? '').toString(),
+        phoneNumber: (json['phoneNumber'] ?? '').toString(),
+        operator: (json['operator'] ?? '').toString(),
+        amount: _num(json['amount']),
+        hasCode: json['hasCode'] == true,
+        smsCode: _text(json['smsCode']),
+        qualityOutcome: (json['qualityOutcome'] ?? '').toString(),
+        createdAt: _date(json['createdAt']),
+        closedAt: _date(json['closedAt']),
+      );
+
+  static List<VirtualNumberQualityRequest> listFrom(dynamic value) {
+    if (value is! List) return const [];
+    return value
+        .whereType<Map>()
+        .map(
+          (e) => VirtualNumberQualityRequest.fromJson(
+            Map<String, dynamic>.from(e),
+          ),
+        )
+        .toList();
+  }
+}
+
+/// ورقة تفاصيل المنتج: عدّاداته + سجل أحداثه + آخر طلباته
+class VirtualNumberQualityDetail {
+  final VirtualNumberQualityRow product;
+  final List<VirtualNumberQualityEvent> events;
+  final List<VirtualNumberQualityRequest> requests;
+
+  const VirtualNumberQualityDetail({
+    required this.product,
+    this.events = const [],
+    this.requests = const [],
+  });
+
+  factory VirtualNumberQualityDetail.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberQualityDetail(
+        product: VirtualNumberQualityRow.fromJson(
+          Map<String, dynamic>.from(json['product'] as Map? ?? const {}),
+        ),
+        events: VirtualNumberQualityEvent.listFrom(json['events']),
+        requests: VirtualNumberQualityRequest.listFrom(json['requests']),
+      );
 }
 
 double _num(dynamic value) => value is num ? value.toDouble() : 0.0;

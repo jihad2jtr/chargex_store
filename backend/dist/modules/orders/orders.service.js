@@ -295,8 +295,10 @@ let OrdersService = OrdersService_1 = class OrdersService {
         if (!product || !product.isActive) {
             throw new common_1.BadRequestException('المنتج غير متاح حالياً');
         }
-        const app = await this.appModel.findById(product.appId);
-        if (!app || !app.isActive) {
+        const app = product.appId
+            ? await this.appModel.findById(product.appId)
+            : null;
+        if (product.appId && (!app || !app.isActive)) {
             throw new common_1.BadRequestException('هذه الخدمة معطلة حالياً');
         }
         const template = product.serviceTemplateId;
@@ -355,7 +357,8 @@ let OrdersService = OrdersService_1 = class OrdersService {
         const orderDoc = {
             orderNumber,
             userId: user._id,
-            appId: app._id,
+            appId: app?._id,
+            virtualNumberAppId: product.virtualNumberAppId,
             productId: product._id,
             providerId: product.providerId,
             type: product.type,
@@ -377,7 +380,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             cleanRequestId,
             user,
             price,
-            ledgerDescription: `شراء ${product.name} (${app.name})`,
+            ledgerDescription: `شراء ${product.name}${app?.name ? ` (${app.name})` : ''}`,
         });
         if (commit.kind === 'duplicate') {
             return {
@@ -901,6 +904,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
         return this.orderModel
             .find({ userId: new mongoose_2.Types.ObjectId(userId) })
             .populate('appId', 'name iconUrl appType')
+            .populate('virtualNumberAppId', 'name iconUrl')
             .populate('productId', 'name type costPrice salePrice isSensitive')
             .populate('assignedSupervisorId', 'name email phone role')
             .sort({ createdAt: -1 });
@@ -910,6 +914,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             .findById(id)
             .populate('userId', 'name email phone balance userId')
             .populate('appId', 'name iconUrl')
+            .populate('virtualNumberAppId', 'name iconUrl')
             .populate({
             path: 'productId',
             select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
@@ -929,6 +934,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             .find(query)
             .populate('userId', 'name email phone userId')
             .populate('appId', 'name iconUrl')
+            .populate('virtualNumberAppId', 'name iconUrl')
             .populate({
             path: 'productId',
             select: 'name type costPrice salePrice isSensitive instructions serviceTemplateId',
@@ -968,6 +974,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             .select('-chatMessages -timeline')
             .populate('userId', 'name email phone balance userId')
             .populate('appId', 'name iconUrl')
+            .populate('virtualNumberAppId', 'name iconUrl')
             .populate('productId', 'name type costPrice salePrice isSensitive')
             .populate('assignedSupervisorId', 'name email phone role userId')
             .sort({ createdAt: -1 })

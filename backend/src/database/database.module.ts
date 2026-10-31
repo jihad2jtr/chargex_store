@@ -31,6 +31,10 @@ import {
   VirtualNumberProduct,
   VirtualNumberProductSchema,
 } from './schemas/virtual-number-product.schema';
+import {
+  VirtualNumberQualityEvent,
+  VirtualNumberQualityEventSchema,
+} from './schemas/virtual-number-quality-event.schema';
 
 const featureModels = [
   { name: User.name, schema: UserSchema },
@@ -52,6 +56,10 @@ const featureModels = [
   { name: VirtualNumberCatalog.name, schema: VirtualNumberCatalogSchema },
   { name: VirtualNumberApp.name, schema: VirtualNumberAppSchema },
   { name: VirtualNumberProduct.name, schema: VirtualNumberProductSchema },
+  {
+    name: VirtualNumberQualityEvent.name,
+    schema: VirtualNumberQualityEventSchema,
+  },
 ];
 
 @Module({

@@ -210,7 +210,8 @@ export declare class Order {
     orderNumber: string;
     requestId?: string;
     userId: Types.ObjectId;
-    appId: Types.ObjectId;
+    appId?: Types.ObjectId;
+    virtualNumberAppId?: Types.ObjectId;
     productId: Types.ObjectId;
     providerId?: Types.ObjectId;
     type: ProductType;
@@ -284,7 +285,16 @@ export declare const OrderSchema: import("mongoose").Schema<Order, import("mongo
     }, "id"> & import("mongoose").HydratedDocumentOverrides<{
         id: string;
     }>> | undefined;
-    appId?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId, Order, Document<unknown, {}, Order, {
+    appId?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId | undefined, Order, Document<unknown, {}, Order, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    virtualNumberAppId?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId | undefined, Order, Document<unknown, {}, Order, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
         _id: Types.ObjectId;

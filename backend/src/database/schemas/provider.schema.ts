@@ -17,6 +17,10 @@ export enum ProviderType {
   FIVESIM = 'fivesim',
   // بديل نفس الغرض ببروتوكول متوافق مع SMS-Activate
   HEROSMS = 'herosms',
+  // DogeSMS: REST بلغة طلب/استجابة نظيفة والرقم يصل لاحقاً عبر webhook أو استطلاع
+  DOGESMS = 'dogesms',
+  // SMSPool: REST يستجيب بأكواد MessagePack والرقم يصل فور الشراء
+  SMSPOOL = 'smspool',
   CUSTOM = 'custom',
 }
 
@@ -63,6 +67,11 @@ export class Provider {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  // الاسم الوهمي الذي يراه العميل لهذا المزود («Server 1») بدل اسمه الحقيقي.
+  // يُملأ تلقائياً لمزودي الأرقام ولا يغادر `name` الحقيقي مسارات الإدارة.
+  @Prop({ trim: true })
+  serverLabel?: string;
 }
 
 export const ProviderSchema = SchemaFactory.createForClass(Provider);

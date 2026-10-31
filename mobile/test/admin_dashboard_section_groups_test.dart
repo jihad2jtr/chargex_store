@@ -1,5 +1,4 @@
-// فرز أقسام لوحة الأدمن حسب المهمة: تبويبات (الكل/إدارة الأرقام/المتجر/
-// المالية/المستخدمون) + عناوين مجموعات فوق الأقسام في عرض «الكل».
+// أقسام لوحة الأدمن معروضة كلها مرتّبة تحت عناوين مجموعاتها (بلا فلاتر تبويبات).
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -42,7 +41,7 @@ Future<void> _pumpDashboard(WidgetTester w) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   await CacheService.instance.clearAll();
 
-  w.view.physicalSize = const Size(760, 2200);
+  w.view.physicalSize = const Size(760, 2400);
   w.view.devicePixelRatio = 1.0;
   addTearDown(w.view.resetPhysicalSize);
   addTearDown(w.view.resetDevicePixelRatio);
@@ -71,96 +70,47 @@ Future<void> _pumpDashboard(WidgetTester w) async {
   }
 }
 
-/// تمرير التبويب إلى الظهور ثم النقر عليه عبر زرّالـ InkWell الخاص بالتبويب
-/// (نفس نصّ التبويب يظهر كعنوان مجموعة، فالتبويب هو أول مطابقة)
-Future<void> _tapTab(WidgetTester w, String label) async {
-  final chip = find.ancestor(
-    of: find.text(label),
-    matching: find.byType(InkWell),
-  );
-  await w.ensureVisible(chip.first);
-  await w.tap(chip.first);
-  await w.pump();
-  await w.pump(const Duration(milliseconds: 350));
-}
-
 void main() {
   setUpAll(() => HttpOverrides.global = _BlockedHttpOverrides());
   tearDownAll(() => HttpOverrides.global = null);
 
-  testWidgets('عرض «الكل» يظهر عناوين المجموعات مع أقسامها', (w) async {
-    await _pumpDashboard(w);
-
-    // عناوين التجميع حسب المهمة (بعضها يتكرر كنص تبويب بنفس الاسم)
-    expect(find.text('إدارة الأرقام الوهمية'), findsOneWidget);
-    expect(find.text('المتجر والمنتجات'), findsWidgets);
-    expect(find.text('المالية والطلبات'), findsWidgets);
-    expect(find.text('المستخدمون والإشراف'), findsWidgets);
-
-    // الأقسام ما زالت كلها ظاهرة
-    expect(find.text('الأرقام الوهمية'), findsOneWidget);
-    expect(find.text('إدارة تطبيقات الأرقام'), findsOneWidget);
-    expect(find.text('مزودو الأرقام الوهمية'), findsOneWidget);
-    // خدمات التفعيل المضمون معزولة كبطاقة مستقلة ضمن إدارة الأرقام
-    expect(find.text('خدمات التفعيل المضمون'), findsOneWidget);
-    expect(find.text('إدارة المزودين'), findsOneWidget);
-    expect(find.text('أكواد الشحن'), findsOneWidget);
-    expect(find.text('إدارة المستخدمين'), findsOneWidget);
-  });
-
-  testWidgets('تبويب «إدارة الأرقام» يُبقي أقسام الأرقام فقط', (w) async {
-    await _pumpDashboard(w);
-    await _tapTab(w, 'إدارة الأرقام');
-
-    expect(find.text('الأرقام الوهمية'), findsOneWidget);
-    // صفحة انتقاء التطبيقات معزولة كقسم مستقل ضمن إدارة الأرقام
-    expect(find.text('إدارة تطبيقات الأرقام'), findsOneWidget);
-    expect(find.text('مزودو الأرقام الوهمية'), findsOneWidget);
-    // بطاقة التفعيل المضمون تبقى ضمن تبويب إدارة الأرقام
-    expect(find.text('خدمات التفعيل المضمون'), findsOneWidget);
-    // خارج المهمة اختفت
-    expect(find.text('إدارة المزودين'), findsNothing);
-    expect(find.text('أكواد الشحن'), findsNothing);
-    expect(find.text('إدارة المستخدمين'), findsNothing);
-    // عنوان مجموعة الأرقام يختفي: التبويب يُبقي الشبكة بلا عناوين مجموعات
-    // (نص «المالية والطلبات» يبقى طبيعيًا في شريط التبويبات)
-    expect(find.text('إدارة الأرقام الوهمية'), findsNothing);
-  });
-
-  testWidgets('تبويب «المالية والطلبات» يعرض الطلبات والحسابات والأكواد', (
+  testWidgets('كل الأقسام ظاهرة مرتّبة تحت عناوين مجموعاتها (بلا فلاتر)', (
     w,
   ) async {
     await _pumpDashboard(w);
-    await _tapTab(w, 'المالية والطلبات');
 
+    // عناوين المجموعات الخمس تظهر فوق أقسامها
+    expect(find.text('إدارة الأرقام'), findsOneWidget);
+    expect(find.text('المتجر والمنتجات'), findsOneWidget);
+    expect(find.text('المالية والطلبات'), findsOneWidget);
+    expect(find.text('المستخدمون والإشراف'), findsOneWidget);
+    expect(find.text('عام'), findsOneWidget);
+
+    // الأقسام ما زالت كلها ظاهرة
+    expect(find.text('مزودو الأرقام الوهمية'), findsOneWidget);
+    expect(find.text('إدارة تطبيقات الارقام'), findsOneWidget);
+    expect(find.text('خدمات التفعيل المضمون'), findsOneWidget);
+    expect(find.text('سجل التفعيلات التلقائية'), findsOneWidget);
+    expect(find.text('مزودو خدمات الشحن'), findsOneWidget);
+    expect(find.text('التطبيقات والمنتجات'), findsOneWidget);
     expect(find.text('الطلبات والمراجعة'), findsOneWidget);
     expect(find.text('حسابات الدفع'), findsOneWidget);
     expect(find.text('أكواد الشحن'), findsOneWidget);
-    expect(find.text('الأرقام الوهمية'), findsNothing);
-    expect(find.text('التطبيقات والمنتجات'), findsNothing);
-  });
-
-  testWidgets('تبويب «المتجر والمنتجات» يضم المزودين والتطبيقات والقوالب', (
-    w,
-  ) async {
-    await _pumpDashboard(w);
-    await _tapTab(w, 'المتجر والمنتجات');
-
-    expect(find.text('إدارة المزودين'), findsOneWidget);
-    expect(find.text('التطبيقات والمنتجات'), findsOneWidget);
     expect(find.text('أنواع قوالب الخدمة'), findsOneWidget);
-    expect(find.text('لوحة الإعلانات'), findsOneWidget);
-    expect(find.text('حسابات الدفع'), findsNothing);
-  });
-
-  testWidgets('تبويب «المستخدمون والإشراف» يضم المستخدمين والمشرفين', (
-    w,
-  ) async {
-    await _pumpDashboard(w);
-    await _tapTab(w, 'المستخدمون والإشراف');
-
+    expect(find.text('لوحة إدارة الأعلانات'), findsOneWidget);
     expect(find.text('إدارة المستخدمين'), findsOneWidget);
     expect(find.text('الخدمات اليدوية والمشرفين'), findsOneWidget);
-    expect(find.text('الطلبات والمراجعة'), findsNothing);
+  });
+
+  testWidgets('لا يوجد شريط تبويبات فرز بعد إزلته', (w) async {
+    await _pumpDashboard(w);
+
+    // نصوص كانت حصرية على التبويبات لم تعد موجودة (مثل تبويب «الكل»)
+    expect(find.text('الكل'), findsNothing);
+    // البلاطة الأولى لكل مجموعة تأتي مباشرة بعد عنوانها دون أي فلتر
+    expect(
+      find.byType(SingleChildScrollView).evaluate().length,
+      greaterThan(0),
+    );
   });
 }

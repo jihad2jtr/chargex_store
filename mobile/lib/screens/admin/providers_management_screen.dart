@@ -16,7 +16,7 @@ import 'virtual_number_catalog_screen.dart';
 class ProvidersManagementScreen extends StatefulWidget {
   const ProvidersManagementScreen({super.key, this.virtualNumbersOnly = false});
 
-  /// `true`: صفحة مزودي الأرقام الوهمية (5sim / Hero-SMS).
+  /// `true`: صفحة مزودي الأرقام الوهمية (5sim / Hero-SMS / DogeSMS / SMSPool).
   /// نفس التذكرة والمعالجة، لكن القائمة محصورة بهم وحدهم؛ منتجاتهم دول
   /// أرقام تُنتقى من كتالوج المزود إلى تطبيقات الأرقام — مثل منتجات
   /// المزود العاديين في المتجر تماماً.
@@ -724,7 +724,10 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             const SizedBox(width: 8),
             Text(
               'دليل تفعيل الويب هوك',
-              style: AppTypography.cairo(fontWeight: FontWeight.bold, fontSize: 16),
+              style: AppTypography.cairo(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
             ),
           ],
         ),
@@ -747,7 +750,10 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             ),
             Text(
               'توجه إلى إعدادات الحساب (Settings/API) وضع الرابط في حقل Push URL أو Webhook URL.',
-              style: AppTypography.cairo(fontSize: 12, color: AppColors.slate700),
+              style: AppTypography.cairo(
+                fontSize: 12,
+                color: AppColors.slate700,
+              ),
             ),
             const SizedBox(height: 10),
             Text(
@@ -760,14 +766,20 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             ),
             Text(
               'توجه إلى لوحة تحكم 5sim في قسم الإشعارات (Notifications) وضع الرابط لاستقبال تحديثات الطلبات.',
-              style: AppTypography.cairo(fontSize: 12, color: AppColors.slate700),
+              style: AppTypography.cairo(
+                fontSize: 12,
+                color: AppColors.slate700,
+              ),
             ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(),
-            child: Text('حسناً', style: AppTypography.cairo(fontWeight: FontWeight.bold)),
+            child: Text(
+              'حسناً',
+              style: AppTypography.cairo(fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

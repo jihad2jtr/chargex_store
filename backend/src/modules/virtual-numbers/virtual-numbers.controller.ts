@@ -34,8 +34,10 @@ export class VirtualNumbersController {
     @CurrentUser() user: UserDocument,
     @Body()
     body: {
-      service: string;
-      country: string;
+      // productId هو المسار الجديد: الدولة نفسها قد تُباع من أكثر من سيرفر
+      productId?: string;
+      service?: string;
+      country?: string;
       operator?: string;
       // معادلة إعادة المحاولة بعد انقطاع الاستجابة (idempotency)
       clientRequestId?: string;
@@ -43,6 +45,7 @@ export class VirtualNumbersController {
   ) {
     return this.service.requestNumber({
       userId: user._id.toString(),
+      productId: body.productId,
       service: body.service,
       country: body.country,
       operator: body.operator,
@@ -228,6 +231,45 @@ export class VirtualNumbersController {
   @Roles(Role.ADMIN)
   async removeProduct(@Param('id') id: string) {
     return this.service.removeProduct(id);
+  }
+
+  // --- 3.1 الإدارة: مراقبة جودة الأرقام لكل سيرفر ---
+
+  @Get('admin/quality')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async getAdminQuality(
+    @Query('bucket') bucket?: string,
+    @Query('providerId') providerId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.service.getAdminQuality({ bucket, providerId, search });
+  }
+
+  @Get('admin/quality/:productId/events')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async getQualityEvents(
+    @Param('productId') productId: string,
+    @Query('limit') limit?: string,
+  ) {
+    const parsed = Number(limit);
+    return this.service.getProductQualityEvents(
+      productId,
+      Number.isFinite(parsed) && parsed > 0 ? parsed : undefined,
+    );
+  }
+
+  // إعادة التفعيل تصفّر الفشل المتتالي وحده وتُبقي التاريخ للوحة
+  @Post('admin/quality/:productId/reactivate')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async reactivateProduct(
+    @Param('productId') productId: string,
+    @CurrentUser() user: UserDocument,
+    @Body('note') note?: string,
+  ) {
+    return this.service.reactivateProduct(productId, note, user.name || '');
   }
 
   // --- 4. خدمات الأرقام اليدوية (تفعيل مضمون) ---

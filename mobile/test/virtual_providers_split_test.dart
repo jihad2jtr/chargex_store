@@ -202,9 +202,31 @@ void main() {
     );
     await w.pump();
 
-    // مفتاح API هو الحقل الثالث: الاسم والرابط معموران من الاختيار السريع
+    // حقل الاسم الوهمي خاص بمزودي الأرقام، ويقترح «Server N» بالتتابع:
+    // مزودا أرقام موجودان في البذرة، فيُقترح الثالث
+    expect(find.text('اسم السيرفر الظاهر للعميل'), findsOneWidget);
+    expect(
+      w
+          .widget<TextField>(
+            find.descendant(
+              of: dialog,
+              matching: find.widgetWithText(
+                TextField,
+                'اسم السيرفر الظاهر للعميل',
+              ),
+            ),
+          )
+          .controller!
+          .text,
+      'Server 3',
+    );
+
+    // مفتاح API يُحدَّد بصفحته لا بترتيبه: حقول النافذة اختلفت بإضافة الاسم الوهمي
     await w.enterText(
-      find.descendant(of: dialog, matching: find.byType(TextField)).at(2),
+      find.descendant(
+        of: dialog,
+        matching: find.widgetWithText(TextField, 'API Key المفتاح البرمجي'),
+      ),
       'sms-secret',
     );
     await w.pump();
@@ -219,6 +241,8 @@ void main() {
     expect(admin.created.single['name'], '5sim');
     expect(admin.created.single['baseUrl'], 'https://5sim.net/v1');
     expect(admin.created.single['apiKey'], 'sms-secret');
+    // الاسم الوهمي يُرسل مع الإنشاء، فهو ما سيُطبع على بطاقات العميل
+    expect(admin.created.single['serverLabel'], 'Server 3');
   });
 
   testWidgets('نافذة الإضافة في صفحة المتاجر بلا اختصارات الأرقام', (w) async {
@@ -273,6 +297,36 @@ void main() {
     expect(legacyNoType.isVirtualNumber, isTrue);
     expect(legacyFive.isVirtualNumber, isTrue);
     expect(_storeProvider('p1', 'Fox Reload').isVirtualNumber, isFalse);
+
+    // المزودان الجديدان: يُعترف بهما بالنوع الصريح و بالاسم/الرابط معاً
+    expect(
+      ProviderModel(
+        id: 'd1',
+        name: 'DogeSMS',
+        baseUrl: '',
+        apiKey: 'k',
+        providerType: 'dogesms',
+      ).isVirtualNumber,
+      isTrue,
+    );
+    expect(
+      ProviderModel(
+        id: 'd2',
+        name: 'مزود أرقام',
+        baseUrl: 'https://api.smspool.net',
+        apiKey: 'k',
+      ).isVirtualNumber,
+      isTrue,
+    );
+    expect(
+      ProviderModel(
+        id: 'd3',
+        name: 'SMSPool',
+        baseUrl: '',
+        apiKey: 'k',
+      ).isVirtualNumber,
+      isTrue,
+    );
 
     // صفحة الأرقام تصطفّهما حتى لو جاء النوع فارغاً من الخادم
     await _pump(w, virtualNumbersOnly: true, providers: mixed);

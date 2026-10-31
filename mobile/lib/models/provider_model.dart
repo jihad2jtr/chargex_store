@@ -4,7 +4,7 @@ class ProviderModel {
   final String baseUrl;
   final String apiKey;
   final String? apiSecret;
-  // 'bay2game' | 'foxreload' | 'fivesim' | 'herosms' | 'custom'
+  // 'bay2game' | 'foxreload' | 'fivesim' | 'herosms' | 'dogesms' | 'smspool' | 'custom'
   final String providerType;
   final Map<String, dynamic> headers;
   final String status; // 'online' | 'offline' | 'error'
@@ -14,6 +14,10 @@ class ProviderModel {
   final String profitMarginType; // 'percentage' | 'fixed'
   final double profitMarginValue;
   final bool isActive;
+
+  /// الاسم الوهمي الظاهر للعميل لمزودي الأرقام («Server 1»): لا يظهر اسم
+  /// المزود الحقيقي في أي واجهة عميل، فتُوسَم به عروض الدول وبطاقات الجودة
+  final String serverLabel;
 
   ProviderModel({
     required this.id,
@@ -30,6 +34,7 @@ class ProviderModel {
     this.profitMarginType = 'percentage',
     this.profitMarginValue = 10.0,
     this.isActive = true,
+    this.serverLabel = '',
   });
 
   factory ProviderModel.fromJson(Map<String, dynamic> json) {
@@ -54,20 +59,30 @@ class ProviderModel {
           ? (json['profitMarginValue'] as num).toDouble()
           : 10.0,
       isActive: json['isActive'] ?? true,
+      serverLabel: (json['serverLabel'] ?? '').toString(),
     );
   }
 
-  /// مزود أرقام التحقق الوهمية (5sim / Hero-SMS): صفحته مستقلة عن مزودي المتاجر
-  /// لأنه لا يخدم منتجات ولا كتالوج تطبيقات، بل إصدار أرقام مؤقتة.
+  /// مزود أرقام التحقق الوهمية (5sim / Hero-SMS / DogeSMS / SMSPool): صفحته مستقلة
+  /// عن مزودي المتاجر لأنه لا يخدم منتجات ولا كتالوج تطبيقات، بل إصدار أرقام مؤقتة.
   /// السجلات القديمة قد تخلو من النوع، فيُستدل عليه من الاسم أو الرابط.
   bool get isVirtualNumber {
     final String type = providerType.trim().toLowerCase();
-    if (type == 'fivesim' || type == 'herosms') return true;
+    if (type == 'fivesim' ||
+        type == 'herosms' ||
+        type == 'dogesms' ||
+        type == 'smspool') {
+      return true;
+    }
     if (type == 'bay2game' || type == 'foxreload') return false;
     final String haystack = '$name $baseUrl'.toLowerCase();
     return haystack.contains('5sim') ||
         haystack.contains('herosms') ||
-        haystack.contains('hero-sms');
+        haystack.contains('hero-sms') ||
+        haystack.contains('dogesms') ||
+        haystack.contains('doge-sms') ||
+        haystack.contains('smspool') ||
+        haystack.contains('sms-pool');
   }
 
   Map<String, dynamic> toJson() {
@@ -85,6 +100,7 @@ class ProviderModel {
       'profitMarginType': profitMarginType,
       'profitMarginValue': profitMarginValue,
       'isActive': isActive,
+      'serverLabel': serverLabel,
     };
   }
 }

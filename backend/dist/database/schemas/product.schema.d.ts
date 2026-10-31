@@ -10,7 +10,8 @@ export declare enum ProfitMarginType {
     FIXED = "fixed"
 }
 export declare class Product {
-    appId: Types.ObjectId;
+    appId?: Types.ObjectId;
+    virtualNumberAppId?: Types.ObjectId;
     name: string;
     serviceTemplateId?: Types.ObjectId;
     quantityLabel: string;
@@ -47,7 +48,16 @@ export declare const ProductSchema: import("mongoose").Schema<Product, import("m
 }, "id"> & import("mongoose").HydratedDocumentOverrides<{
     id: string;
 }>, {
-    appId?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId, Product, Document<unknown, {}, Product, {
+    appId?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId | undefined, Product, Document<unknown, {}, Product, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Product & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    virtualNumberAppId?: import("mongoose").SchemaDefinitionProperty<Types.ObjectId | undefined, Product, Document<unknown, {}, Product, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<Product & {
         _id: Types.ObjectId;

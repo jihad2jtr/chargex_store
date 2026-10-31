@@ -121,9 +121,13 @@ __decorate([
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Order.prototype, "userId", void 0);
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'App', required: true, index: true }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'App', index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Order.prototype, "appId", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'VirtualNumberApp', index: true }),
+    __metadata("design:type", mongoose_2.Types.ObjectId)
+], Order.prototype, "virtualNumberAppId", void 0);
 __decorate([
     (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'Product', required: true, index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)

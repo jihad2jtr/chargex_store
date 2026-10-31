@@ -28,6 +28,7 @@ const virtual_number_request_schema_1 = require("./schemas/virtual-number-reques
 const virtual_number_catalog_schema_1 = require("./schemas/virtual-number-catalog.schema");
 const virtual_number_app_schema_1 = require("./schemas/virtual-number-app.schema");
 const virtual_number_product_schema_1 = require("./schemas/virtual-number-product.schema");
+const virtual_number_quality_event_schema_1 = require("./schemas/virtual-number-quality-event.schema");
 const featureModels = [
     { name: user_schema_1.User.name, schema: user_schema_1.UserSchema },
     { name: provider_schema_1.Provider.name, schema: provider_schema_1.ProviderSchema },
@@ -48,6 +49,10 @@ const featureModels = [
     { name: virtual_number_catalog_schema_1.VirtualNumberCatalog.name, schema: virtual_number_catalog_schema_1.VirtualNumberCatalogSchema },
     { name: virtual_number_app_schema_1.VirtualNumberApp.name, schema: virtual_number_app_schema_1.VirtualNumberAppSchema },
     { name: virtual_number_product_schema_1.VirtualNumberProduct.name, schema: virtual_number_product_schema_1.VirtualNumberProductSchema },
+    {
+        name: virtual_number_quality_event_schema_1.VirtualNumberQualityEvent.name,
+        schema: virtual_number_quality_event_schema_1.VirtualNumberQualityEventSchema,
+    },
 ];
 let DatabaseModule = class DatabaseModule {
 };

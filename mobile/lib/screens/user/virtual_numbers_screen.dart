@@ -652,7 +652,8 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
         service: service,
         balance: context.read<WalletProvider>().balance,
         waitMinutes: context.read<VirtualNumbersProvider>().options.waitMinutes,
-        onSubmit: (country, operator) => _submit(service, country, operator),
+        onSubmit: (country, offer, operator) =>
+            _submit(service, country, offer, operator),
       ),
     );
     if (mounted) context.read<VirtualNumbersProvider>().startAutoPolling();
@@ -772,18 +773,21 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   Future<bool> _submit(
     VirtualNumberServiceOption service,
     VirtualNumberCountryOption country,
+    VirtualNumberOffer offer,
     VirtualNumberOperator? operator,
   ) async {
     final provider = context.read<VirtualNumbersProvider>();
     final wallet = context.read<WalletProvider>();
+    // السعر من العرض المختار: سيرفران يبيعان الدولة نفسها بسعرين مختلفين
+    final price = offer.salePrice;
 
-    if (country.salePrice > wallet.balance) {
+    if (price > wallet.balance) {
       final go = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('رصيد غير كافٍ'),
           content: Text(
-            'السعر \$${country.salePrice.toStringAsFixed(2)} ورصيدك '
+            'السعر \$${price.toStringAsFixed(2)} ورصيدك '
             '\$${wallet.balance.toStringAsFixed(2)}. اشحن رصيدك ثم أعد المحاولة.',
             style: AppTypography.cairo(fontSize: 13),
           ),
@@ -816,8 +820,9 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
         ),
         content: Text(
           'الدولة: ${country.nameAr.isNotEmpty ? country.nameAr : country.name}\n'
+          'السيرفر: ${offer.label}\n'
           'المشغّل: ${operator?.name ?? 'أي مشغّل متاح'}\n'
-          'السعر: \$${country.salePrice.toStringAsFixed(2)} يُخصم من رصيدك\n\n'
+          'السعر: \$${price.toStringAsFixed(2)} يُخصم من رصيدك\n\n'
           'يصل الرمز تلقائياً خلال الانتظار، وإن لم تصل رسالة تُرجع المبلغ كاملاً.',
           style: AppTypography.cairo(fontSize: 12.5, height: 1.6),
         ),
@@ -836,8 +841,11 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     if (confirmed != true) return false;
 
     final message = await provider.requestNumber(
-      service: service.code,
-      country: country.code,
+      // المنتج هو المقصود بالشراء: به يُحدَّد السيرفر وهامشه وعدّاد جودته
+      productId: offer.isPurchasable ? offer.productId : null,
+      // بلا معرّف منتج (كتالوج قديم مخزَّن) يعود المسار القديم برموز التطبيق
+      service: offer.isPurchasable ? '' : service.code,
+      country: offer.isPurchasable ? '' : country.code,
       operator: operator?.code,
     );
 
@@ -966,7 +974,10 @@ class _LiveNumberPass extends StatelessWidget {
                 ],
                 Expanded(
                   child: Text(
-                    '${request.title} • ${request.countryName}',
+                    // الاسم الوهمي للسيرفر الذي باع الرقم: يبقى العميل يعرف من
+                    // أين جاءه الرقم دون أي إشارة إلى المزود الحقيقي
+                    '${request.title} • ${request.countryName}'
+                    '${request.serverLabel.isNotEmpty ? ' • ${request.serverLabel}' : ''}',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.cairo(
@@ -1617,7 +1628,7 @@ class _ManualServiceCard extends StatelessWidget {
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  _chip(Icons.verified_user_rounded, 'تنفيذ بشري مضمون'),
+                  _chip(Icons.verified_user_rounded, 'تنفيذ يدوي مضمون'),
                   if (service.etaLabel.isNotEmpty)
                     _chip(Icons.schedule_rounded, service.etaLabel),
                   if (service.appName.isNotEmpty)
@@ -1972,6 +1983,7 @@ class _CountrySheet extends StatefulWidget {
   final int waitMinutes;
   final Future<bool> Function(
     VirtualNumberCountryOption country,
+    VirtualNumberOffer offer,
     VirtualNumberOperator? operator,
   )
   onSubmit;
@@ -1989,6 +2001,10 @@ class _CountrySheet extends StatefulWidget {
 
 class _CountrySheetState extends State<_CountrySheet> {
   VirtualNumberCountryOption? _country;
+
+  /// العرض المختار: الدولة الواحدة قد تُباع من أكثر من سيرفر، والسعر والمشغّل
+  /// والمخزون كل ذلك صفة هذا العرض لا صفة الدولة
+  VirtualNumberOffer? _offer;
   String? _operatorCode;
   bool _submitting = false;
   final TextEditingController _search = TextEditingController();
@@ -1998,8 +2014,15 @@ class _CountrySheetState extends State<_CountrySheet> {
   void initState() {
     super.initState();
     if (widget.service.countries.isNotEmpty) {
-      _country = widget.service.countries.first;
+      _selectCountry(widget.service.countries.first);
     }
+  }
+
+  void _selectCountry(VirtualNumberCountryOption country) {
+    _country = country;
+    // أول سيرفرات الدولة هو المختار: لا تُوجَّه يد العميل إلى أرخص سعر
+    _offer = country.effectiveOffers.first;
+    _operatorCode = null;
   }
 
   @override
@@ -2024,17 +2047,18 @@ class _CountrySheetState extends State<_CountrySheet> {
 
   Future<void> _submit() async {
     final country = _country;
-    if (country == null || _submitting) return;
+    final offer = _offer;
+    if (country == null || offer == null || _submitting) return;
     setState(() => _submitting = true);
-    final ok = await widget.onSubmit(country, _operatorFor(country));
+    final ok = await widget.onSubmit(country, offer, _operatorFor(offer));
     if (!mounted) return;
     setState(() => _submitting = false);
     if (ok) Navigator.of(context).pop();
   }
 
-  VirtualNumberOperator? _operatorFor(VirtualNumberCountryOption country) {
-    if (_operatorCode == null || country.operators.isEmpty) return null;
-    for (final operator in country.operators) {
+  VirtualNumberOperator? _operatorFor(VirtualNumberOffer offer) {
+    if (_operatorCode == null || offer.operators.isEmpty) return null;
+    for (final operator in offer.operators) {
       if (operator.code == _operatorCode) return operator;
     }
     return null;
@@ -2160,7 +2184,8 @@ class _CountrySheetState extends State<_CountrySheet> {
                       itemBuilder: (context, index) {
                         final country = countries[index];
                         final selected = _country?.code == country.code;
-                        final affordable = country.salePrice <= widget.balance;
+                        final affordable =
+                            country.lowestPrice <= widget.balance;
                         return _countryRow(country, selected, affordable);
                       },
                     ),
@@ -2168,6 +2193,20 @@ class _CountrySheetState extends State<_CountrySheet> {
                 ),
               ),
             ),
+          if (_country != null && _country!.effectiveOffers.length > 1) ...[
+            Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 4),
+              child: Text(
+                'السيرفر',
+                style: AppTypography.cairo(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.slate600,
+                ),
+              ),
+            ),
+            _serverCards(_country!),
+          ],
           if (_country != null) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
@@ -2200,7 +2239,8 @@ class _CountrySheetState extends State<_CountrySheet> {
                       ),
                     )
                   : Text(
-                      'تفعيل الرقم \$${(_country?.salePrice ?? 0).toStringAsFixed(2)}',
+                      // السعر من العرض المختار: كل سيرفر بسعره، ولا يُدمج سعران
+                      'تفعيل الرقم \$${(_offer?.salePrice ?? 0).toStringAsFixed(2)}',
                       style: AppTypography.arabicButton(
                         color: Colors.white,
                         fontSize: 13,
@@ -2284,14 +2324,13 @@ class _CountrySheetState extends State<_CountrySheet> {
     final flag = country.flag.isNotEmpty ? country.flag : '🌐';
     final nameAr = country.nameAr.isNotEmpty ? country.nameAr : country.name;
     final showEn = country.nameEn.isNotEmpty && country.nameEn != nameAr;
+    // الدول تُعرض بأرخص سيرفر يبيعها، لكن الشراء يكون على السيرفر المختار نفسه
+    final servers = country.effectiveOffers.length;
 
     return Material(
       color: selected ? const Color(0xFFFFF7E6) : Colors.white,
       child: InkWell(
-        onTap: () => setState(() {
-          _country = country;
-          _operatorCode = null;
-        }),
+        onTap: () => setState(() => _selectCountry(country)),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
@@ -2353,9 +2392,17 @@ class _CountrySheetState extends State<_CountrySheet> {
                         ],
                       ],
                     ),
-                    if (country.count > 0)
+                    if (servers > 1)
                       Text(
-                        'متاح ${country.count} رقم',
+                        'متاحة من $servers سيرفر',
+                        style: AppTypography.cairo(
+                          fontSize: 9.5,
+                          color: AppColors.slate500,
+                        ),
+                      )
+                    else if (country.effectiveOffers.first.count > 0)
+                      Text(
+                        'متاح ${country.effectiveOffers.first.count} رقم',
                         style: AppTypography.cairo(
                           fontSize: 9.5,
                           color: AppColors.slate500,
@@ -2369,7 +2416,8 @@ class _CountrySheetState extends State<_CountrySheet> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    '\$${country.salePrice.toStringAsFixed(2)}',
+                    // «من $X» حين يبيعها أكثر من سيرفر، وسعر السيرفر الواحد غيره
+                    '${servers > 1 ? 'من ' : ''}\$${country.lowestPrice.toStringAsFixed(2)}',
                     style: AppTypography.price(
                       color: affordable ? AppColors.slate900 : AppColors.rose,
                       fontSize: 13,
@@ -2446,9 +2494,9 @@ class _CountrySheetState extends State<_CountrySheet> {
   }
 
   Widget _operatorRow() {
-    final country = _country;
-    final operators = country?.operators ?? const <VirtualNumberOperator>[];
-    if (operators.isEmpty) {
+    // المشغّل صفة السيرفر المختار: لكل سيرفر مشغّلاته الخاصة
+    final list = _offer?.operators ?? const <VirtualNumberOperator>[];
+    if (list.isEmpty) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14),
         child: Text(
@@ -2465,8 +2513,105 @@ class _CountrySheetState extends State<_CountrySheet> {
         padding: const EdgeInsets.symmetric(horizontal: 14),
         children: [
           _operatorChip(null, 'أي مشغّل'),
-          ...operators.map((o) => _operatorChip(o.code, o.name)),
+          ...list.map((o) => _operatorChip(o.code, o.name)),
         ],
+      ),
+    );
+  }
+
+  /// بطاقات السيرفرات: عرض مستقل لكل سيرفر باسمه الوهمي وسعره ومخزونه، بلا
+  /// دمج ولا ترشيح أرخص — العميل هو من يختار من يبيع له الرقم
+  Widget _serverCards(VirtualNumberCountryOption country) {
+    final offers = country.effectiveOffers;
+    return SizedBox(
+      height: 74,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 14),
+        itemCount: offers.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final offer = offers[index];
+          final selected = _offer?.selectionKey == offer.selectionKey;
+          final affordable = offer.salePrice <= widget.balance;
+          return _serverCard(offer, selected, affordable);
+        },
+      ),
+    );
+  }
+
+  Widget _serverCard(VirtualNumberOffer offer, bool selected, bool affordable) {
+    return Material(
+      color: selected ? const Color(0xFFFFF7E6) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => setState(() {
+          _offer = offer;
+          _operatorCode = null;
+        }),
+        child: Container(
+          width: 132,
+          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected
+                  ? AppColors.secondaryBright
+                  : AppColors.outlineVariant,
+              width: selected ? 1.4 : 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    selected
+                        ? Icons.check_circle_rounded
+                        : Icons.cloud_outlined,
+                    size: 14,
+                    color: selected
+                        ? AppColors.secondaryBright
+                        : AppColors.slate400,
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      offer.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.slate900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '\$${offer.salePrice.toStringAsFixed(2)}',
+                style: AppTypography.price(
+                  color: affordable ? AppColors.slate900 : AppColors.rose,
+                  fontSize: 13,
+                ),
+              ),
+              Text(
+                offer.count > 0 ? 'متاح ${offer.count} رقم' : 'مخزون غير معروف',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cairo(
+                  fontSize: 9.5,
+                  color: AppColors.slate500,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

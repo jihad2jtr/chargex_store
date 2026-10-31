@@ -27,9 +27,13 @@ let Product = class Product {
 };
 exports.Product = Product;
 __decorate([
-    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'App', required: true, index: true }),
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'App', index: true }),
     __metadata("design:type", mongoose_2.Types.ObjectId)
 ], Product.prototype, "appId", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: mongoose_2.Types.ObjectId, ref: 'VirtualNumberApp', index: true }),
+    __metadata("design:type", mongoose_2.Types.ObjectId)
+], Product.prototype, "virtualNumberAppId", void 0);
 __decorate([
     (0, mongoose_1.Prop)({ required: true, trim: true }),
     __metadata("design:type", String)

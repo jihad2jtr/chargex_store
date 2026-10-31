@@ -11,6 +11,8 @@ export declare enum ProviderType {
     FOXRELOAD = "foxreload",
     FIVESIM = "fivesim",
     HEROSMS = "herosms",
+    DOGESMS = "dogesms",
+    SMSPOOL = "smspool",
     CUSTOM = "custom"
 }
 export declare class Provider {
@@ -28,6 +30,7 @@ export declare class Provider {
     profitMarginType: ProfitMarginType;
     profitMarginValue: number;
     isActive: boolean;
+    serverLabel?: string;
 }
 export declare const ProviderSchema: import("mongoose").Schema<Provider, import("mongoose").Model<Provider, any, any, any, any, any, Provider & {
     _id: import("mongoose").Types.ObjectId;
@@ -160,6 +163,15 @@ export declare const ProviderSchema: import("mongoose").Schema<Provider, import(
         id: string;
     }>> | undefined;
     isActive?: import("mongoose").SchemaDefinitionProperty<boolean, Provider, Document<unknown, {}, Provider, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Provider & {
+        _id: import("mongoose").Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    serverLabel?: import("mongoose").SchemaDefinitionProperty<string | undefined, Provider, Document<unknown, {}, Provider, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<Provider & {
         _id: import("mongoose").Types.ObjectId;

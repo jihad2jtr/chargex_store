@@ -16,7 +16,7 @@ const Color _teal = Color(0xFF0D9488);
 /// بطاقة قرار واحدة (ما يحتاج تدخلًا) + 6 مؤشرات مالية/تشغيلية
 /// + رسم إيرادات آخر 7 أيام + شريط صحة النظام.
 /// الفكرة: اللون يحمل معنى إجراء (أحمر = تدخل فوري، كهرماني = مراقبة، أخضر = سليم).
-class OpsConsole extends StatelessWidget {
+class OpsConsole extends StatefulWidget {
   final DashboardStatsModel? stats;
   final DateTime? updatedAt;
   final VoidCallback? onReviewOrders;
@@ -33,127 +33,201 @@ class OpsConsole extends StatelessWidget {
   });
 
   @override
+  State<OpsConsole> createState() => _OpsConsoleState();
+}
+
+class _OpsConsoleState extends State<OpsConsole> {
+  // منطوية افتراضياً إلى زر في أعلى الصفحة؛ السهم للأسفل يفتح حالة العمل
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
-    final s = stats;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildHeader(s),
-        const SizedBox(height: 10),
-        if (s == null) _buildSkeleton() else _buildConsole(s),
-      ],
-    );
-  }
-
-  // ---------------------------------------------------------------- HEADER
-
-  Widget _buildHeader(DashboardStatsModel? s) {
+    final s = widget.stats;
     final bool alert = s?.needsAction ?? false;
     final Color dot = alert ? AppColors.ticketAmber : AppColors.accentGreen;
 
-    return Row(
-      children: [
-        Container(
-          width: 9,
-          height: 9,
-          decoration: BoxDecoration(
-            color: dot,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(
-                color: dot.withValues(alpha: 0.55),
-                blurRadius: 7,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 9),
-        Flexible(
-          child: Text(
-            'حالة العمل المباشرة',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.cairo(
-              fontSize: 15,
-              fontWeight: FontWeight.w900,
-              color: AppColors.textPrimary,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(7),
-            border: Border.all(color: AppColors.outline),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.sync_rounded, size: 10, color: AppColors.textMuted),
-              const SizedBox(width: 3),
-              Text(
-                updatedAt == null ? 'مزامنة' : _time(updatedAt!),
-                style: AppTypography.technicalCode(
-                  color: AppColors.textMuted,
-                  fontSize: 8.5,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  // --------------------------------------------------------------- CONSOLE
-
-  Widget _buildConsole(DashboardStatsModel s) {
+    // بطاقة واحدة موحّدة اللون: رأس الشريط + لوحة الحالة داخل نفس الكرت
     return Container(
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
+        color: AppColors.darkNav,
+        borderRadius: BorderRadius.circular(15),
         boxShadow: [
           BoxShadow(
-            color: _navy.withValues(alpha: 0.06),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: _navy.withValues(alpha: 0.28),
+            blurRadius: 14,
+            spreadRadius: 0.5,
+            offset: const Offset(0, 5),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildDecisionBanner(s),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const double gap = 8;
-              final double w = (constraints.maxWidth - gap) / 2;
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  SizedBox(width: w, child: _revenueTile(s)),
-                  SizedBox(width: w, child: _profitTile(s)),
-                  SizedBox(width: w, child: _topupsTile(s)),
-                  SizedBox(width: w, child: _delayedTile(s)),
-                  SizedBox(width: w, child: _aovTile(s)),
-                  SizedBox(width: w, child: _completionTile(s)),
-                ],
-              );
-            },
+          _buildHeader(dot),
+          // مؤثر السحب للأسفل: تكشف اللوحة بحركة ارتفاع ناعمة
+          ClipRect(
+            child: AnimatedSize(
+              duration: const Duration(milliseconds: 320),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child: _expanded
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(9, 2, 9, 9),
+                      child: s == null ? _buildSkeleton() : _buildConsole(s),
+                    )
+                  : const SizedBox(width: double.infinity),
+            ),
           ),
-          const SizedBox(height: 10),
-          _buildWeekChart(s),
-          const SizedBox(height: 10),
-          _buildHealthStrip(s),
         ],
       ),
+    );
+  }
+
+  // ---------------------------------------------------------------- HEADER
+
+  /// رأس البطاقة — نفس لون الكرت الموحد (داكن مثل الشريط العلوي) وبدون نبض
+  Widget _buildHeader(Color dot) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => setState(() => _expanded = !_expanded),
+        borderRadius: BorderRadius.circular(15),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          child: Row(
+            children: [
+              // شارة الأيقونة مع نقطة الحالة
+              Container(
+                width: 22,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.38),
+                    width: 1.0,
+                  ),
+                ),
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  alignment: Alignment.center,
+                  children: [
+                    Icon(
+                      Icons.monitor_heart_rounded,
+                      size: 12,
+                      color: Colors.white,
+                    ),
+                    Positioned(
+                      top: -1,
+                      right: -1,
+                      child: Container(
+                        width: 6,
+                        height: 6,
+                        decoration: BoxDecoration(
+                          color: dot,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.0),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 7),
+              Expanded(
+                child: Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        'حالة العمل',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.schedule_rounded,
+                      size: 9,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                    const SizedBox(width: 2),
+                    Text(
+                      widget.updatedAt == null ? '…' : _time(widget.updatedAt!),
+                      style: AppTypography.technicalCode(
+                        color: Colors.white.withValues(alpha: 0.8),
+                        fontSize: 8,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 4),
+              // قرص السهم: يدور ويكشف اللوحة عند السحب للأسفل
+              Container(
+                width: 20,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.20),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.32),
+                  ),
+                ),
+                child: AnimatedRotation(
+                  turns: _expanded ? 0.5 : 0,
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  child: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    size: 15,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --------------------------------------------------------------- CONSOLE
+
+  Widget _buildConsole(DashboardStatsModel s) {
+    // موحّد مع الرأس: المحتوى يستقر مباشرة داخل نفس الكرت الداكن بلا بطاقة بيضاء منفصلة
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildDecisionBanner(s),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const double gap = 8;
+            final double w = (constraints.maxWidth - gap) / 2;
+            return Wrap(
+              spacing: gap,
+              runSpacing: gap,
+              children: [
+                SizedBox(width: w, child: _revenueTile(s)),
+                SizedBox(width: w, child: _profitTile(s)),
+                SizedBox(width: w, child: _topupsTile(s)),
+                SizedBox(width: w, child: _delayedTile(s)),
+                SizedBox(width: w, child: _aovTile(s)),
+                SizedBox(width: w, child: _completionTile(s)),
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 10),
+        _buildWeekChart(s),
+        const SizedBox(height: 10),
+        _buildHealthStrip(s),
+      ],
     );
   }
 
@@ -181,8 +255,8 @@ class OpsConsole extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: s.delayedOrders > 0
-            ? (onReviewDelayed ?? onReviewOrders)
-            : onReviewOrders,
+            ? (widget.onReviewDelayed ?? widget.onReviewOrders)
+            : widget.onReviewOrders,
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.fromLTRB(11, 11, 11, 11),
@@ -307,7 +381,7 @@ class OpsConsole extends StatelessWidget {
           ? '${s.pendingTopups} طلب • انتظار ${_wait(s.oldestTopupMinutes)}'
           : 'لا يوجد اعتماد معلق',
       subColor: pending ? _amber : AppColors.textMuted,
-      onTap: onReviewTopups,
+      onTap: widget.onReviewTopups,
     );
   }
 
@@ -322,7 +396,7 @@ class OpsConsole extends StatelessWidget {
           ? 'أطول انتظار ${_wait(s.longestWaitMinutes)}'
           : 'كل الطلبات داخل الوقت',
       subColor: late ? _rose : AppColors.textMuted,
-      onTap: onReviewDelayed,
+      onTap: widget.onReviewDelayed,
     );
   }
 
@@ -360,9 +434,9 @@ class OpsConsole extends StatelessWidget {
     final Widget body = Container(
       padding: const EdgeInsets.fromLTRB(9, 8, 9, 9),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -373,10 +447,14 @@ class OpsConsole extends StatelessWidget {
                 width: 20,
                 height: 20,
                 decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
+                  color: accent.withValues(alpha: 0.24),
                   borderRadius: BorderRadius.circular(6),
                 ),
-                child: Icon(icon, size: 12, color: accent),
+                child: Icon(
+                  icon,
+                  size: 12,
+                  color: Color.lerp(accent, Colors.white, 0.45),
+                ),
               ),
               const SizedBox(width: 5),
               Expanded(
@@ -387,7 +465,7 @@ class OpsConsole extends StatelessWidget {
                   style: AppTypography.cairo(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textSecondary,
+                    color: Colors.white70,
                   ),
                 ),
               ),
@@ -403,7 +481,7 @@ class OpsConsole extends StatelessWidget {
               style: AppTypography.plusJakartaSans(
                 fontSize: 17.5,
                 fontWeight: FontWeight.w900,
-                color: _navy,
+                color: Colors.white,
                 height: 1.05,
                 letterSpacing: -0.4,
               ),
@@ -417,7 +495,7 @@ class OpsConsole extends StatelessWidget {
             style: AppTypography.cairo(
               fontSize: 8.8,
               fontWeight: FontWeight.w600,
-              color: subColor ?? AppColors.textMuted,
+              color: subColor ?? Colors.white.withValues(alpha: 0.55),
             ),
           ),
         ],
@@ -438,9 +516,9 @@ class OpsConsole extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 9, 10, 8),
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerLow,
+        color: Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outline),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,7 +533,7 @@ class OpsConsole extends StatelessWidget {
                   style: AppTypography.cairo(
                     fontSize: 9.5,
                     fontWeight: FontWeight.w800,
-                    color: AppColors.textSecondary,
+                    color: Colors.white70,
                   ),
                 ),
               ),
@@ -464,7 +542,7 @@ class OpsConsole extends StatelessWidget {
                 style: AppTypography.plusJakartaSans(
                   fontSize: 11.5,
                   fontWeight: FontWeight.w900,
-                  color: _navy,
+                  color: Colors.white,
                   letterSpacing: -0.3,
                 ),
               ),
@@ -521,17 +599,18 @@ class OpsConsole extends StatelessWidget {
   }
 
   Widget _chip(IconData icon, String text, Color accent) {
+    final Color tint = Color.lerp(accent, Colors.white, 0.45)!;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.07),
+        color: accent.withValues(alpha: 0.16),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
+        border: Border.all(color: accent.withValues(alpha: 0.42)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 10, color: accent),
+          Icon(icon, size: 10, color: tint),
           const SizedBox(width: 3),
           Flexible(
             child: Text(
@@ -541,7 +620,7 @@ class OpsConsole extends StatelessWidget {
               style: AppTypography.cairo(
                 fontSize: 8.8,
                 fontWeight: FontWeight.w800,
-                color: accent,
+                color: tint,
               ),
             ),
           ),
@@ -557,51 +636,43 @@ class OpsConsole extends StatelessWidget {
       height: h,
       width: w,
       decoration: BoxDecoration(
-        color: AppColors.surfaceContainerHigh,
+        color: Colors.white.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(10),
       ),
     );
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.outline),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [Expanded(child: block(46, double.infinity))]),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(child: block(58, double.infinity)),
-              const SizedBox(width: 8),
-              Expanded(child: block(58, double.infinity)),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [Expanded(child: block(46, double.infinity))]),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: block(58, double.infinity)),
+            const SizedBox(width: 8),
+            Expanded(child: block(58, double.infinity)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(child: block(58, double.infinity)),
+            const SizedBox(width: 8),
+            Expanded(child: block(58, double.infinity)),
+          ],
+        ),
+        const SizedBox(height: 10),
+        block(52, double.infinity),
+        const SizedBox(height: 8),
+        Text(
+          'جارٍ تحميل مؤشرات اليوم…',
+          style: AppTypography.cairo(
+            fontSize: 9,
+            fontWeight: FontWeight.w700,
+            color: Colors.white.withValues(alpha: 0.6),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(child: block(58, double.infinity)),
-              const SizedBox(width: 8),
-              Expanded(child: block(58, double.infinity)),
-            ],
-          ),
-          const SizedBox(height: 10),
-          block(52, double.infinity),
-          const SizedBox(height: 8),
-          Text(
-            'جارٍ تحميل مؤشرات اليوم…',
-            style: AppTypography.cairo(
-              fontSize: 9,
-              fontWeight: FontWeight.w700,
-              color: AppColors.textMuted,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 

@@ -70,7 +70,7 @@ class ApiConstants {
   static const String exchangeRate = '/exchange-rates/current';
   static const String adminRefreshExchangeRate = '/exchange-rates/refresh';
 
-  // Virtual Numbers (أرقام التحقق الوهمية — 5sim أو Hero-SMS)
+  // Virtual Numbers (أرقام التحقق الوهمية — 5sim / Hero-SMS / DogeSMS / SMSPool)
   static const String virtualNumbers = '/virtual-numbers';
   static const String virtualNumberOptions = '/virtual-numbers/options';
   static const String virtualNumberRequest = '/virtual-numbers/request';
@@ -96,6 +96,16 @@ class ApiConstants {
       '/virtual-numbers/admin/catalog';
   static const String adminVirtualNumberAddCountries =
       '/virtual-numbers/admin/catalog/add-countries';
+
+  // مراقبة جودة الأرقام: عدّادات كل سيرفر وسجل أحداثه وإعادة تفعيله
+  static const String adminVirtualNumberQuality =
+      '/virtual-numbers/admin/quality';
+
+  static String virtualNumberQualityEvents(String productId) =>
+      '$adminVirtualNumberQuality/$productId/events';
+
+  static String virtualNumberQualityReactivate(String productId) =>
+      '$adminVirtualNumberQuality/$productId/reactivate';
 
   // خدمات الأرقام اليدوية (تفعيل مضمون) — تُدار من لوحة الأرقام وتظهر في صفحة العميل
   static const String adminVirtualNumberManualServices =

@@ -7,6 +7,7 @@ import { ProviderProduct, ProviderProductDocument } from '../../database/schemas
 import { Product, ProductDocument, ProfitMarginType, ProductType } from '../../database/schemas/product.schema';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
+  VIRTUAL_NUMBER_PROVIDER_TYPES,
   createVirtualNumberClient,
   detectVirtualNumberType,
   isVirtualNumberProvider,
@@ -99,6 +100,23 @@ export class ProvidersService {
     return provider;
   }
 
+  /**
+   * الاسم الوهمي التالي للسيرفر: «Server N» بترتيب مزودي الأرقام، مع تجاوز أي
+   * رقم مأخوذ حتى لا يشترك سيرفران في الاسم الذي يراه العميل.
+   */
+  private async nextServerLabel(): Promise<string> {
+    const existing = await this.providerModel
+      .find({ providerType: { $in: VIRTUAL_NUMBER_PROVIDER_TYPES } })
+      .select('serverLabel')
+      .lean();
+    const taken = new Set(
+      existing.map((p: any) => String(p.serverLabel || '').trim().toLowerCase()),
+    );
+    let next = existing.length + 1;
+    while (taken.has(`server ${next}`)) next += 1;
+    return `Server ${next}`;
+  }
+
   async create(createDto: {
     name: string;
     baseUrl: string;
@@ -106,6 +124,7 @@ export class ProvidersService {
     apiSecret?: string;
     headers?: Record<string, string>;
     providerType?: ProviderType;
+    serverLabel?: string;
   }) {
     const isBay =
       createDto.providerType === ProviderType.BAY2GAME ||
@@ -126,8 +145,16 @@ export class ProvidersService {
       ? ProviderType.FOXRELOAD
       : virtualType ?? (createDto.providerType || ProviderType.CUSTOM);
 
+    // مزود أرقام التحقق يأخذ اسم سيرفر وهمي تلقائياً: هذا الاسم وحده ما يُعرض
+    // على العميل، أما `name` الحقيقي فلا يغادر واجهات الإدارة
+    const isNumbersProvider = VIRTUAL_NUMBER_PROVIDER_TYPES.includes(resolvedType);
+    const serverLabel =
+      (createDto.serverLabel || '').trim() ||
+      (isNumbersProvider ? await this.nextServerLabel() : '');
+
     const provider = new this.providerModel({
       ...createDto,
+      serverLabel,
       providerType: resolvedType,
       status: ProviderStatus.OFFLINE,
       isActive: true,

@@ -264,7 +264,8 @@ class _VirtualNumberCatalogScreenState
           const SizedBox(width: 7),
           Expanded(
             child: Text(
-              'السعر للعميل = تكلفة المزود + هامش ${catalog.providerName} ($margin) — '
+              'السعر للعميل = تكلفة المزود + هامش ${catalog.providerName}'
+              '${_serverSuffix(catalog)} ($margin) — '
               'يتحدّث تلقائياً مع كل مزامنة للكتالوج',
               style: AppTypography.cairo(
                 fontSize: 10.5,
@@ -277,6 +278,13 @@ class _VirtualNumberCatalogScreenState
         ],
       ),
     );
+  }
+
+  /// وسم السيرفر الوهمي: الانتقاء هنا يخصّ منتجات هذا المزود وحده، فبدل
+  /// وسمه يخلط الأدمن دولتين متشابهتين من سيرفرين مختلفين
+  String _serverSuffix(VirtualNumberAdminCatalog catalog) {
+    final label = catalog.providerServerLabel.trim();
+    return label.isEmpty ? '' : ' — $label';
   }
 
   Widget _emptyState(VirtualNumberAdminCatalog catalog) {
@@ -427,7 +435,7 @@ class _VirtualNumberCatalogScreenState
       builder: (context, setBodyState) {
         Widget row(VirtualNumberCatalogCountry country) {
           if (country.added) {
-            return _addedRow(country);
+            return _addedRow(country, catalog);
           }
           return CheckboxListTile(
             dense: true,
@@ -468,14 +476,19 @@ class _VirtualNumberCatalogScreenState
         return Column(
           children: [
             if (added.isNotEmpty) ...[
-              _sectionLabel('دول التطبيق — فَعّل أو عطّل ظهورها للعميل'),
+              _sectionLabel(
+                'دول هذا السيرفر — فَعّل أو عطّل ظهورها للعميل (لا يخصّ غيرها)',
+              ),
               ...added.map(row),
               const Divider(height: 16),
             ],
             if (fresh.isNotEmpty) ...[
               _sectionLabel(
                 hasApp
-                    ? 'دول متاحة في كتالوج المزود — أضِفها إلى التطبيق'
+                    // نفس الدولة لدى سيرفر آخر = منتج مستقل: عدّاداته وهامشه
+                    // وإيقافه خاصتان به وحده، فلا يُدمج سعران لصف واحد
+                    ? 'دول كتالوج هذا السيرفر — إضافتها تُنشئ منتجاً باسم السيرفر '
+                          'تحت التطبيق نفسه، ولو كانت الدولة معروضة عند غيره'
                     : 'لا تطبيق لهذه الخدمة بعد — أضف دولاً فيُنشأ تطبيقها',
               ),
               SizedBox(
@@ -552,39 +565,82 @@ class _VirtualNumberCatalogScreenState
     return '$flag$ar$en';
   }
 
-  /// سطر دولة مُنتقاة: تبديل التفعيل + حذف من التطبيق
-  Widget _addedRow(VirtualNumberCatalogCountry country) {
+  /// سطر دولة مُنتقاة: تبديل التفعيل + إعادة التفعيل بعد إيقاف الجودة + حذف
+  /// من التطبيق. الدولة ذاتها قد تظهر مرتين في سيرفرين، فلكل منهما هذا السطر
+  /// بحالته الخاصة: إيقاف سيرفر لا يمسّ مطابِقه عند مزود آخر.
+  Widget _addedRow(
+    VirtualNumberCatalogCountry country,
+    VirtualNumberAdminCatalog catalog,
+  ) {
+    final stoppedByQuality = country.productAutoDisabled;
+    final watching =
+        !stoppedByQuality && country.productConsecutiveFailures >= 1;
+    final tone = stoppedByQuality
+        ? AppColors.rose
+        : (watching
+              ? AppColors.ticketAmber
+              : (country.productActive
+                    ? AppColors.emerald
+                    : AppColors.slate400));
+
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 10),
       leading: Icon(
-        country.productActive
-            ? Icons.check_circle_rounded
-            : Icons.radio_button_off_rounded,
+        stoppedByQuality
+            ? Icons.block_rounded
+            : (country.productActive
+                  ? Icons.check_circle_rounded
+                  : Icons.radio_button_off_rounded),
         size: 19,
-        color: country.productActive ? AppColors.emerald : AppColors.slate400,
+        color: tone,
       ),
-      title: Text(
-        _countryLabel(country),
-        style: AppTypography.cairo(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: AppColors.slate900,
-        ),
+      title: Row(
+        children: [
+          Expanded(
+            child: Text(
+              _countryLabel(country),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.slate900,
+              ),
+            ),
+          ),
+          // وسم السيرفر: المنتج هنا يخصّ مزود هذه الشاشة وحده
+          _serverChip(catalog),
+        ],
       ),
       subtitle: Text(
         'سعر العميل \$${country.salePrice.toStringAsFixed(2)}'
-        '${country.productActive ? ' • ظاهرة للعميل' : ' • مخفية عن العميل'}',
-        style: AppTypography.cairo(
-          fontSize: 10,
-          color: country.productActive
-              ? AppColors.slate500
-              : AppColors.slate400,
-        ),
+        '${stoppedByQuality ? ' • موقوف جودةً (${country.productConsecutiveFailures} فشل متتالٍ)' : ''}'
+        '${watching ? ' • تحت المراقبة (${country.productConsecutiveFailures} فشل متتالٍ)' : ''}'
+        '${stoppedByQuality || watching ? '' : (country.productActive ? ' • ظاهرة للعميل' : ' • مخفية عن العميل')}',
+        style: AppTypography.cairo(fontSize: 10, color: tone),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (stoppedByQuality)
+            IconButton(
+              tooltip: 'إعادة التفعيل (يصفّر الفشل المتتالي ويُبقي التاريخ)',
+              visualDensity: VisualDensity.compact,
+              onPressed: _busy || country.productId.isEmpty
+                  ? null
+                  : () => _run(
+                      () => _vn.reactivateProduct(
+                        country.productId,
+                        note: 'إعادة تفعيل من كتالوج المزود',
+                      ),
+                    ),
+              icon: const Icon(
+                Icons.restart_alt_rounded,
+                size: 18,
+                color: AppColors.emerald,
+              ),
+            ),
           Switch(
             value: country.productActive,
             onChanged: _busy || country.productId.isEmpty
@@ -604,6 +660,27 @@ class _VirtualNumberCatalogScreenState
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _serverChip(VirtualNumberAdminCatalog catalog) {
+    final label = catalog.providerServerLabel.trim();
+    if (label.isEmpty) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      decoration: BoxDecoration(
+        color: AppColors.slate900.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: AppTypography.cairo(
+          fontSize: 9,
+          fontWeight: FontWeight.w800,
+          color: AppColors.slate600,
+        ),
       ),
     );
   }

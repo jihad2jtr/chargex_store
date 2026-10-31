@@ -427,7 +427,7 @@ class _AppProductsManagementScreenState
                                 ),
                                 SizedBox(width: 6),
                                 Text(
-                                  'إعدادات الخدمة اليدوية (تنفيذ بشري)',
+                                  'إعدادات الخدمة اليدوية (تنفيذ يدوي)',
                                   style: TextStyle(
                                     fontSize: 12.5,
                                     fontWeight: FontWeight.bold,

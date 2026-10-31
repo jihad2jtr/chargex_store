@@ -7,7 +7,8 @@ export declare class ProductsController {
         availableCodesCount: number;
         inventoryCodes: undefined;
         providerAvailable: boolean;
-        appId: import("mongoose").Types.ObjectId;
+        appId?: import("mongoose").Types.ObjectId;
+        virtualNumberAppId?: import("mongoose").Types.ObjectId;
         name: string;
         serviceTemplateId?: import("mongoose").Types.ObjectId;
         quantityLabel: string;
@@ -43,7 +44,8 @@ export declare class ProductsController {
     }[]>;
     getAllAdmin(appId?: string): Promise<{
         availableCodesCount: number;
-        appId: import("mongoose").Types.ObjectId;
+        appId?: import("mongoose").Types.ObjectId;
+        virtualNumberAppId?: import("mongoose").Types.ObjectId;
         name: string;
         serviceTemplateId?: import("mongoose").Types.ObjectId;
         quantityLabel: string;
@@ -86,7 +88,8 @@ export declare class ProductsController {
     getMyAssigned(user: UserDocument): Promise<{
         availableCodesCount: number;
         inventoryCodes: undefined;
-        appId: import("mongoose").Types.ObjectId;
+        appId?: import("mongoose").Types.ObjectId;
+        virtualNumberAppId?: import("mongoose").Types.ObjectId;
         name: string;
         serviceTemplateId?: import("mongoose").Types.ObjectId;
         quantityLabel: string;

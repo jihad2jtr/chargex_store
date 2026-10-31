@@ -65,6 +65,7 @@ export interface VirtualNumberServiceEntry {
   icon?: string;
   herosmsCode?: string;
   fivesimCode?: string;
+  smspoolCode?: string;
   countries: Array<{
     code: string;
     name: string;
@@ -205,4 +206,41 @@ export function toEntries(source: any): Array<{ key: string; value: any }> {
   }
   if (typeof source !== 'object') return [];
   return Object.entries(source).map(([key, value]) => ({ key, value }));
+}
+
+/** مقارنة الأسماء على طريقة المعجم: حروف وأرقام فقط، بلا مسافات ولا علامات */
+function sameProviderName(left: string, right: string): boolean {
+  const cut = (value: string): string =>
+    (value || '').toLowerCase().replace(/[^a-z0-9\u0600-\u06ff]/g, '');
+  const a = cut(left);
+  const b = cut(right);
+  return a.length > 1 && b.length > 1 && a === b;
+}
+
+/**
+ * المعجم يربط رمز الدولة/الخدمة بصفّه عندما يكون الرمز نصاً دالاً (رموز
+ * Hero-SMS و 5sim). أما المزودون الذين يرمّزون دولهم وخدماتهم بأرقام صريحة
+ * (SMSPool مثلاً: 1 = الولايات المتحدة) فارقامهم تتصادم مع أكواد مزود آخر
+ * داخل نفس المعجم، فيعود الاسم الخطأ. لذا لا يُقبل اسم المعجم إلا حين يؤكده
+ * الاسم الذي أرسله المزود نفسه، وإلا بقي تسمية المزود وحدها.
+ */
+export function trustDictionaryName(
+  providerName: string,
+  resolve: () => { nameAr: string; nameEn: string },
+): { nameAr: string; nameEn: string } {
+  const wanted = (providerName || '').trim();
+  if (!wanted) return { nameAr: '', nameEn: '' };
+  const meta = resolve();
+  if (
+    sameProviderName(wanted, meta.nameEn) ||
+    sameProviderName(wanted, meta.nameAr)
+  ) {
+    return { nameAr: meta.nameAr, nameEn: meta.nameEn };
+  }
+  return { nameAr: wanted, nameEn: wanted };
+}
+
+/** سنتات الدولار ← دولار (واجهة DogeSMS تعرض مبالغها بالسنت) */
+export function centsToUnit(cents: any): number {
+  return toNumberValue(cents) / 100;
 }

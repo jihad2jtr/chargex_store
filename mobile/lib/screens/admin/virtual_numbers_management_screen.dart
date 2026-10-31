@@ -11,7 +11,7 @@ import '../../widgets/status_pill.dart';
 import 'providers_management_screen.dart';
 import 'virtual_number_apps_screen.dart';
 
-/// لوحة إدارة الأرقام الوهمية: متابعة طلبات العملاء، حالة مزود الأرقام ورصيده،
+/// لوحة إدارة الأرقام : متابعة طلبات العملاء، حالة مزود الأرقام ورصيده،
 /// مزامنة الكتالوج، وتحكم الأدمن بالإلغاء (مع إرجاع المبلغ) أو الإغلاق.
 class VirtualNumbersManagementScreen extends StatefulWidget {
   const VirtualNumbersManagementScreen({super.key});
@@ -96,7 +96,7 @@ class _VirtualNumbersManagementScreenState
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('إدارة الأرقام الوهمية'),
+        title: const Text('إدارة الأرقام '),
         actions: [
           // تطبيقات الأرقام (تليجرام/واتساب…): تُنشأ فارغة ثم تُنتقى دولها
           IconButton(

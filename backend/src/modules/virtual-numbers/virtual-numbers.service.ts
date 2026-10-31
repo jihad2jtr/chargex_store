@@ -30,6 +30,12 @@ import {
   VirtualNumberProductDocument,
 } from '../../database/schemas/virtual-number-product.schema';
 import {
+  VirtualNumberOutcome,
+  VirtualNumberOutcomeSource,
+  VirtualNumberQualityEvent,
+  VirtualNumberQualityEventDocument,
+} from '../../database/schemas/virtual-number-quality-event.schema';
+import {
   Provider,
   ProviderDocument,
   ProviderStatus,
@@ -41,7 +47,11 @@ import {
   ProductDocument,
   ProductType,
 } from '../../database/schemas/product.schema';
-import { Order, OrderDocument, OrderStatus } from '../../database/schemas/order.schema';
+import {
+  Order,
+  OrderDocument,
+  OrderStatus,
+} from '../../database/schemas/order.schema';
 import { User, UserDocument } from '../../database/schemas/user.schema';
 import { Role } from '../../common/interfaces/role.enum';
 import {
@@ -68,6 +78,11 @@ import {
   resolveAppMeta,
   resolveCountryMeta,
 } from './virtual-numbers-dictionary';
+import {
+  classifyOutcome,
+  resolveFailThreshold,
+  OUTCOME_COUNTER_FIELD,
+} from './virtual-number-quality';
 import { isHiddenServerName } from './fivesim.client';
 
 /** يُخفي سيرفرات المزوّد الداخلية (virtual4، virtual21…) عن كل واجهات العرض */
@@ -87,6 +102,9 @@ const DEFAULT_WAIT_TTL_MINUTES = 20;
 const CODE_READ_WINDOW_MS = 20 * 60 * 1000;
 // وتيرة المسح الدوري: فحص الأرقام الحيّة وإنهاء المنتهية
 const SWEEP_INTERVAL_MS = 60 * 1000;
+// مدة صلاحية اسم السيرفر في الذاكرة: كل عرض طلب يحتاجه، وإعادة قراءته لكل
+// طلب استعلام زائد على مزود لا يتغير اسمه إلا من اللوحة
+const PROVIDER_META_TTL_MS = 60 * 1000;
 
 // مفاتيح env البديلة حين لا يسجل مزود في لوحة الإدارة: نفس ترتيب الأنواع المعتمدة
 const ENV_PROVIDER_PRESETS: Array<{
@@ -119,6 +137,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   private sweepTimer?: ReturnType<typeof setInterval>;
   private sweepKickoffTimer?: ReturnType<typeof setTimeout>;
   private isSweeping = false;
+  // اسم السيرفر الوهمي + الاسم الحقيقي لكل مزود، سارية `PROVIDER_META_TTL_MS`
+  private readonly providerMetaCache = new Map<
+    string,
+    { label: string; name: string; at: number }
+  >();
 
   constructor(
     @InjectModel(VirtualNumberRequest.name)
@@ -129,6 +152,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     private readonly appModel: Model<VirtualNumberAppDocument>,
     @InjectModel(VirtualNumberProduct.name)
     private readonly productModel: Model<VirtualNumberProductDocument>,
+    // سجل أحداث الجودة: يُكتب منه كل نتيجة شراء، وتقرأ منه اللوحة أسباب الفشل
+    @InjectModel(VirtualNumberQualityEvent.name)
+    private readonly qualityEventModel: Model<VirtualNumberQualityEventDocument>,
     // خدمة الأرقام اليدوية هي منتج متجر (type=manual) بلا تطبيق متجر: تُحقن
     // بمسمى مستقل لأن productModel محجوز لمنتجات الدول (VirtualNumberProduct)
     @InjectModel(Product.name)
@@ -155,6 +181,102 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       void this.runSweep().catch(() => undefined);
     }, SWEEP_INTERVAL_MS);
     this.sweepTimer.unref?.();
+
+    // ترحيل هوية المنتج إلى (تطبيق + مزود + دولة): بلا إسقاط الفهرس القديم
+    // ستظل إضافة نفس الدولة من مزود ثانٍ تفشل بصمت، وهو جوهر تعدد المزودين.
+    // الفواصل هنا محلية تماماً (لا طلبات شبكة) فلا تُعلّق الإقلاع.
+    void this.healProductIdentity()
+      .then(() => this.dropLegacyProductIndex())
+      .catch((err: any) =>
+        this.logger.warn(`Virtual numbers migration skipped: ${err?.message}`),
+      );
+  }
+
+  /**
+   * يُكمل ما ينقص وثائق ما قبل تعدد المزودين: providerId على المنتج (كان اختيارياً)
+   * وappKey على التطبيق، والأسماء الوهمية لمزودي الأرقام.
+   * لا يمسّ ما هو معبأ أصلاً، فيُمكن إعادة التشغيل بلا أثر.
+   */
+  private async healProductIdentity() {
+    const numberProviders = await this.providerModel
+      .find({ providerType: { $in: VIRTUAL_NUMBER_PROVIDER_TYPES } })
+      .sort({ createdAt: 1 });
+
+    // اسم وهمي لكل مزود أرقام: اللوحة تعدّله، والعميل لا يرى غيره
+    let index = 0;
+    for (const provider of numberProviders) {
+      index += 1;
+      if (!(provider as any).serverLabel) {
+        await this.providerModel.updateOne(
+          { _id: provider._id },
+          { $set: { serverLabel: `Server ${index}` } },
+        );
+        (provider as any).serverLabel = `Server ${index}`;
+      }
+    }
+
+    // التطبيق بلا appKey = كي لا يبقى منطقياً واحداً عبر المزودين
+    const apps = await this.appModel.find({});
+    for (const app of apps) {
+      if (app.appKey) continue;
+      const key = resolveAppMeta(
+        app.serviceCode,
+        app.providerId
+          ? numberProviders.find((p) => p._id.equals(app.providerId))
+              ?.providerType
+          : undefined,
+      ).key;
+      if (!key) continue;
+      await this.appModel.updateOne(
+        { _id: app._id },
+        { $set: { appKey: key } },
+      );
+      app.appKey = key;
+    }
+
+    // المزود الوحيد يُنسب لكل منتجاته؛ ومع أكثر من مزود لا يُخمَّن، فتُترك
+    // للوحة (تُنشأ المنتجات الجديدة به حتماً) حتى لا تُنسب لفاسد فتُقيَّم عليه
+    const sole = numberProviders.length === 1 ? numberProviders[0] : null;
+    if (!sole) return;
+    // {field: null} في Mongo يطابق الحقل الغائب أيضاً، فلا حاجة لـ $in
+    await this.productModel.updateMany(
+      { providerId: null },
+      { $set: { providerId: sole._id } },
+    );
+  }
+
+  /**
+   * يسقط الفهرس الفريد القديم {appId, countryCode} إن بقي من إصدار سابق.
+   * Mongoose لا يحذف الفهارس القديمة من تلقاء نفسه، فالفهرس العتيق سيستمر في
+   * رفض الدولة نفسها من مزود ثانٍ ولو تغيّر تعريف المخطط. تُقرأ الفهارس من
+   * المجموعة الحيّة لا من المخطط، لأن المخطط أصبح يصف الفهرس الجديد.
+   */
+  private async dropLegacyProductIndex() {
+    const live: Array<{
+      name?: string;
+      unique?: boolean;
+      key?: Record<string, any>;
+    }> = await this.productModel.collection.indexes().catch(() => []);
+
+    const legacy = live.filter(
+      (idx) =>
+        idx.unique === true &&
+        Object.keys(idx.key ?? {}).join(',') === 'appId,countryCode',
+    );
+    if (legacy.length === 0) return;
+
+    for (const idx of legacy) {
+      const name = idx.name ?? 'appId_1_countryCode_1';
+      await this.productModel.collection.dropIndex(name).catch((err: any) => {
+        // «not found» نتيجة مقبولة: الفهرس أُسقط في إقلاع سابق
+        this.logger.warn(
+          `Legacy product index ${name} not dropped: ${err?.message}`,
+        );
+      });
+    }
+    this.logger.log(
+      `Dropped ${legacy.length} legacy virtual-number product unique index(es)`,
+    );
   }
 
   onModuleDestroy() {
@@ -262,20 +384,37 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   // ===========================================================================
 
   /**
-   * خيارات الأرقام المعروضة للعميل: تُقرأ من التخزين المحلي وإن تجاوز مهلته،
-   * ويُجلب الجديد من المزود عند الغياب فقط حتى لا تتعطل الصفحة بتعطل المزود.
-   * لا تُعرض أي خدمة إلا إذا أنشأت الإدارة تطبيقاً مفعّلاً لها وأضافة دولة مفعّلة
-   * ضمنه — نفس طريقة تطبيقات المتجر: القائمة المُنتقاة هي المرجع، لا الكتالوج كامل.
+   * كل مزودي الأرقام النشطين: العرض للعميل صار متعدداً، فواتساب-الفلبين قد يأتي
+   * من سيرفرين وعرضان مستقلان يظهران معاً بلا دمج ولا اختيار أرخص.
+   * لا سجلات مفعّلة → مفاتيح env كما كان؛ وأما السجلات الموقوفة كلها فتبقى بلا
+   * مزود نشط فتُبلَّغ الصفحة بـ providerStopped وتُخفى الأرقام.
    */
-  async getOptions() {
-    // مزود مُسجَّل لكنه موقوف (isActive=false): تُبلَغ صفحة العميل بعدم الإتاحة
-    // بوضع providerStopped فتُخفى الأرقام (ويُمسح المخزّن في التطبيق) بدل إبقاء
-    // أرقام معروضة لا يمكن شراؤها. الإدارة ترى التطبيقات ودولها من مسار آخر.
-    const activeNumberProvider = await this.providerModel.findOne({
+  private async resolveActiveProviders(): Promise<ProviderDocument[]> {
+    const filter = {
       providerType: { $in: VIRTUAL_NUMBER_PROVIDER_TYPES },
       isActive: { $ne: false },
+    };
+    const found = await this.providerModel.find(filter).sort({ createdAt: 1 });
+    if (found.length > 0) return found;
+
+    const configured = await this.providerModel.findOne({
+      providerType: { $in: VIRTUAL_NUMBER_PROVIDER_TYPES },
     });
-    if (!activeNumberProvider) {
+    if (configured) return []; // اللوحة أوقفتهم كلها: لا التفاف بمفاتيح env
+
+    const fromEnv = this.buildEnvProvider();
+    return fromEnv ? [fromEnv] : [];
+  }
+
+  /**
+   * خيارات الأرقام المعروضة للعميل: تُقرأ من التخزين المحلي وإن تجاوز مهلته,
+   * ويُجلب الجديد من المزود عند الغياب فقط حتى لا تتعطل الصفحة بتعطل مزود واحد.
+   * المرجع المنتجاتُ لا الكتالوج: لكل تطبيق مفعّل دوله المفعّلة غير الموقوفة
+   * جودةً، وتحتها عروض كل مزود يبيعها — كل عرض بسعره ومخزونه ومشغّلاته.
+   */
+  async getOptions() {
+    const providers = await this.resolveActiveProviders();
+    if (providers.length === 0) {
       const stoppedProvider = await this.providerModel.findOne({
         providerType: { $in: VIRTUAL_NUMBER_PROVIDER_TYPES },
         isActive: false,
@@ -288,126 +427,230 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           waitMinutes: this.waitTtlMinutes(),
           curated: await this.appModel.countDocuments({}),
           margin: {
-            type: stoppedProvider.profitMarginType ?? ProfitMarginType.PERCENTAGE,
+            type:
+              stoppedProvider.profitMarginType ?? ProfitMarginType.PERCENTAGE,
             value: stoppedProvider.profitMarginValue ?? 0,
           },
           services: [],
           // «تفعيل مضمون» يُنفّذه المشرف بلا مزود، فيبقى معروضاً ولو توقّف المزود
-          manualServices: await this.listActiveManualServices(),
+          manualServices: await this.safeManualServices(),
           syncedAt: null,
         };
       }
     }
 
-    const provider = await this.resolveProvider();
-    let catalog = await this.catalogModel.findOne({ providerId: provider._id });
+    const ids = providers.map((p) => p._id);
+    let catalogs = await this.catalogModel.find({ providerId: { $in: ids } });
 
-    const isStale =
-      !catalog ||
-      !catalog.fetchedAt ||
-      Date.now() - new Date(catalog.fetchedAt).getTime() > CATALOG_TTL_MS;
+    // أي كتالوج غائب أو قديم يُجدَّد، وكل مزود في فرع مستقل: تعطل مزود لا
+    // يُعطّل الصفحة ولا يمسح كتالوج أخيه، بل تبقى لقطة منتجاته تُسعّر العرض
+    const staleIds = providers
+      .filter((p) => {
+        const catalog = catalogs.find((c) => c.providerId?.equals(p._id));
+        return (
+          !catalog ||
+          !catalog.fetchedAt ||
+          Date.now() - new Date(catalog.fetchedAt).getTime() > CATALOG_TTL_MS
+        );
+      })
+      .map((p) => String(p._id));
 
-    if (isStale) {
-      // الفشل لا يمنع العرض: نُبقي المخزّن القديم ويسجّل المزود سبب الخطأ للإدارة
-      await this.syncCatalog(provider).catch((err: any) => {
-        this.logger.warn(`Virtual numbers catalog refresh failed: ${err.message}`);
-      });
-      catalog = await this.catalogModel.findOne({ providerId: provider._id });
+    if (staleIds.length > 0) {
+      await Promise.allSettled(
+        providers
+          .filter((p) => staleIds.includes(String(p._id)))
+          .map((p) =>
+            this.syncCatalog(p).catch((err: any) => {
+              this.logger.warn(
+                `Virtual numbers catalog refresh failed for ${p.name}: ${err.message}`,
+              );
+            }),
+          ),
+      );
+      catalogs = await this.catalogModel.find({ providerId: { $in: ids } });
     }
 
-    const services = await this.buildCuratedServices(
-      (catalog?.services ?? []) as VirtualNumberService[],
-      provider,
-    );
+    const services = await this.buildCuratedServices(providers, catalogs);
+    const syncedAt =
+      catalogs
+        .map((c) => (c.fetchedAt ? new Date(c.fetchedAt).getTime() : 0))
+        .sort((a, b) => b - a)[0] ?? null;
 
     return {
       available: services.length > 0,
       // هوية المزود وأخطاؤه الداخلية للإدارة فقط: payload العميل يحمل مؤشر إتاحة
       // بلا أسماء ولا رسائل مزودين، حتى لا يُستنتج من الشاشة مورد الخدمة
-      providerOnline: provider.status === ProviderStatus.ONLINE,
+      providerOnline: providers.some((p) => p.status === ProviderStatus.ONLINE),
       waitMinutes: this.waitTtlMinutes(),
       // الكتالوج مُنتقًى: تُبلغ الصفحة الإدارةَ بعدّة التطبيقات كي تعرف إن كان
       // عليها تنسيق المنتجات قبل أن تظهر أي أرقام للعملاء
       curated: await this.appModel.countDocuments({}),
+      // الهامش لم يعد واحداً: كل عرض يحمل سعره المحسوب بهامش مزوده، وهذا الحقل
+      // يبقى للعرض فقط (مزود واحد على الأقل) كي لا تنكسر واجهات قديمة تقرأه
       margin: {
-        type: provider.profitMarginType ?? ProfitMarginType.PERCENTAGE,
-        value: provider.profitMarginValue ?? 0,
+        type: providers[0]?.profitMarginType ?? ProfitMarginType.PERCENTAGE,
+        value: providers[0]?.profitMarginValue ?? 0,
       },
       services,
       // القسم الأول في صفحة الأرقام: خدمات التفعيل المضمون (يدوية بمشرف)
-      manualServices: await this.listActiveManualServices(),
-      syncedAt: catalog?.fetchedAt ?? null,
+      manualServices: await this.safeManualServices(),
+      syncedAt,
     };
   }
 
   /**
-   * يبني قائمة العميل من المُنتقى فقط: لكل تطبيق مفعّل، دوله المفعّلة التي توجد
-   * فعلياً في كتالوج المزود الحالي. السعر حيّ (تكلفة الكتالوج + هامش المزود)،
-   * فلا يخضع لإدارة يدوية ويطابق قرارات التسعير المعتمدة (هامش المزود تلقائياً).
+   * قسم «تفعيل مضمون» زائد على قائمة الأرقام: تعذّر قراءته (مرجع مكسور أو خطأ
+   * عرض) يترك القسم فارغاً ولا يُسقط صفحة الأرقام كلها في 500.
+   */
+  private async safeManualServices() {
+    try {
+      return await this.listActiveManualServices();
+    } catch (err: any) {
+      this.logger.warn(`Guaranteed manual services skipped: ${err.message}`);
+      return [];
+    }
+  }
+
+  /**
+   * يَبني قائمة العميل من المُنتقى فقط، وعبر كل المزودين: التطبيقات تُجمَّع
+   * بمفتاحها المنطقي (واتساب تطبيق واحد وإن اختلف رمزه لدى مزودين)، وتحتها
+   * الدول مجمّعة برمزها القانوني، وكل دولة تحمل عروض مزوديها مستقلة.
+   *
+   * كل عرض يقرأ تكلفته ومخزونه ومشغّلاته من كتالوج مزوده الحيّ؛ وإن غاب الكتالوج
+   * يرجع إلى لقطة المنتج — فيبقى العرض معروضاً بسعره ولو تعطل المزود مؤقتاً.
    */
   private async buildCuratedServices(
-    catalogServices: VirtualNumberService[],
-    provider: ProviderDocument,
+    providers: ProviderDocument[],
+    catalogs: VirtualNumberCatalogDocument[],
   ) {
     const apps = await this.appModel
       .find({ isActive: true })
       .sort({ sortOrder: 1, createdAt: -1 });
     if (apps.length === 0) return [];
 
+    // الموقوف جودةً لا يُعرض للعميل ولا يُباع، لكن يبقى في اللوحة بمحاسبة مزوده وحده
     const products = await this.productModel.find({
       appId: { $in: apps.map((a) => a._id) },
       isActive: true,
+      autoDisabled: { $ne: true },
     });
+    if (products.length === 0) return [];
 
-    const marginType = provider.profitMarginType ?? ProfitMarginType.PERCENTAGE;
-    const marginValue = provider.profitMarginValue ?? 0;
-    const byService = new Map(catalogServices.map((s) => [s.code, s]));
-    const productsByApp = new Map<string, VirtualNumberProduct[]>();
-    for (const p of products) {
-      const key = p.appId.toString();
-      const list = productsByApp.get(key) ?? [];
-      list.push(p);
-      productsByApp.set(key, list);
-    }
+    const providersById = new Map(providers.map((p) => [String(p._id), p]));
+    const catalogsByProvider = new Map(
+      catalogs.map((c) => [String(c.providerId), c.services ?? []]),
+    );
+    const appsById = new Map(apps.map((a) => [String(a._id), a]));
 
-    const out: Array<{
-      code: string;
-      name: string;
-      nameAr?: string;
-      nameEn?: string;
-      icon?: string;
-      herosmsCode?: string;
-      fivesimCode?: string;
-      countries: any[];
-      fromPrice: number;
-    }> = [];
+    // appId منطقي → رمز دولة قانوني → عروض
+    const appGroups = new Map<
+      string,
+      { apps: VirtualNumberAppDocument[]; countries: Map<string, any[]> }
+    >();
 
-    for (const app of apps) {
-      const svc = byService.get(app.serviceCode);
-      if (!svc) continue; // الخدمة غابت عن كتالوج المزود الحالي: لا تُعرض
-      const catalogByCountry = new Map(
-        (svc.countries ?? []).map((c) => [c.code, c]),
+    for (const product of products) {
+      const app = appsById.get(String(product.appId));
+      const provider = providersById.get(String(product.providerId));
+      if (!app || !provider) continue; // منتج لمزود موقوف: لا يُعرض ولا يُباع
+
+      const appKey =
+        app.appKey ||
+        resolveAppMeta(app.serviceCode, provider.providerType).key ||
+        app.serviceCode;
+      const cMeta = resolveCountryMeta(
+        product.countryCode || product.countryName,
+        provider.providerType,
+      );
+      // التجميع برمز الدولة كما لدى المزود لا بالرمز القانوني من المعجم: الرموز
+      // تتقاطع بين المزودين (٢٠ مصر عند 5sim ومولدوفا عند Hero-SMS)، فتوحيدَها
+      // كان يدمج دولتين مختلفتين في صف واحد
+      const countryKey = (
+        product.countryCode ||
+        product.countryName ||
+        ''
+      ).trim();
+
+      // كتالوج هذا المزود بالذات، ودولته عنده برمزها الأصلي لا برمز غيره
+      const services = catalogsByProvider.get(String(provider._id)) ?? [];
+      const svc = services.find((s) => s.code === product.serviceCode);
+      const live = (svc?.countries ?? []).find(
+        (c) => c.code === product.countryCode,
       );
 
-      const appMeta = resolveAppMeta(app.serviceCode, provider?.providerType);
-      const countries = (productsByApp.get(app._id.toString()) ?? [])
-        .map((product) => {
-          // السعر من الكتالوج الحيّ إن وُجدت الدولة، وإلا من لقطة المنتج
-          const live = catalogByCountry.get(product.countryCode);
-          const cost = Number(live?.cost ?? product.cost) || 0;
-          const salePrice = this.computeSalePrice(cost, marginType, marginValue);
-          const cMeta = resolveCountryMeta(product.countryCode || product.countryName, provider?.providerType);
+      const cost = Number(live?.cost ?? product.cost) || 0;
+      const salePrice = this.computeSalePrice(
+        cost,
+        provider.profitMarginType ?? ProfitMarginType.PERCENTAGE,
+        provider.profitMarginValue ?? 0,
+      );
+      if (salePrice <= 0) continue; // بلا سعر صالح: لا يُعرض ولا يُباع
+
+      const offer = {
+        productId: String(product._id),
+        providerId: String(provider._id),
+        // الاسم الوهمي وحده يذهب للعميل؛ اسم المزود الحقيقي لا يغادر اللوحة
+        serverLabel: (provider as any).serverLabel || 'Server',
+        service: product.serviceCode,
+        country: product.countryCode,
+        countryName: live?.name || product.countryName || cMeta.name,
+        cost,
+        salePrice,
+        count: live?.count ?? product.count ?? 0,
+        operators: visibleOperators(live?.operators ?? product.operators),
+      };
+
+      const group = appGroups.get(appKey) ?? {
+        apps: [],
+        countries: new Map<string, any[]>(),
+      };
+      if (!group.apps.some((a) => String(a._id) === String(app._id))) {
+        group.apps.push(app);
+      }
+      const list = group.countries.get(countryKey) ?? [];
+      if (!list.some((o) => o.productId === offer.productId)) list.push(offer);
+      group.countries.set(countryKey, list);
+      appGroups.set(appKey, group);
+    }
+
+    const out: Array<Record<string, any>> = [];
+    for (const [, group] of appGroups) {
+      // التطبيق الممثل هو أقدم تطبيق منطقي في الترتيب: اسمه وأيقونته ورمزه
+      // للواجهة القديمة (service/country)، والعروض تُباع بمعرّف منتجها
+      const app = group.apps[0];
+      const repProvider =
+        providersById.get(String(app.providerId)) ?? providers[0];
+      const appMeta = resolveAppMeta(
+        app.serviceCode,
+        repProvider?.providerType,
+      );
+      const repCatalog = catalogsByProvider.get(String(repProvider?._id)) ?? [];
+      const repSvc = repCatalog.find((s) => s.code === app.serviceCode);
+
+      const countries = [...group.countries.entries()]
+        .map(([code, offers]) => {
+          const cheapest = offers.reduce(
+            (best, o) => (o.salePrice < best.salePrice ? o : best),
+            offers[0],
+          );
+          const owner = providersById.get(cheapest.providerId);
+          const meta = resolveCountryMeta(code, owner?.providerType);
           return {
-            code: product.countryCode,
-            name: live?.name || product.countryName || cMeta.name,
-            nameAr: (live as any)?.nameAr || cMeta.nameAr,
-            nameEn: (live as any)?.nameEn || cMeta.nameEn,
-            flag: (live as any)?.flag || cMeta.flag,
-            iso: (live as any)?.iso || cMeta.iso,
-            cost,
-            count: live?.count ?? product.count ?? 0,
-            operators: visibleOperators(live?.operators ?? product.operators),
-            salePrice,
+            code,
+            name:
+              cheapest.countryName ||
+              offers.map((o) => o.countryName).find(Boolean) ||
+              meta.name,
+            nameAr: meta.nameAr,
+            nameEn: meta.nameEn,
+            flag: meta.flag,
+            iso: meta.iso,
+            // الحقول القديمة = أرخص عرض، فتبقى الواجهات التي لا تعرف offers تعمل
+            cost: cheapest.cost,
+            salePrice: cheapest.salePrice,
+            count: cheapest.count,
+            operators: cheapest.operators,
+            // العرض للعميل: بطاقات مستقلة، بلا دمج ولا اختيار أرخص تلقائي
+            offers,
           };
         })
         .filter((country) => country.salePrice > 0)
@@ -416,23 +659,81 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       if (countries.length === 0) continue; // تطبيق بلا دولة مفعّلة بسعر صالح
       out.push({
         code: app.serviceCode,
-        name: app.name || (svc as any)?.name || appMeta.name,
-        nameAr: (svc as any)?.nameAr || appMeta.nameAr,
-        nameEn: (svc as any)?.nameEn || appMeta.nameEn,
-        icon: app.iconUrl || (svc as any)?.icon || appMeta.icon,
-        herosmsCode: (svc as any)?.herosmsCode || appMeta.herosmsCode,
-        fivesimCode: (svc as any)?.fivesimCode || appMeta.fivesimCode,
+        name: app.name || (repSvc as any)?.name || appMeta.name,
+        nameAr: (repSvc as any)?.nameAr || appMeta.nameAr,
+        nameEn: (repSvc as any)?.nameEn || appMeta.nameEn,
+        icon: app.iconUrl || (repSvc as any)?.icon || appMeta.icon,
+        herosmsCode: (repSvc as any)?.herosmsCode || appMeta.herosmsCode,
+        fivesimCode: (repSvc as any)?.fivesimCode || appMeta.fivesimCode,
         countries,
-        fromPrice: countries[0].salePrice,
+        // «من $X»: أقل عروض التطبيق كلها، والترتيب الحالي يبقى عاملاً
+        fromPrice: Math.min(...countries.map((c) => c.salePrice)),
       });
     }
 
     return out.sort((a, b) => a.fromPrice - b.fromPrice);
   }
 
-  /** مزامنة الكتالوج من المزود (تُستدعى عند الحاجة ومن زر الإدارة) */
+  /**
+   * مزامنة الكتالوج: بلا وسيط تمرّ على كل مزود أرقام نشط (اللوحة تُحدّث السيرفرات
+   * كلها بزر واحد)، ومع مزود مُمرَّر تُزامنه وحده (زر داخل صفحة المزود ومسار
+   * التجديد التلقائي في getOptions).
+   */
   async syncCatalog(providerInput?: ProviderDocument) {
-    const provider = providerInput ?? (await this.resolveProvider());
+    if (providerInput) return this.syncProviderCatalog(providerInput);
+
+    let targets: ProviderDocument[] = [];
+    try {
+      targets = await this.resolveActiveProviders();
+    } catch (err: any) {
+      this.logger.warn(`Catalog fan-out found no provider: ${err?.message}`);
+    }
+    if (targets.length === 0) {
+      // لا مزود مسجل إطلاقاً: fallback البيئة يحفظ سلوك الإطلاق القديم
+      targets = [await this.resolveProvider()];
+    }
+
+    const settled = await Promise.allSettled(
+      targets.map((provider) => this.syncProviderCatalog(provider)),
+    );
+    const results = targets.map((provider, i) => {
+      const outcome = settled[i];
+      return outcome.status === 'fulfilled'
+        ? {
+            providerId: provider._id.toString(),
+            serverLabel: provider.serverLabel || '',
+            serviceCount: outcome.value.serviceCount,
+            error: '',
+          }
+        : {
+            providerId: provider._id.toString(),
+            serverLabel: provider.serverLabel || '',
+            serviceCount: 0,
+            error: (outcome.reason as any)?.message || 'تعذر جلب القائمة',
+          };
+    });
+    const synced = results.filter((r) => r.serviceCount > 0);
+    const serviceCount = synced.reduce((sum, r) => sum + r.serviceCount, 0);
+
+    if (synced.length === 0) {
+      // كل المزودين أخفقوا: نفس سلوك الخطأ السابق حتى يرى المدير السبب
+      throw new BadRequestException(
+        results[0].error || 'تعذر جلب القائمة من المزود',
+      );
+    }
+
+    return {
+      message:
+        targets.length > 1
+          ? `تم تحديث قائمة الأرقام (${serviceCount} خدمة من ${synced.length}/${targets.length} سيرفر)`
+          : `تم تحديث قائمة الأرقام (${serviceCount} خدمة)`,
+      serviceCount,
+      providers: results,
+    };
+  }
+
+  /** مزامنة كتالوج مزود واحد وتخزينه */
+  private async syncProviderCatalog(provider: ProviderDocument) {
     const client = this.clientFor(provider);
 
     try {
@@ -520,8 +821,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   private waitTtlMinutes(): number {
-    const raw = Number(this.configService.get<string>('VIRTUAL_NUMBER_TTL_MINUTES'));
-    return Number.isFinite(raw) && raw > 0 ? Math.min(raw, 60) : DEFAULT_WAIT_TTL_MINUTES;
+    const raw = Number(
+      this.configService.get<string>('VIRTUAL_NUMBER_TTL_MINUTES'),
+    );
+    return Number.isFinite(raw) && raw > 0
+      ? Math.min(raw, 60)
+      : DEFAULT_WAIT_TTL_MINUTES;
   }
 
   // ===========================================================================
@@ -530,19 +835,20 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
   async requestNumber(params: {
     userId: string;
-    service: string;
-    country: string;
+    service?: string;
+    country?: string;
     operator?: string;
     clientRequestId?: string;
+    // معرّف المنتج (تطبيق+دولة+مزود): المسار الجديد للعرض المتعدد، حيث لا تكفي
+    // الخدمة والدولة لتحديد المزود لأن نفس الدولة قد تُباع من سيرفرين
+    productId?: string;
   }) {
     const user = await this.userModel.findById(params.userId);
     if (!user) throw new NotFoundException('المستخدم غير موجود');
 
     const cleanService = (params.service || '').trim();
     const cleanCountry = (params.country || '').trim();
-    if (!cleanService || !cleanCountry) {
-      throw new BadRequestException('يرجى اختيار الخدمة والدولة أولاً');
-    }
+    const cleanProductId = (params.productId || '').trim();
 
     // طلب حيّ واحد لكل عميل: يحمي الرصيد ويمنع حرق أرقام المزود
     const active = await this.requestModel.findOne({
@@ -555,18 +861,56 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    const provider = await this.resolveProvider();
+    const unavailable = new BadRequestException(
+      'هذه الخدمة أو الدولة غير متاحة حالياً',
+    );
+
+    let provider: ProviderDocument;
+    let product: VirtualNumberProductDocument | null = null;
+    let service = cleanService;
+    let country = cleanCountry;
+
+    if (cleanProductId) {
+      // المنتج هو وحدة البيع: مزوده وهامشه ورموزه تُؤخذ منه هو، لا من مزود مُحال
+      if (!Types.ObjectId.isValid(cleanProductId)) throw unavailable;
+      product = await this.productModel
+        .findById(cleanProductId)
+        .catch(() => null);
+      if (
+        !product ||
+        product.isActive === false ||
+        product.autoDisabled === true
+      ) {
+        throw unavailable;
+      }
+      const [app, found] = await Promise.all([
+        this.appModel.findById(product.appId).catch(() => null),
+        this.providerModel.findById(product.providerId).catch(() => null),
+      ]);
+      // التطبيق مفعّل والمزود نشط: وإلا فالعرض صار قديماً ولا يُباع
+      if (!app || app.isActive !== true || !found || found.isActive === false) {
+        throw unavailable;
+      }
+      provider = found;
+      // الرمز المُرسَل للمزود هو رمز هذا المزود الأصلي، لا رمز التطبيق
+      service = product.serviceCode;
+      country = product.countryCode;
+    } else {
+      // المسار القديم (خدمة+دولة) يبقى أثناء الإطلاق: المزود يُحال كما كان
+      if (!cleanService || !cleanCountry) {
+        throw new BadRequestException('يرجى اختيار الخدمة والدولة أولاً');
+      }
+      provider = await this.resolveProvider();
+      product = await this.assertCurated(cleanService, cleanCountry);
+    }
+
     if (provider.isActive === false) {
       throw new BadRequestException(
         'خدمة الأرقام الوهمية متوقفة حالياً، ولم يتم خصم أي مبلغ من رصيدك',
       );
     }
 
-    // لا يُباع إلا المُنتقَى: لا بد أن يكون للخدمة تطبيق مفعّل وهذه الدولة مفعّلة ضمنه،
-    // وإلا رُفض الطلب برسالة عامة مطابقة لرسالة غياب الخدمة عن الكتالوج
-    await this.assertCurated(cleanService, cleanCountry);
-
-    const picked = await this.pickPrice(provider, cleanService, cleanCountry);
+    const picked = await this.pickPrice(provider, service, country);
     const { cost, salePrice, serviceName, countryName } = picked;
 
     // رصيد المزود يجب أن يغطي التكلفة قبل المساس بمحفظة العميل
@@ -574,7 +918,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
     const requestNumber = this.generateRequestNumber();
     const cleanRequestId =
-      typeof params.clientRequestId === 'string' && params.clientRequestId.trim()
+      typeof params.clientRequestId === 'string' &&
+      params.clientRequestId.trim()
         ? params.clientRequestId.trim()
         : undefined;
 
@@ -607,9 +952,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         clientRequestId: cleanRequestId,
         userId: user._id,
         providerId: provider._id,
-        service: cleanService,
+        // المنتج يُخلَّد على الطلب: هو عقدة تسجيل الجودة، وكتالوج المزود قد يتغير
+        productId: product?._id,
+        service,
         serviceName,
-        country: cleanCountry,
+        country,
         countryName,
         operator: (params.operator || '').trim(),
         amount: salePrice,
@@ -628,9 +975,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           await this.compensateDuplicateDebit(user, salePrice, existing);
           return {
             message: 'طلبك السابق نفسه قيد التنفيذ',
-            request: this.toView(existing),
+            request: await this.viewForClient(existing),
             newBalance: Number(
-              ((await this.userModel.findById(user._id))?.balance ?? 0).toFixed(2),
+              ((await this.userModel.findById(user._id))?.balance ?? 0).toFixed(
+                2,
+              ),
             ),
           };
         }
@@ -648,7 +997,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         amount: -salePrice,
         balanceBefore,
         balanceAfter,
-        description: `تفعيل رقم وهمي (${serviceName || cleanService})`,
+        description: `تفعيل رقم وهمي (${serviceName || service})`,
         referenceType: 'VirtualNumber',
         referenceId: request._id.toString(),
         status: TransactionStatus.COMPLETED,
@@ -658,7 +1007,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       this.logger.error(
         `Virtual number ledger entry failed for ${requestNumber}: ${ledgerErr.message}`,
       );
-      await this.refundRequest(request, 'تعذر تسجيل الحركة المالية، تم إرجاع المبلغ');
+      await this.refundRequest(
+        request,
+        'تعذر تسجيل الحركة المالية، تم إرجاع المبلغ',
+      );
       throw new BadRequestException(
         'تعذر إتمام العملية، لم يتم خصم أي مبلغ من رصيدك',
       );
@@ -669,8 +1021,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     let number: VirtualNumberHandle;
     try {
       number = await client.requestNumber({
-        service: cleanService,
-        country: cleanCountry,
+        // رمزا هذا المزود الأصليان، لا ما أرسله العميل: المنتج قد يحمل 'wa' بينما
+        // أرسل العميل رمز التطبيق 'whatsapp'
+        service,
+        country,
         operator: request.operator || undefined,
       });
     } catch (err: any) {
@@ -686,6 +1040,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         { $set: { lastError: reason } },
       );
       if (!isTimeout) {
+        // تُسجَّل قبل الإرجاع وتُنتظر: النص الخام من المزود هو وحده ما يميّز نفاد
+        // المخزون عن غيره، والإرجاع لن يسجّل نتيجة ثانية بعدها (المطالبة حُسمت).
+        await this.recordOutcome(request, 'request', reason).catch(
+          () => undefined,
+        );
         await this.refundRequest(
           request,
           'تعذر تجهيز الرقم، وتم إرجاع المبلغ إلى محفظتك',
@@ -712,12 +1071,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
     await this.notifyAdminsSafe(
       'طلب رقم وهمي جديد',
-      `العميل ${user.name} فعّل رقم #${requestNumber} لخدمة ${serviceName || cleanService} بمبلغ $${salePrice.toFixed(2)}`,
+      `العميل ${user.name} فعّل رقم #${requestNumber} لخدمة ${serviceName || service} بمبلغ $${salePrice.toFixed(2)}`,
     );
 
     return {
       message: 'تم تجهيز الرقم، أدخله في التطبيق المطلوب وسيصل الرمز تلقائياً',
-      request: this.toView(request),
+      request: await this.viewForClient(request),
       newBalance: balanceAfter,
     };
   }
@@ -734,7 +1093,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       !catalog.fetchedAt ||
       Date.now() - new Date(catalog.fetchedAt).getTime() > CATALOG_TTL_MS;
 
-    let entry = this.findCatalogEntry(catalog?.services ?? [], service, country);
+    let entry = this.findCatalogEntry(
+      catalog?.services ?? [],
+      service,
+      country,
+    );
     if (!entry && stale) {
       await this.syncCatalog(provider).catch(() => undefined);
       catalog = await this.catalogModel.findOne({ providerId: provider._id });
@@ -777,7 +1140,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       : 0;
     if (!lastCheck || Date.now() - lastCheck > 10 * 60 * 1000) {
       await this.refreshProviderBalance(provider).catch((err: any) =>
-        this.logger.warn(`Virtual numbers readiness check failed: ${err.message}`),
+        this.logger.warn(
+          `Virtual numbers readiness check failed: ${err.message}`,
+        ),
       );
     }
 
@@ -818,7 +1183,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
    * يفحص المزود ويحدّث المستند: وصول الرمز، أو إلغاء المزود للرقم (يُرجع المبلغ).
    * تُستدعى من واجهة العميل أثناء الانتظار ومن المسح الدوري.
    */
-  async syncRequest(request: VirtualNumberRequestDocument): Promise<VirtualNumberRequestDocument> {
+  async syncRequest(
+    request: VirtualNumberRequestDocument,
+  ): Promise<VirtualNumberRequestDocument> {
     if (!this.isLive(request)) return request;
 
     const provider = await this.providerModel.findById(request.providerId);
@@ -854,6 +1221,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       // نافذة قراءة الرمز ثم يُغلق الطلب تلقائياً بلا إرجاع (الخدمة سُلّمت)
       request.expiresAt = new Date(Date.now() + CODE_READ_WINDOW_MS);
       await request.save();
+      // الرمز وصل: تُسجَّل النتيجة الآن ولا تُؤجَّل للإغلاق، كي لا ينتظر المنتج
+      // إغلاق نافذة القراءة كي يُكافأ بتصفير فشله المتتالي
+      this.recordOutcomeSafe(request, 'sync');
 
       await this.notificationsService
         .createNotification({
@@ -877,6 +1247,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         request,
         'أُلغي الرقم قبل وصول رمز التحقق (لم تصل رسالة خلال المهلة)، وتم إرجاع المبلغ',
         VirtualNumberStatus.EXPIRED,
+        undefined,
+        { source: 'sync' },
       );
       return request;
     }
@@ -901,7 +1273,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     code?: string;
   }> {
     const data: Record<string, any> = { ...(query || {}), ...(payload || {}) };
-    this.logger.log(`Virtual numbers webhook received: ${JSON.stringify(data).slice(0, 300)}`);
+    this.logger.log(
+      `Virtual numbers webhook received: ${JSON.stringify(data).slice(0, 300)}`,
+    );
 
     // 1. استخراج معرف المزود (providerRef)
     const rawRef =
@@ -912,15 +1286,21 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       data.providerRef ??
       data.ref ??
       data.orderNumber;
-    const providerRef = rawRef !== undefined && rawRef !== null ? String(rawRef).trim() : '';
+    const providerRef =
+      rawRef !== undefined && rawRef !== null ? String(rawRef).trim() : '';
 
     // 2. استخراج رقم الهاتف إن وجد
     const rawPhone = data.phone ?? data.phoneNumber ?? data.phone_number;
     const phoneDigits = rawPhone ? digitsOnly(String(rawPhone)) : '';
 
     if (!providerRef && !phoneDigits) {
-      this.logger.warn('Webhook ignored: missing order_id/activationId and phone number');
-      return { success: false, message: 'Missing order_id or phone number in payload' };
+      this.logger.warn(
+        'Webhook ignored: missing order_id/activationId and phone number',
+      );
+      return {
+        success: false,
+        message: 'Missing order_id or phone number in payload',
+      };
     }
 
     // 3. البحث عن الطلب المعني في قاعدة البيانات
@@ -962,15 +1342,25 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (!smsText && typeof data.message === 'string') smsText = data.message;
     if (!smsText && typeof data.msg === 'string') smsText = data.msg;
 
-    let smsCode = pickStringValue(data, ['code', 'smsCode', 'passcode', 'otp', 'pin']);
+    let smsCode = pickStringValue(data, [
+      'code',
+      'smsCode',
+      'passcode',
+      'otp',
+      'pin',
+    ]);
     if (!smsCode && smsText) {
       smsCode = extractVerificationCode(smsText) || null;
     }
 
     // 5. التحقق من حالات الإلغاء أو انتهاء الصلاحية من طرف المزود
-    const actionOrStatus = String(data.status ?? data.action ?? data.state ?? '').toUpperCase();
+    const actionOrStatus = String(
+      data.status ?? data.action ?? data.state ?? '',
+    ).toUpperCase();
     const isCancelled =
-      /CANCEL|TIMEOUT|EXPIRE|BANNED|ACCESS_CANCEL|STATUS_CANCEL/i.test(actionOrStatus);
+      /CANCEL|TIMEOUT|EXPIRE|BANNED|ACCESS_CANCEL|STATUS_CANCEL/i.test(
+        actionOrStatus,
+      );
 
     if (isCancelled) {
       if (this.isLive(request)) {
@@ -978,6 +1368,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           request,
           'أُلغي الرقم من طرف مزود الأرقام (Webhook)، وتم إرجاع المبلغ إلى محفظتك',
           VirtualNumberStatus.EXPIRED,
+          undefined,
+          { source: 'webhook' },
         );
         return {
           success: true,
@@ -1014,6 +1406,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       if (!request.raw) request.raw = {};
       request.raw.lastWebhook = data;
       await request.save();
+      // أسرع دليل على وصول الرمز هو ويب هوك المزود: يُسجَّل فوراً ولا يُنتظر الفحص
+      this.recordOutcomeSafe(request, 'webhook');
 
       // إشعار المستخدم فوراً
       await this.notificationsService
@@ -1068,7 +1462,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     });
     if (!request) throw new NotFoundException('الطلب غير موجود');
     const synced = refresh ? await this.syncRequest(request) : request;
-    return this.toView(synced);
+    return this.viewForClient(synced);
   }
 
   /** أرقام العميل: الحالي والحالات السابقة */
@@ -1081,12 +1475,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     // الرقم الحيّ يُفحص كي يصل الرمز حتى لو كانت الصفحة لم تُحدَّث
     const live = mine.filter((r) => this.isLive(r));
     if (live.length > 0) {
-      await Promise.all(
-        live.map((r) => this.syncRequest(r).catch(() => r)),
-      );
+      await Promise.all(live.map((r) => this.syncRequest(r).catch(() => r)));
     }
 
-    return mine.map((r) => this.toView(r));
+    return Promise.all(mine.map((r) => this.viewForClient(r)));
   }
 
   /**
@@ -1112,11 +1504,15 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       return this.finishRequest(
         request,
         reason || 'تم استلام الرمز وإغلاق الرقم',
+        undefined,
+        'client',
       );
     }
     return this.cancelRequest(
       request,
       reason || 'ألغى العميل الطلب قبل وصول الرمز',
+      VirtualNumberStatus.CANCELLED,
+      { source: 'client' },
     );
   }
 
@@ -1124,6 +1520,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     request: VirtualNumberRequestDocument,
     note: string,
     adminNote?: string,
+    source: VirtualNumberOutcomeSource = 'sync',
   ) {
     const provider = await this.providerModel.findById(request.providerId);
     if (provider && request.providerRef) {
@@ -1140,7 +1537,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     request.closedAt = new Date();
     request.expiresAt = undefined;
     await request.save();
-    return { message: 'تم إغلاق الرقم بنجاح', request: this.toView(request) };
+    // الرمز وصل أصلاً = نجاح؛ ورفض بلا رمز (إغلاق إداري يدوي) يُحسب بلغته
+    this.recordOutcomeSafe(request, source);
+    return {
+      message: 'تم إغلاق الرقم بنجاح',
+      request: await this.viewForClient(request),
+    };
   }
 
   /** إلغاء مع إرجاع المبلغ (تُستدعى من العميل ومن المسح الدوري ومن الإدارة) */
@@ -1148,9 +1550,14 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     request: VirtualNumberRequestDocument,
     note: string,
     status: VirtualNumberStatus = VirtualNumberStatus.CANCELLED,
-    notifyUser = true,
-    adminNote?: string,
+    // خيارات بدل مواضع متتالية: نسيان source كان سيحسب إلغاء العميل فشلاً على المزود
+    options: {
+      notifyUser?: boolean;
+      adminNote?: string;
+      source?: VirtualNumberOutcomeSource;
+    } = {},
   ) {
+    const { notifyUser = true, adminNote, source = 'sweep' } = options;
     const provider = await this.providerModel.findById(request.providerId);
     if (provider && request.providerRef) {
       await this.clientFor(provider)
@@ -1170,6 +1577,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       note,
       status,
       adminNote,
+      {
+        source,
+        // سجل الجودة الإداري يحتاج سبباً مقروءاً: `note` عبارة عربية مؤلَّفة داخلياً
+        // لا نص خطأ مزود خام، فتصلح سبباً في سجل الأحداث بلا كشف مورد الخدمة
+        reason: note,
+      },
     );
 
     if (notifyUser) {
@@ -1188,7 +1601,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       message: refunded
         ? 'تم إلغاء الرقم وإرجاع المبلغ إلى محفظتك'
         : 'تم إلغاء الرقم، وسيراجع الإدارة إرجاع المبلغ',
-      request: this.toView(request),
+      request: await this.viewForClient(request),
     };
   }
 
@@ -1201,7 +1614,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     reason: string,
     status: VirtualNumberStatus = VirtualNumberStatus.CANCELLED,
     adminNote?: string,
+    // سياق الجودة منفصل عن `reason`: هذا يُكتب للعميل على الطلب، فلا يكون نص
+    // خطأ المزود الخام الذي قد يكشف موارده. يُمرَّر وحده عند الحاجة للتصنيف.
+    quality?: { source?: VirtualNumberOutcomeSource; reason?: string },
   ): Promise<boolean> {
+    const qualitySource = quality?.source ?? 'request';
+    const qualityReason = quality?.reason ?? '';
     if (request.refundedAt) return true; // أُرجع سابقاً
     if (request.amount <= 0) {
       request.status = status;
@@ -1209,6 +1627,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       request.adminNote = adminNote;
       request.closedAt = request.closedAt ?? new Date();
       await request.save().catch(() => undefined);
+      this.recordOutcomeSafe(request, qualitySource, qualityReason);
       return false;
     }
 
@@ -1230,6 +1649,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
     Object.assign(request, claimed.toObject());
 
+    // الطلب أُغلق مالياً: تُسجَّل نتيجته على جودة المنتج. المطالبة الذرّية داخل
+    // recordOutcome مستقلة عن هذه، فلا تكرار إن سبقت حملة أخرى الإرجاع.
+    this.recordOutcomeSafe(request, qualitySource, qualityReason);
+
     let credited: UserDocument | null = null;
     try {
       credited = await this.userModel.findByIdAndUpdate(
@@ -1248,7 +1671,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       return false;
     }
 
-    const balanceAfter = Number((credited?.balance ?? request.amount).toFixed(2));
+    const balanceAfter = Number(
+      (credited?.balance ?? request.amount).toFixed(2),
+    );
     try {
       await this.transactionModel.create({
         userId: request.userId,
@@ -1279,6 +1704,179 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   // ===========================================================================
+  // الجودة: تسجيل النتيجة على المنتج والإيقاف التلقائي
+  // ===========================================================================
+
+  /** عتبة الفشل المتتالي من البيئة، وافتراضها 3 */
+  private failThreshold(): number {
+    return resolveFailThreshold(
+      this.configService.get<string>('VIRTUAL_NUMBER_FAIL_THRESHOLD'),
+    );
+  }
+
+  /**
+   * المنتج الذي يُقيَّم هذا الطلب: يُقرأ من productId المُخلَّد على الطلب لحظة
+   * الشراء، وأما طلبات ما قبل تعدد المزودين فتُنسب بهوية المزود+رمز الخدمة+الدولة.
+   */
+  private async resolveQualityProduct(
+    request: VirtualNumberRequestDocument,
+  ): Promise<VirtualNumberProductDocument | null> {
+    if (request.productId) {
+      return this.productModel.findById(request.productId).catch(() => null);
+    }
+    if (!request.providerId) return null;
+    return this.productModel
+      .findOne({
+        providerId: request.providerId,
+        serviceCode: request.service,
+        countryCode: request.country,
+      })
+      .catch(() => null);
+  }
+
+  /**
+   * تسجّل نتيجة شراء واحدة على منتجها، مرة واحدة لكل طلب مهما تعددت المصادر:
+   * المسح الدوري والويب هوك وإغلاق العميل قد تصل إلى نفس الطلب متزامنة. المطالبة
+   * الذرّية على qualityOutcome (نفس نمط refundedAt في الإرجاع) هي التي تضمن ذلك.
+   *
+   * الفشل المتتالي يزيد عند FAILED المؤكد وحده، ويصفِر عند SUCCESS؛ أما النتائج
+   * غير المحتسبة (إلغاء، نفاد مخزون، انقطاع) فتُسجَّل في السجل بلا أثر على التقييم.
+   * بلوغ العتبة يوقف وثيقة المنتج وحدها، فلا يمسّ المنتج المطابق لدى مزود آخر.
+   */
+  private async recordOutcome(
+    request: VirtualNumberRequestDocument,
+    source: VirtualNumberOutcomeSource,
+    reason = '',
+  ): Promise<void> {
+    const { outcome, counted } = classifyOutcome(request, source, reason);
+
+    // {field: null} في Mongo يطابق الحقل الغائب أيضاً، فلا يحتاج ترحيلاً سابقاً
+    const claimed = await this.requestModel
+      .findOneAndUpdate(
+        { _id: request._id, qualityOutcome: null },
+        { $set: { qualityOutcome: outcome, qualityRecordedAt: new Date() } },
+        { new: true },
+      )
+      .catch(() => null);
+    if (!claimed) return; // سبقها مصدر آخر: لا ازدواج في التقييم
+
+    const product = await this.resolveQualityProduct(request);
+    if (!product) {
+      // لا منتج يُنسب إليه (بيانات قديمة أو منتج حُذف): النتيجة تُترك بلا عدّادات
+      // وبلا حدث، لأن سجل الأحداث مربوط بمنتج.
+      this.logger.warn(
+        `Quality outcome ${outcome} for #${request.requestNumber} has no matching product`,
+      );
+      return;
+    }
+
+    const counterField = OUTCOME_COUNTER_FIELD[outcome];
+    const inc: Record<string, number> = { 'quality.totalOrders': 1 };
+    if (counterField) inc[`quality.${counterField}`] = 1;
+    // غير المحتسب لا يزيد ولا يصفّر العدّاد المتتالي: لا يُعاقَب مزود على إلغاء
+    // عميل، ولا يُكافأ بتصفير رصيده حين انقطع الاتصال.
+    if (outcome === VirtualNumberOutcome.FAILED) {
+      inc['quality.consecutiveFailures'] = 1;
+    } else if (outcome === VirtualNumberOutcome.SUCCESS) {
+      inc['quality.consecutiveFailures'] = -Number(
+        product.quality?.consecutiveFailures || 0,
+      );
+    }
+
+    // $inc مع {new: true} يعيد الوثيقة بعد الزيادة: هي ما يُقارَن بالعتبة، فلا
+    // قراءة ثم كتابة متنافستان تُضلل بلوغ العتبة تحت التزامن.
+    const updated = await this.productModel
+      .findOneAndUpdate({ _id: product._id }, { $inc: inc }, { new: true })
+      .catch((err: any) => {
+        this.logger.error(
+          `Quality counters failed for product ${product._id}: ${err?.message}`,
+        );
+        return null;
+      });
+    if (!updated) return;
+
+    const consecutive = Number(updated.quality?.consecutiveFailures) || 0;
+    const threshold = this.failThreshold();
+    let stopped = false;
+    if (
+      outcome === VirtualNumberOutcome.FAILED &&
+      consecutive >= threshold &&
+      !updated.autoDisabled
+    ) {
+      stopped = true;
+      await this.productModel
+        .updateOne(
+          { _id: updated._id },
+          {
+            $set: {
+              autoDisabled: true,
+              isActive: false,
+              disabledAt: new Date(),
+              disabledReason: `${consecutive} فشل متتالي مؤكد في وصول الأكواد`,
+            },
+          },
+        )
+        .catch(() => undefined);
+
+      const provider = await this.providerModel
+        .findById(updated.providerId)
+        .catch(() => null);
+      await this.notifyAdminsSafe(
+        'إيقاف تلقائي لمنتج أرقام وهمية',
+        `أُوقف «${provider?.serverLabel || 'سيرفر'}» لتطبيق ${updated.serviceCode} في دولة ${updated.countryName || updated.countryCode} بعد ${consecutive} فشل متتالي مؤكد. يعاد تفعيله من لوحة مراقبة الجودة.`,
+      );
+    }
+
+    await this.qualityEventModel
+      .create({
+        productId: updated._id,
+        providerId: updated.providerId,
+        appId: updated.appId,
+        countryCode: updated.countryCode,
+        outcome,
+        counted,
+        requestNumber: request.requestNumber,
+        requestId: request._id,
+        reason: reason || '',
+        source,
+      })
+      .catch((err: any) =>
+        this.logger.warn(`Quality event insert failed: ${err?.message}`),
+      );
+
+    if (stopped) {
+      // حدث الإيقاف وحده في السجل: اللوحة تعرض «أُوقف تلقائياً» لا فشلاً خامساً
+      await this.qualityEventModel
+        .create({
+          productId: updated._id,
+          providerId: updated.providerId,
+          appId: updated.appId,
+          countryCode: updated.countryCode,
+          outcome: VirtualNumberOutcome.AUTO_DISABLED,
+          counted: false,
+          requestNumber: request.requestNumber,
+          requestId: request._id,
+          reason: `إيقاف تلقائي بعد ${consecutive} فشل متتالي مؤكد`,
+          source: 'system',
+        })
+        .catch(() => undefined);
+    }
+  }
+
+  /** لا يُسقط المسار المالي ولا مسار العميل: الجودة فرع، والمال أصل */
+  private recordOutcomeSafe(
+    request: VirtualNumberRequestDocument,
+    source: VirtualNumberOutcomeSource,
+    reason = '',
+  ): void {
+    void this.recordOutcome(request, source, reason).catch((err: any) =>
+      this.logger.warn(
+        `Quality recording failed for ${request.requestNumber}: ${err?.message}`,
+      ),
+    );
+  }
+
+  // ===========================================================================
   // المسح الدوري: وصول الرموز، انتهاء المهلة، إغلاق الرموز المقروءة
   // ===========================================================================
 
@@ -1290,7 +1888,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
       // 1) الأرقام التي تجاوزت مهلتها بلا رمز: تُلغى لدى المزود ويُرجع المبلغ
       const expired = await this.requestModel.find({
-        status: { $in: [VirtualNumberStatus.PENDING, VirtualNumberStatus.WAITING] },
+        status: {
+          $in: [VirtualNumberStatus.PENDING, VirtualNumberStatus.WAITING],
+        },
         expiresAt: { $lte: now },
       });
       for (const request of expired) {
@@ -1298,8 +1898,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           request,
           `انتهت مهلة انتظار رمز التحقق (${this.waitTtlMinutes()} دقيقة) دون وصول رسالة`,
           VirtualNumberStatus.EXPIRED,
+          { source: 'sweep' },
         ).catch((err: any) =>
-          this.logger.warn(`Expiry sweep failed for ${request.requestNumber}: ${err.message}`),
+          this.logger.warn(
+            `Expiry sweep failed for ${request.requestNumber}: ${err.message}`,
+          ),
         );
       }
 
@@ -1312,8 +1915,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         await this.finishRequest(
           request,
           'تم إغلاق الرقم بعد استلام رمز التحقق',
+          undefined,
+          'sweep',
         ).catch((err: any) =>
-          this.logger.warn(`Finish sweep failed for ${request.requestNumber}: ${err.message}`),
+          this.logger.warn(
+            `Finish sweep failed for ${request.requestNumber}: ${err.message}`,
+          ),
         );
       }
 
@@ -1329,7 +1936,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         .limit(40);
       for (const request of live) {
         await this.syncRequest(request).catch((err: any) =>
-          this.logger.warn(`Live sweep failed for ${request.requestNumber}: ${err.message}`),
+          this.logger.warn(
+            `Live sweep failed for ${request.requestNumber}: ${err.message}`,
+          ),
         );
       }
     } finally {
@@ -1348,7 +1957,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   // الإدارة
   // ===========================================================================
 
-  async getAdminRequests(params: { status?: string; search?: string; limit?: number } = {}) {
+  async getAdminRequests(
+    params: { status?: string; search?: string; limit?: number } = {},
+  ) {
     const filter: Record<string, any> = {};
     if (params.status && params.status !== 'all') filter.status = params.status;
 
@@ -1360,19 +1971,36 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       .limit(limit);
 
     const term = (params.search || '').trim().toLowerCase();
-    if (!term) return rows.map((r) => this.toAdminView(r));
+    // الإدارة ترى اسم المزود الحقيقي: تُقرأ بيانات المزودات مرة واحدة للمجموعة
+    const metas = await Promise.all(
+      rows.map((r) => this.providerMetaFor(r.providerId)),
+    );
+    const adminRows = rows.map((r, i) => this.toAdminView(r, metas[i]));
+    if (!term) return adminRows;
 
-    return rows
-      .map((r) => this.toAdminView(r))
-      .filter((row) =>
-        [row.requestNumber, row.userEmail, row.userPhone, row.customUserId, row.phoneNumber, row.serviceName, row.service, row.countryName]
-          .filter(Boolean)
-          .some((value) => String(value).toLowerCase().includes(term)),
-      );
+    return adminRows.filter((row) =>
+      [
+        row.requestNumber,
+        row.userEmail,
+        row.userPhone,
+        row.customUserId,
+        row.phoneNumber,
+        row.serviceName,
+        row.service,
+        row.countryName,
+      ]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term)),
+    );
   }
 
   async getAdminStats() {
-    type StatusRow = { _id: string; count: number; amount: number; cost: number };
+    type StatusRow = {
+      _id: string;
+      count: number;
+      amount: number;
+      cost: number;
+    };
     const rows = await this.requestModel.aggregate<StatusRow>([
       {
         $group: {
@@ -1384,12 +2012,19 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       },
     ]);
 
-    const byStatus: Record<string, { count: number; amount: number; cost: number }> = {};
+    const byStatus: Record<
+      string,
+      { count: number; amount: number; cost: number }
+    > = {};
     let total = 0;
     let revenue = 0;
     let spend = 0;
     for (const row of rows) {
-      byStatus[row._id] = { count: row.count, amount: row.amount, cost: row.cost };
+      byStatus[row._id] = {
+        count: row.count,
+        amount: row.amount,
+        cost: row.cost,
+      };
       total += row.count;
       revenue += row.amount;
       spend += row.cost;
@@ -1433,8 +2068,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       request,
       'أُلغي الرقم بواسطة الإدارة، وتم إرجاع المبلغ إلى محفظتك',
       VirtualNumberStatus.CANCELLED,
-      true,
-      `${reason || 'ألغته الإدارة الرقمَ وأرجعت المبلغ للعميل'} (بواسطة الإدارة ${adminId})`,
+      {
+        adminNote: `${reason || 'ألغته الإدارة الرقمَ وأرجعت المبلغ للعميل'} (بواسطة الإدارة ${adminId})`,
+        source: 'admin',
+      },
     );
     return result;
   }
@@ -1443,11 +2080,13 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   async adminFinishRequest(id: string, reason?: string) {
     const request = await this.requestModel.findById(id);
     if (!request) throw new NotFoundException('الطلب غير موجود');
-    if (!this.isLive(request)) throw new BadRequestException('الطلب مغلق بالفعل');
+    if (!this.isLive(request))
+      throw new BadRequestException('الطلب مغلق بالفعل');
     return this.finishRequest(
       request,
       'تم إغلاق الرقم بعد استلام رمز التحقق',
       reason || 'أغلقت الإدارة الطلب بعد استلام الرمز',
+      'admin',
     );
   }
 
@@ -1455,7 +2094,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   async adminCheckProvider() {
     const provider = await this.resolveProvider();
     const profile = await this.refreshProviderBalance(provider);
-    const catalog = await this.catalogModel.findOne({ providerId: provider._id });
+    const catalog = await this.catalogModel.findOne({
+      providerId: provider._id,
+    });
     return {
       provider: {
         id: provider._id.toString(),
@@ -1483,14 +2124,18 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (!app) {
       throw new BadRequestException('هذه الخدمة أو الدولة غير متاحة حالياً');
     }
-    const allowed = await this.productModel.exists({
+    // المنتج الموقوف جودةً لا يُباع: نفس رسالة غياب الخدمة كي لا يكشف للعميل
+    // أن هذا السيرفر تحديداً متوقف
+    const product = await this.productModel.findOne({
       appId: app._id,
       countryCode: country,
       isActive: true,
+      autoDisabled: { $ne: true },
     });
-    if (!allowed) {
+    if (!product) {
       throw new BadRequestException('هذه الخدمة أو الدولة غير متاحة حالياً');
     }
+    return product as VirtualNumberProductDocument;
   }
 
   /** جلب كتالوج مزود (معيّن أو المُحال تلقائياً) بعد تجديده إن قدُم */
@@ -1529,8 +2174,24 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     // حتى يُعاد اسم كل دولة وحالتها ضمن بطاقة التطبيق
     const allProducts = await this.productModel
       .find({ appId: { $in: apps.map((a) => a._id) } })
-      .select('appId countryCode countryName isActive')
+      .select(
+        'appId providerId countryCode countryName isActive autoDisabled quality',
+      )
       .lean();
+
+    // الدولة تُوسم باسم سيرفرها: اللوحة تعرض نفس الاسم الذي يراه العميل
+    const productProviderIds = [
+      ...new Set(
+        allProducts.map((p) => String(p.providerId ?? '')).filter(Boolean),
+      ),
+    ];
+    const productProviders =
+      productProviderIds.length > 0
+        ? await this.providerModel.find({ _id: { $in: productProviderIds } })
+        : [];
+    const serverLabelById = new Map<string, string>(
+      productProviders.map((p) => [String(p._id), String(p.serverLabel || '')]),
+    );
 
     const productsByApp = new Map<string, typeof allProducts>();
     for (const p of allProducts) {
@@ -1553,9 +2214,18 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         productCount: products.length,
         activeProductCount: activeCount,
         countries: products.map((p) => ({
+          id: p._id.toString(),
           code: p.countryCode,
           name: p.countryName || p.countryCode,
           active: p.isActive !== false,
+          providerId: p.providerId ? String(p.providerId) : '',
+          serverLabel: serverLabelById.get(String(p.providerId ?? '')) || '',
+          // حالة الجودة تُوسم بها الدولة حتى تعرف اللوحة أي سيرفر يُوقف الآن
+          autoDisabled: p.autoDisabled === true,
+          consecutiveFailures: Number(p.quality?.consecutiveFailures ?? 0),
+          totalOrders: Number(p.quality?.totalOrders ?? 0),
+          success: Number(p.quality?.success ?? 0),
+          failure: Number(p.quality?.failure ?? 0),
         })),
       };
     });
@@ -1627,8 +2297,21 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const app = await this.appModel.findById(id);
     if (!app) throw new NotFoundException('التطبيق غير موجود');
     await this.productModel.deleteMany({ appId: app._id });
+    // خدمات «تفعيل مضمون» المرتبطة بالتطبيق تُوقَف: المرجع يبقى محفوراً في
+    // الطلبات، والحذف بلا إيقاف يخلّف خدمة بمرجع ميت تُعطل خيارات العميل
+    const stopped = await this.manualServiceModel.updateMany(
+      {
+        type: ProductType.MANUAL,
+        virtualNumberAppId: app._id,
+        isActive: true,
+      },
+      { $set: { isActive: false } },
+    );
     await app.deleteOne();
-    return { message: 'تم حذف التطبيق ودوله المرتبطة' };
+    return {
+      message: 'تم حذف التطبيق ودوله المرتبطة',
+      stoppedManualServices: stopped?.modifiedCount ?? 0,
+    };
   }
 
   /**
@@ -1671,11 +2354,17 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const apps = await this.appModel.find();
     const appByService = new Map(apps.map((a) => [a.serviceCode, a]));
 
-    // كل المنتجات الحالية مفهرسة بمفتاح خدمة|دولة
+    // كل المنتجات الحالية مفهرسة بمفتاح مزود|خدمة|دولة: الدولة نفسها من مزود
+    // آخر منتجٌ مستقل، فلا تُوسم «مُنتقاة» في كتالوج هذا المزود لمجرد أن مزوداً
+    // غيرها يبيعها
+    const providerKey = String(provider._id);
     const products = await this.productModel.find({});
     const productByKey = new Map<string, VirtualNumberProductDocument>();
     for (const p of products) {
-      productByKey.set(`${p.serviceCode}|${p.countryCode}`, p);
+      productByKey.set(
+        `${String(p.providerId ?? '')}|${p.serviceCode}|${p.countryCode}`,
+        p,
+      );
     }
 
     const marginType = provider.profitMarginType ?? ProfitMarginType.PERCENTAGE;
@@ -1686,6 +2375,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         id: provider._id.toString(),
         name: provider.name,
         status: provider.status,
+        // الاسم الوهمي: تُوسَم به دول هذا الكتالوج في اللوحة كما تُعرض للعميل
+        serverLabel: String(provider.serverLabel || ''),
       },
       margin: { type: marginType, value: marginValue },
       services: services.map((svc) => {
@@ -1704,9 +2395,14 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           appName: app?.name ?? '',
           appActive: app ? app.isActive !== false : false,
           countries: (svc.countries ?? []).map((c) => {
-            const product = productByKey.get(`${svc.code}|${c.code}`);
+            const product = productByKey.get(
+              `${providerKey}|${svc.code}|${c.code}`,
+            );
             const cost = Number(c.cost) || 0;
-            const cMeta = resolveCountryMeta(c.code || c.name, provider?.providerType);
+            const cMeta = resolveCountryMeta(
+              c.code || c.name,
+              provider?.providerType,
+            );
             return {
               code: c.code,
               name: c.name || cMeta.name,
@@ -1721,6 +2417,13 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
               added: Boolean(product),
               productId: product ? product._id.toString() : null,
               productActive: product ? product.isActive !== false : false,
+              // حالة الجودة تُوسم بها الدولة في صفحة الانتقاء نفسها
+              productAutoDisabled: product
+                ? product.autoDisabled === true
+                : false,
+              productConsecutiveFailures: product
+                ? Number(product.quality?.consecutiveFailures ?? 0)
+                : 0,
             };
           }),
         };
@@ -1748,11 +2451,35 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     }
 
     let added = 0;
+    // المنتج بلا مزود لا معنى له مع متعدّد السيرفرات: يُؤخذ من الطلب ثم من
+    // التطبيق ثم من المزود الوحيد المسجَّل، وإلا يُطلب تحديد السيرفر صراحة
+    let targetProviderId: Types.ObjectId | null = null;
+    if (dto.providerId && Types.ObjectId.isValid(dto.providerId)) {
+      targetProviderId = new Types.ObjectId(dto.providerId);
+    } else if (
+      app.providerId &&
+      Types.ObjectId.isValid(String(app.providerId))
+    ) {
+      targetProviderId = new Types.ObjectId(String(app.providerId));
+    }
+    if (!targetProviderId) {
+      const active = await this.resolveActiveProviders().catch(() => []);
+      if (active.length !== 1) {
+        throw new BadRequestException(
+          'حدّد السيرفر قبل إضافة الدولة: هذا التطبيق يُباع من أكثر من سيرفر',
+        );
+      }
+      targetProviderId = active[0]._id;
+    }
+
     for (const c of countries) {
       const code = (c.code || '').trim();
       if (!code) continue;
+      // التكرار يُقاس على (تطبيق + سيرفر + دولة): نفس الدولة من سيرفر آخر منتجٌ
+      // جديدٌ كامل العدّادات لا نسخة معدّلة مما يوجد
       const exists = await this.productModel.exists({
         appId: app._id,
+        providerId: targetProviderId,
         countryCode: code,
       });
       if (exists) continue;
@@ -1767,10 +2494,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           code: o.code,
           name: o.name,
         })),
-        providerId:
-          dto.providerId && Types.ObjectId.isValid(dto.providerId)
-            ? new Types.ObjectId(dto.providerId)
-            : app.providerId,
+        providerId: targetProviderId,
         isActive: true,
       });
       added += 1;
@@ -1782,7 +2506,17 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   async toggleProduct(id: string) {
     const product = await this.productModel.findById(id);
     if (!product) throw new NotFoundException('المنتج غير موجود');
-    product.isActive = product.isActive === false;
+    if (product.isActive === false) {
+      // التفعيل اليدوي قرار إداري باستئناف البيع: يجب أن يصفّر المتتالي وإلا
+      // أوقفه أول فشل جديد فوراً لأن عدّاده ما زال محمّلاً بالتاريخ
+      await this.enableProductQuality(product);
+      return {
+        isActive: true,
+        autoDisabled: false,
+        message: 'تم تفعيل الدولة',
+      };
+    }
+    product.isActive = false;
     await product.save();
     return {
       isActive: product.isActive,
@@ -1798,6 +2532,299 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   // ===========================================================================
+  // مراقبة الجودة: عدّادات المنتجات وسجل أحداثها وإعادة تفعيلها
+  // ===========================================================================
+
+  /** سلة المنتج: موقوف جودةً أولاً، ثم تحت المراقبة، ثم نشط */
+  private qualityBucket(product: VirtualNumberProductDocument): string {
+    if (product.autoDisabled === true) return 'disabled';
+    if (Number(product.quality?.consecutiveFailures ?? 0) >= 1)
+      return 'watching';
+    return 'active';
+  }
+
+  /**
+   * لوحة مراقبة الجودة: صف لكل منتج (مزود + تطبيق + دولة) بعداداته الحيّة.
+   * الملخص يُحسب على كامل المجموعة قبل تطبيق السلة والبحث، فتعرف اللوحة حجم
+   * كل سلّة مهما كان المرشّح المعروض.
+   */
+  async getAdminQuality(
+    params: { bucket?: string; providerId?: string; search?: string } = {},
+  ) {
+    const filter: Record<string, any> = {};
+    if (params.providerId) {
+      if (!Types.ObjectId.isValid(params.providerId)) {
+        return {
+          summary: { all: 0, active: 0, watching: 0, disabled: 0 },
+          rows: [],
+        };
+      }
+      filter.providerId = new Types.ObjectId(params.providerId);
+    }
+
+    const products = await this.productModel
+      .find(filter)
+      .sort({ createdAt: -1 });
+
+    const appIds = [...new Set(products.map((p) => String(p.appId)))];
+    const providerIds = [
+      ...new Set(
+        products.map((p) => String(p.providerId ?? '')).filter(Boolean),
+      ),
+    ];
+    const [apps, providers] = await Promise.all([
+      appIds.length > 0
+        ? this.appModel.find({ _id: { $in: appIds } })
+        : ([] as VirtualNumberAppDocument[]),
+      providerIds.length > 0
+        ? this.providerModel.find({ _id: { $in: providerIds } })
+        : ([] as ProviderDocument[]),
+    ]);
+    const appsById = new Map<string, any>(
+      apps.map((a) => [String(a._id), a] as [string, any]),
+    );
+    const providersById = new Map<string, any>(
+      providers.map((p) => [String(p._id), p] as [string, any]),
+    );
+
+    const rows = products.map((product) => {
+      const q: any = product.quality ?? {};
+      const success = Number(q.success ?? 0);
+      const failure = Number(q.failure ?? 0);
+      // النسبة على المحتسب وحده: الإلغاء ونفاد المخزون والمعلّق لا تُحسب ضد المزود
+      const counted = success + failure;
+      const provider = providersById.get(String(product.providerId));
+      const app = appsById.get(String(product.appId));
+      const appMeta = resolveAppMeta(
+        product.serviceCode || app?.serviceCode || '',
+      );
+      const countryMeta = resolveCountryMeta(product.countryCode);
+      return {
+        productId: product._id.toString(),
+        bucket: this.qualityBucket(product),
+        providerId: provider ? String(provider._id) : '',
+        // الاسم الوهمي هو ما يراه العميل، والاسم الحقيقي يبقى في اللوحة فقط
+        serverLabel: String(provider?.serverLabel || ''),
+        providerName: String(provider?.name || ''),
+        providerMissing: !provider,
+        providerActive: provider ? provider.isActive !== false : false,
+        appId: app ? String(app._id) : String(product.appId ?? ''),
+        appName: String(app?.name || appMeta.name),
+        appIcon: String(app?.iconUrl || appMeta.icon),
+        serviceCode: product.serviceCode,
+        countryCode: product.countryCode,
+        countryName: String(product.countryName || countryMeta.name),
+        flag: countryMeta.flag,
+        isActive: product.isActive !== false,
+        autoDisabled: product.autoDisabled === true,
+        totalOrders: Number(q.totalOrders ?? 0),
+        success,
+        failure,
+        cancelled: Number(q.cancelled ?? 0),
+        outOfStock: Number(q.outOfStock ?? 0),
+        pending: Number(q.pending ?? 0),
+        consecutiveFailures: Number(q.consecutiveFailures ?? 0),
+        codeRate: counted > 0 ? Number((success / counted).toFixed(3)) : null,
+        disabledAt: product.disabledAt ?? null,
+        disabledReason: String(product.disabledReason ?? ''),
+        disabledBy: String(product.disabledBy ?? ''),
+      };
+    });
+
+    const summary = {
+      all: rows.length,
+      active: rows.filter((r) => r.bucket === 'active').length,
+      watching: rows.filter((r) => r.bucket === 'watching').length,
+      disabled: rows.filter((r) => r.bucket === 'disabled').length,
+    };
+
+    const bucket = ['active', 'watching', 'disabled'].includes(
+      params.bucket || '',
+    )
+      ? (params.bucket as string)
+      : 'all';
+    const term = (params.search || '').trim().toLowerCase();
+    const rank: Record<string, number> = {
+      disabled: 0,
+      watching: 1,
+      active: 2,
+    };
+
+    const filtered = rows
+      .filter((row) => bucket === 'all' || row.bucket === bucket)
+      .filter(
+        (row) =>
+          !term ||
+          [
+            row.serverLabel,
+            row.providerName,
+            row.appName,
+            row.countryName,
+            row.countryCode,
+            row.serviceCode,
+          ]
+            .filter(Boolean)
+            .some((value) => String(value).toLowerCase().includes(term)),
+      )
+      .sort(
+        (a, b) =>
+          rank[a.bucket] - rank[b.bucket] ||
+          b.consecutiveFailures - a.consecutiveFailures ||
+          b.totalOrders - a.totalOrders,
+      );
+
+    return { summary, rows: filtered };
+  }
+
+  /** سجل أحداث منتج: أسباب النتائج الخام + آخر طلباته لعله يكتشف نمطاً */
+  async getProductQualityEvents(productId: string, limit = 50) {
+    if (!Types.ObjectId.isValid(productId)) {
+      throw new NotFoundException('المنتج غير موجود');
+    }
+    const oid = new Types.ObjectId(productId);
+    const product = await this.productModel.findById(oid).catch(() => null);
+    if (!product) throw new NotFoundException('المنتج غير موجود');
+
+    const capped = Math.min(Math.max(Math.trunc(limit) || 50, 1), 200);
+    const [events, requests, provider, app] = await Promise.all([
+      this.qualityEventModel
+        .find({ productId: oid })
+        .sort({ createdAt: -1 })
+        .limit(capped),
+      this.requestModel
+        .find({ productId: oid })
+        .sort({ createdAt: -1 })
+        .limit(capped),
+      this.providerMetaFor(product.providerId),
+      this.appModel.findById(product.appId).catch(() => null),
+    ]);
+    const q: any = product.quality ?? {};
+
+    return {
+      product: {
+        productId: product._id.toString(),
+        serverLabel: provider.label,
+        providerName: provider.name,
+        appName: String(app?.name || ''),
+        serviceCode: product.serviceCode,
+        countryCode: product.countryCode,
+        countryName: String(product.countryName || ''),
+        isActive: product.isActive !== false,
+        autoDisabled: product.autoDisabled === true,
+        consecutiveFailures: Number(q.consecutiveFailures ?? 0),
+        totalOrders: Number(q.totalOrders ?? 0),
+        success: Number(q.success ?? 0),
+        failure: Number(q.failure ?? 0),
+        cancelled: Number(q.cancelled ?? 0),
+        outOfStock: Number(q.outOfStock ?? 0),
+        pending: Number(q.pending ?? 0),
+        disabledAt: product.disabledAt ?? null,
+        disabledReason: String(product.disabledReason ?? ''),
+        disabledBy: String(product.disabledBy ?? ''),
+      },
+      events: events.map((e) => ({
+        id: e._id.toString(),
+        outcome: e.outcome,
+        // `counted` هي الفيصل: الحدث غير المحتسب لا يغيّر تقييم المزود
+        counted: e.counted === true,
+        source: e.source,
+        reason: String(e.reason || ''),
+        requestNumber: String(e.requestNumber || ''),
+        requestId: e.requestId ? e.requestId.toString() : '',
+        createdAt: (e as any).createdAt ?? null,
+      })),
+      requests: requests.map((r) => ({
+        id: r._id.toString(),
+        requestNumber: r.requestNumber,
+        status: r.status,
+        phoneNumber: String(r.phoneNumber || ''),
+        operator: String(r.operator || ''),
+        amount: Number(r.amount) || 0,
+        // وصول الرمز هو ما يفرّق الفشل عن النجاح، لا حالة الطلب وحدها
+        hasCode: Boolean(r.smsCode),
+        smsCode: r.smsCode ?? null,
+        qualityOutcome: r.qualityOutcome ?? null,
+        createdAt: (r as any).createdAt ?? null,
+        closedAt: r.closedAt ?? null,
+      })),
+    };
+  }
+
+  /**
+   * يرفع الإيقاف الجودةي عن منتج ويصفّر متتالي الفشل وحده — العدّادات التاريخية
+   * تبقى لأن فشل الأمس حقيقة موثقة حتى لو أصلحته الإدارة اليوم.
+   */
+  private async enableProductQuality(
+    product: VirtualNumberProductDocument,
+    actorName = '',
+    note?: string,
+  ) {
+    const wasBlocked =
+      product.autoDisabled === true || product.isActive === false;
+    const updated = await this.productModel.findOneAndUpdate(
+      { _id: product._id },
+      {
+        $set: {
+          'quality.consecutiveFailures': 0,
+          autoDisabled: false,
+          isActive: true,
+          disabledAt: null,
+          disabledReason: null,
+          disabledBy: null,
+        },
+      },
+      { new: true },
+    );
+    if (wasBlocked) {
+      await this.qualityEventModel
+        .create({
+          productId: product._id,
+          providerId: product.providerId,
+          appId: product.appId,
+          countryCode: product.countryCode,
+          outcome: VirtualNumberOutcome.REACTIVATED,
+          counted: false,
+          requestNumber: '',
+          reason:
+            note?.trim() ||
+            (actorName
+              ? `أعادت الإدارة ${actorName} تفعيل المنتج`
+              : 'أعادت الإدارة تفعيل المنتج'),
+          source: 'admin' as VirtualNumberOutcomeSource,
+        })
+        .catch((err: any) =>
+          this.logger.warn(
+            `Quality reactivation event failed: ${err?.message}`,
+          ),
+        );
+    }
+    return updated ?? product;
+  }
+
+  /** إعادة تفعيل يدوية من اللوحة: تصفّر المتتالي وتُبقي كل العدّادات */
+  async reactivateProduct(productId: string, note?: string, actorName = '') {
+    if (!Types.ObjectId.isValid(productId)) {
+      throw new NotFoundException('المنتج غير موجود');
+    }
+    const product = await this.productModel
+      .findById(new Types.ObjectId(productId))
+      .catch(() => null);
+    if (!product) throw new NotFoundException('المنتج غير موجود');
+
+    const wasAutoDisabled = product.autoDisabled === true;
+    await this.enableProductQuality(product, actorName, note);
+    return {
+      message: wasAutoDisabled
+        ? 'أُعيد تفعيل المنتج وصفّرت عدّادات الفشل المتتالي'
+        : 'صفّرت عدّادات الفشل المتتالي للمنتج',
+      productId: product._id.toString(),
+      autoDisabled: false,
+      isActive: true,
+      consecutiveFailures: 0,
+    };
+  }
+
+  // ===========================================================================
   // خدمات الأرقام اليدوية (تفعيل مضمون) — القسم الأول في صفحة أرقام العميل
   // الخدمة منتج (type=manual) بلا تطبيق متجر، بل مرتبطة بتطبيق أرقام؛ وطلبها
   // يمر عبر /orders نفسه فيسلك مسار الخدمات اليدوية: مشرف مُسند، محفظة ذرّية
@@ -1805,7 +2832,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   // ===========================================================================
 
   private manualServiceView(service: any, apps: Map<string, any> = new Map()) {
-    const app = apps.get(String(service.virtualNumberAppId?._id ?? service.virtualNumberAppId ?? ''));
+    const app = apps.get(
+      String(
+        service.virtualNumberAppId?._id ?? service.virtualNumberAppId ?? '',
+      ),
+    );
     return {
       id: service._id.toString(),
       name: service.name,
@@ -1815,7 +2846,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       requiredFields: service.requiredFields ?? [],
       estimatedMinutes: service.estimatedMinutes ?? 120,
       isActive: service.isActive !== false,
-      appId: app ? app._id.toString() : String(service.virtualNumberAppId ?? ''),
+      appId: app
+        ? app._id.toString()
+        : String(service.virtualNumberAppId ?? ''),
       appName: app?.name ?? '',
       appIcon: app?.iconUrl ?? '',
       // رمز الخدمة يُستعمل لاختيار أيقونة مدمجة عند غياب الأيقونة المخصصة
@@ -1838,11 +2871,24 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       .sort({ salePrice: 1, createdAt: -1 })
       .lean();
 
-    return services
-      .filter((s: any) => (s.virtualNumberAppId as any)?.isActive !== false)
-      .map((s: any) =>
-        this.manualServiceView(s, new Map([[String(s.virtualNumberAppId._id), s.virtualNumberAppId]])),
+    const views: Array<Record<string, any>> = [];
+    for (const service of services) {
+      const app = service.virtualNumberAppId as any;
+      // حذف التطبيق يُبقي المرجع في المنتج اليدوي فيرجع populate بـ null: البطاقة
+      // تكون بلا اسم ولا أيقونة، وطلبها لا يُسلَّم لمشرف، فتُخفى عن العميل وتبقى
+      // في قائمة الإدارة كي تُعاد تربيتها بتطبيق آخر
+      if (!app?._id) {
+        this.logger.warn(
+          `Manual service ${service._id} references a deleted virtual number app`,
+        );
+        continue;
+      }
+      if (app.isActive === false) continue;
+      views.push(
+        this.manualServiceView(service, new Map([[String(app._id), app]])),
       );
+    }
+    return views;
   }
 
   /** كل خدمات الأرقام اليدوية للإدارة، مع عدد الطلبات الجارية لكل خدمة */
@@ -1857,22 +2903,34 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       .sort({ createdAt: -1 })
       .lean();
 
-    const open = await this.orderModel.aggregate<{ serviceId: string; count: number }>([
+    const open = await this.orderModel.aggregate<{
+      serviceId: string;
+      count: number;
+    }>([
       {
         $match: {
           virtualNumberAppId: { $exists: true, $ne: null },
           status: {
-            $nin: [OrderStatus.COMPLETED, OrderStatus.REFUNDED, OrderStatus.REJECTED],
+            $nin: [
+              OrderStatus.COMPLETED,
+              OrderStatus.REFUNDED,
+              OrderStatus.REJECTED,
+            ],
           },
         },
       },
       { $group: { _id: '$productId', count: { $sum: 1 } } },
       { $project: { serviceId: { $toString: '$_id' }, count: 1 } },
     ]);
-    const openByService = new Map(open.map((row) => [row.serviceId, row.count]));
+    const openByService = new Map(
+      open.map((row) => [row.serviceId, row.count]),
+    );
 
     return services.map((s: any) => ({
-      ...this.manualServiceView(s, new Map([[String(s.virtualNumberAppId?._id), s.virtualNumberAppId]])),
+      ...this.manualServiceView(
+        s,
+        new Map([[String(s.virtualNumberAppId?._id), s.virtualNumberAppId]]),
+      ),
       sensitiveFields: s.sensitiveFields ?? [],
       isSensitive: Boolean(s.isSensitive),
       supervisorId: s.assignedSupervisorId?._id
@@ -2014,7 +3072,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     }
     if (dto.isSensitive !== undefined) {
       service.isSensitive = dto.isSensitive === true;
-      service.sensitiveFields = service.isSensitive ? service.requiredFields : [];
+      service.sensitiveFields = service.isSensitive
+        ? service.requiredFields
+        : [];
     }
     if (dto.isActive !== undefined) service.isActive = dto.isActive !== false;
 
@@ -2031,8 +3091,13 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     await service.save();
     // الرتب تتزامن مع الإسناد: القديم يعود عميلاً إن لم يبقَ لديه عمل، والجديد يُرقّى
     await this.reconcileSupervisorRole(supervisorId);
-    if (previousSupervisorId && previousSupervisorId !== supervisorId?.toString()) {
-      await this.reconcileSupervisorRole(new Types.ObjectId(previousSupervisorId));
+    if (
+      previousSupervisorId &&
+      previousSupervisorId !== supervisorId?.toString()
+    ) {
+      await this.reconcileSupervisorRole(
+        new Types.ObjectId(previousSupervisorId),
+      );
     }
     return { message: 'تم تحديث الخدمة' };
   }
@@ -2060,7 +3125,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const openCount = await this.orderModel.countDocuments({
       productId: service._id,
       status: {
-        $nin: [OrderStatus.COMPLETED, OrderStatus.REFUNDED, OrderStatus.REJECTED],
+        $nin: [
+          OrderStatus.COMPLETED,
+          OrderStatus.REFUNDED,
+          OrderStatus.REJECTED,
+        ],
       },
     });
     if (openCount > 0) {
@@ -2089,16 +3158,26 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (!user || user.role === Role.ADMIN || user.role === Role.AGENT) return;
 
     const [assignedProducts, activeOrders] = await Promise.all([
-      this.manualServiceModel.countDocuments({ assignedSupervisorId: user._id }),
+      this.manualServiceModel.countDocuments({
+        assignedSupervisorId: user._id,
+      }),
       this.orderModel.countDocuments({
         assignedSupervisorId: user._id,
         status: {
-          $nin: [OrderStatus.COMPLETED, OrderStatus.REFUNDED, OrderStatus.REJECTED],
+          $nin: [
+            OrderStatus.COMPLETED,
+            OrderStatus.REFUNDED,
+            OrderStatus.REJECTED,
+          ],
         },
       }),
     ]);
 
-    if (assignedProducts === 0 && activeOrders === 0 && user.role === Role.SUPERVISOR) {
+    if (
+      assignedProducts === 0 &&
+      activeOrders === 0 &&
+      user.role === Role.SUPERVISOR
+    ) {
       user.role = Role.USER;
       await user.save();
       this.logger.log(`تم إرجاع المشرف ${user.email} إلى عميل (لا يوجد إسناد)`);
@@ -2130,7 +3209,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         status: TransactionStatus.COMPLETED,
       });
     } catch (err: any) {
-      this.logger.error(`Duplicate-debit compensation failed for ${user._id}: ${err.message}`);
+      this.logger.error(
+        `Duplicate-debit compensation failed for ${user._id}: ${err.message}`,
+      );
       await this.notifyAdminsSafe(
         'تنبيه مالي: سحب مكرر لرقم وهمي غير معوّض',
         `أُعيد إرسال طلب رقم للعميل ${user.name} بمبلغ $${amount.toFixed(2)} وفشل إرجاع السحب الثاني؛ يلزم تدخل يدوي.`,
@@ -2143,11 +3224,17 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     amount: number,
     cause: any,
   ) {
-    this.logger.error(`Virtual number request persist failed: ${cause?.message}`);
+    this.logger.error(
+      `Virtual number request persist failed: ${cause?.message}`,
+    );
     try {
-      await this.userModel.findByIdAndUpdate(user._id, { $inc: { balance: amount } });
+      await this.userModel.findByIdAndUpdate(user._id, {
+        $inc: { balance: amount },
+      });
     } catch (err: any) {
-      this.logger.error(`Emergency refund failed for ${user._id}: ${err.message}`);
+      this.logger.error(
+        `Emergency refund failed for ${user._id}: ${err.message}`,
+      );
       await this.notifyAdminsSafe(
         'تنبيه مالي: خصم بلا تعويض (أرقام وهمية)',
         `خُصم $${amount.toFixed(2)} من العميل ${user.name} لفشل حفظ طلب الرقم وفشل إرجاعه تلقائياً؛ يلزم تدخل يدوي.`,
@@ -2174,14 +3261,50 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     return `VN-${stamp}-${rand}`;
   }
 
+  /**
+   * بيانات المزود لأغراض العرض فقط: `label` الوهمي الذي يُسمح للعميل برؤيته،
+   * و`name` الحقيقي الذي لا يغادر واجهات الإدارة. يُخزَّن مؤقتاً لأن كل طلب
+   * معروض يحتاجه والمزود لا يُبدَّل اسمه إلا من اللوحة.
+   */
+  private async providerMetaFor(
+    providerId: any,
+  ): Promise<{ label: string; name: string }> {
+    const empty = { label: '', name: '' };
+    if (!providerId) return empty;
+    const key = String(providerId);
+    const cached = this.providerMetaCache.get(key);
+    if (cached && Date.now() - cached.at < PROVIDER_META_TTL_MS) return cached;
+
+    let provider: any = null;
+    try {
+      provider = await this.providerModel.findById(key);
+    } catch (err: any) {
+      this.logger.warn(`Provider meta lookup failed: ${err?.message}`);
+      return empty;
+    }
+    const meta = {
+      label: String(provider?.serverLabel || '').trim(),
+      name: String(provider?.name || '').trim(),
+      at: Date.now(),
+    };
+    this.providerMetaCache.set(key, meta);
+    return meta;
+  }
+
   // العرض للعميل: الرقم بصيغة دولية والرمز متاح بعد وصوله فقط
-  private toView(request: VirtualNumberRequestDocument) {
+  private toView(
+    request: VirtualNumberRequestDocument,
+    // الاسم الوهمي للسيرفر: يُقرأ من مزود الطلب، فلا يعرف العميل مزوّده أبداً
+    serverLabel = '',
+  ) {
     const raw = (request as any).toObject?.() ?? request;
     const appMeta = resolveAppMeta(request.service);
     const countryMeta = resolveCountryMeta(request.country);
     return {
       id: request._id.toString(),
       requestNumber: request.requestNumber,
+      productId: request.productId ? request.productId.toString() : null,
+      serverLabel,
       service: request.service,
       serviceName: request.serviceName || appMeta.name,
       nameAr: appMeta.nameAr,
@@ -2209,10 +3332,22 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
-  private toAdminView(request: VirtualNumberRequestDocument) {
+  /** عرض طلب للعميل مع اسم السيرفر الوهمي لمزوده */
+  private async viewForClient(request: VirtualNumberRequestDocument) {
+    const meta = await this.providerMetaFor(request.providerId);
+    return this.toView(request, meta.label);
+  }
+
+  private toAdminView(
+    request: VirtualNumberRequestDocument,
+    meta: { label: string; name: string } = { label: '', name: '' },
+  ) {
     const user: any = (request as any).userId;
     return {
-      ...this.toView(request),
+      ...this.toView(request, meta.label),
+      // الإدارة ترى المزود الحقيقي ومعرّف المنتج لأن تقييم الجودة يخصّ مزوداً بعينه
+      providerId: request.providerId ? request.providerId.toString() : '',
+      providerName: meta.name,
       // الإدارة ترى السبب الداخلي إن وُجد، وإلا ترى رسالة العميل نفسها
       adminNote: request.adminNote || request.note || '',
       cost: Number(request.cost) || 0,

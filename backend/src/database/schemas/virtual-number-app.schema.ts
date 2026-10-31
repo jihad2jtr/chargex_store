@@ -21,6 +21,12 @@ export class VirtualNumberApp {
   @Prop({ required: true, trim: true, index: true })
   serviceCode: string;
 
+  // المعرّف المنطقي من المعجم (resolveAppMeta(...).key): يبقى التطبيق واحداً
+  // (واتساب مثلاً) مهما اختلف رمز الخدمة لدى كل مزود. غير فريد لأن الفهرس الفريد
+  // الحقيقي هو رمز الخدمة `serviceCode`.
+  @Prop({ trim: true, index: true })
+  appKey?: string;
+
   // مزود الأرقام الذي عُرِّف التطبيق من كتالوجه (اختياري: للمرجعية وتحديث الأسعار)
   @Prop({ type: Types.ObjectId, ref: 'Provider', index: true })
   providerId?: Types.ObjectId;

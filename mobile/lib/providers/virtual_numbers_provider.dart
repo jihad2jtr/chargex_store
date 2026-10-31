@@ -15,6 +15,10 @@ import '../models/virtual_number_model.dart';
 class VirtualNumbersProvider extends ChangeNotifier {
   static const Duration _pollInterval = Duration(seconds: 8);
 
+  /// مفتاح تخزين العروض: مُنسخ لأن المخزّن القديم كان بلا `productId` ولا
+  /// قائمة عروض، فقراءته تعرض سيرفرات لا يمكن شراء أرقامها
+  static const String _optionsCacheKey = 'vn_options_v2';
+
   VirtualNumberOptions _options = VirtualNumberOptions.empty();
   List<VirtualNumberRequestModel> _myRequests = const [];
   List<VirtualNumberRequestModel> _adminRequests = const [];
@@ -22,6 +26,11 @@ class VirtualNumbersProvider extends ChangeNotifier {
   List<VirtualNumberAppModel> _adminApps = const [];
   VirtualNumberAdminCatalog _adminCatalog = VirtualNumberAdminCatalog.empty();
   List<VirtualNumberManualServiceModel> _adminManualServices = const [];
+
+  // لوحة مراقبة الجودة: صفوف المنتجات + ورقة تفاصيل المنتج المختار
+  VirtualNumberQualityBoard _qualityBoard = VirtualNumberQualityBoard.empty();
+  VirtualNumberQualityDetail? _qualityDetail;
+  bool _isQualityLoading = false;
 
   bool _isLoadingOptions = false;
   bool _isLoadingRequests = false;
@@ -46,6 +55,9 @@ class VirtualNumbersProvider extends ChangeNotifier {
   VirtualNumberAdminCatalog get adminCatalog => _adminCatalog;
   List<VirtualNumberManualServiceModel> get adminManualServices =>
       _adminManualServices;
+  VirtualNumberQualityBoard get qualityBoard => _qualityBoard;
+  VirtualNumberQualityDetail? get qualityDetail => _qualityDetail;
+  bool get isQualityLoading => _isQualityLoading;
   bool get isLoadingOptions => _isLoadingOptions;
   bool get isLoadingRequests => _isLoadingRequests;
   bool get isSubmitting => _isSubmitting;
@@ -83,7 +95,8 @@ class VirtualNumbersProvider extends ChangeNotifier {
       _myRequests = cached;
     }
     final cachedOptions = CacheService.instance.getList(
-      'vn_options',
+      // نسخة المفتاح: المخزّن القديم بلا productId كان يعرض عروضاً لا تُشترى
+      _optionsCacheKey,
       _serviceFromJson,
     );
     final cachedManual = CacheService.instance.getList(
@@ -129,14 +142,14 @@ class VirtualNumbersProvider extends ChangeNotifier {
         _options = parsed;
         if (parsed.services.isNotEmpty) {
           CacheService.instance.setList(
-            'vn_options',
+            _optionsCacheKey,
             parsed.services,
             _serviceToJson,
           );
         } else if (parsed.providerStopped || !parsed.available) {
           // المزود موقوف أو لا خدمات مُنتقاة: يُمسح المخزّن حتى لا تبقى
           // أرقام قديمة معروضة للعميل بعد الإخفاء أو تعطيل المزود.
-          await CacheService.instance.remove('vn_options');
+          await CacheService.instance.remove(_optionsCacheKey);
         }
         // خدمات «تفعيل مضمون» تُخزّن وحدها: offline يبقى القسم الأول معروضاً
         if (parsed.manualServices.isNotEmpty) {
@@ -191,6 +204,8 @@ class VirtualNumbersProvider extends ChangeNotifier {
             'operators': c.operators
                 .map((o) => {'code': o.code, 'name': o.name})
                 .toList(),
+            // العروض تُخزَّن كاملة: بلا productId لا يستطيع العميل شراء سيرفر بعينه
+            'offers': c.offers.map((o) => o.toJson()).toList(),
           },
         )
         .toList(),
@@ -222,10 +237,14 @@ class VirtualNumbersProvider extends ChangeNotifier {
   // طلب رقم
   // ===========================================================================
 
-  /// يُعيد رسالة النجاح من الخادم، أو null عند الفشل (في [errorMessage])
+  /// يُعيد رسالة النجاح من الخادم، أو null عند الفشل (في [errorMessage]).
+  /// [productId] هو المسار الجديد: الدولة نفسها قد تُباع من أكثر من سيرفر،
+  /// وبه يشتري العميل هذا السيرفر بعينه لا «أرخص من يبيعها». service/country
+  /// يبقيان للمسار القديم أثناء الإطلاق حين لا معرّف منتج.
   Future<String?> requestNumber({
-    required String service,
-    required String country,
+    String? productId,
+    String service = '',
+    String country = '',
     String? operator,
   }) async {
     _isSubmitting = true;
@@ -247,8 +266,9 @@ class VirtualNumbersProvider extends ChangeNotifier {
       final res = await _api.post(
         ApiConstants.virtualNumberRequest,
         body: {
-          'service': service,
-          'country': country,
+          if (productId != null && productId.isNotEmpty) 'productId': productId,
+          if (service.isNotEmpty) 'service': service,
+          if (country.isNotEmpty) 'country': country,
           if (operator != null && operator.isNotEmpty) 'operator': operator,
           'clientRequestId': clientRequestId,
         },
@@ -341,6 +361,8 @@ class VirtualNumbersProvider extends ChangeNotifier {
   static Map<String, dynamic> _requestToJson(VirtualNumberRequestModel r) => {
     'id': r.id,
     'requestNumber': r.requestNumber,
+    'productId': r.productId,
+    'serverLabel': r.serverLabel,
     'service': r.service,
     'serviceName': r.serviceName,
     'country': r.country,
@@ -647,6 +669,78 @@ class VirtualNumbersProvider extends ChangeNotifier {
     method: 'DELETE',
     fallback: 'تم حذف الدولة',
   );
+
+  // ===========================================================================
+  // لوحة مراقبة الجودة: كل سيرفر بعدّاداته، وسجل أحداث كل منتج
+  // ===========================================================================
+
+  /// صفوف اللوحة: [bucket] أحد «all» أو «active» أو «watching» أو «disabled»
+  Future<void> fetchAdminQuality({
+    String bucket = 'all',
+    String? providerId,
+    String search = '',
+    bool quiet = false,
+  }) async {
+    if (!quiet) {
+      _isQualityLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
+    try {
+      final res = await _api.get(
+        ApiConstants.adminVirtualNumberQuality,
+        queryParams: {
+          if (bucket != 'all') 'bucket': bucket,
+          if (providerId != null && providerId.isNotEmpty)
+            'providerId': providerId,
+          if (search.trim().isNotEmpty) 'search': search.trim(),
+        },
+      );
+      _qualityBoard = res is Map
+          ? VirtualNumberQualityBoard.fromJson(Map<String, dynamic>.from(res))
+          : VirtualNumberQualityBoard.empty();
+    } catch (e) {
+      if (!quiet) _errorMessage = _clientError(e);
+    }
+    _isQualityLoading = false;
+    notifyListeners();
+  }
+
+  /// سجل أحداث منتج + آخر طلباته: تُفتح به ورقة التفاصيل
+  Future<void> fetchQualityEvents(String productId, {int limit = 50}) async {
+    if (productId.isEmpty) return;
+    _isQualityLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final res = await _api.get(
+        ApiConstants.virtualNumberQualityEvents(productId),
+        queryParams: {'limit': limit},
+      );
+      _qualityDetail = res is Map
+          ? VirtualNumberQualityDetail.fromJson(Map<String, dynamic>.from(res))
+          : null;
+    } catch (e) {
+      _errorMessage = _clientError(e);
+    }
+    _isQualityLoading = false;
+    notifyListeners();
+  }
+
+  void clearQualityDetail() {
+    _qualityDetail = null;
+    notifyListeners();
+  }
+
+  /// إعادة التفعيل تصفّر الفشل المتتالي وحده: عدّادات التاريخ تبقى
+  Future<String?> reactivateProduct(String productId, {String? note}) =>
+      _curationAction(
+        ApiConstants.virtualNumberQualityReactivate(productId),
+        method: 'POST',
+        body: {if (note != null && note.trim().isNotEmpty) 'note': note.trim()},
+        fallback: 'تم إعادة تفعيل السيرفر',
+        onDone: () => fetchAdminQuality(quiet: true),
+      );
 
   // ===========================================================================
   // خدمات الأرقام اليدوية (تفعيل مضمون): شاشة إدارة + قسم أول عند العميل

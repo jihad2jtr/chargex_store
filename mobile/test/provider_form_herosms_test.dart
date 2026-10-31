@@ -1,6 +1,7 @@
 // نافذة بيانات الربط لدى المزودين: رقاقة Hero-SMS تملأ الاسم والرابط الصحيحين،
 // فالخادم يشتق نوع المزود (herosms) من اسمه/رابطه ولا يوجد حقل نوع في النموذج.
-// الرقاقتان تظهران في نافذة صفحة مزودي الأرقام وحدها (بعد فصلها عن المتاجر).
+// الرقاقتان تظهران في نافذة صفحة مزودي الأرقام وحدها (بعد فصلها عن المتاجر)،
+// وكذلك رقافتا DogeSMS وSMSPool الجديدتان بنفس القاعدة.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -66,12 +67,14 @@ void _drainExpectedNoise(WidgetTester w) {
   expect(unexpected, isEmpty);
 }
 
-/// رابط حقل النص الحالي بعد ملء الرقاقة
-String _fieldText(WidgetTester w, int index) => w
-    .widgetList<TextField>(find.byType(TextField))
-    .toList()[index]
-    .controller!
-    .text;
+/// قيمة حقل بصفحته لا بترتيبه: مزودو الأرقام لهم حقل اسم السيرفر بين الاسم
+/// والرابط، فالفهرس يتغيّر بين النماذج بينما يبقى الوصف وحده ثابتاً
+String _fieldText(WidgetTester w, String label) =>
+    w.widget<TextField>(find.widgetWithText(TextField, label)).controller!.text;
+
+const _nameLabel = 'اسم المزود (5sim أو Hero-SMS أو DogeSMS أو SMSPool)';
+const _urlLabel = 'Base URL رابط الـ API الرئيسي';
+const _serverLabel = 'اسم السيرفر الظاهر للعميل';
 
 void main() {
   setUpAll(() => HttpOverrides.global = _BlockedHttpOverrides());
@@ -88,9 +91,14 @@ void main() {
     await w.tap(find.text('Hero-SMS للأرقام الوهمية'));
     await w.pump();
 
-    expect(_fieldText(w, 0), 'Hero-SMS');
+    expect(_fieldText(w, _nameLabel), 'Hero-SMS');
     // اسم Hero-SMS ورابطه معاً يشتق منهما الخادم نوع herosms
-    expect(_fieldText(w, 1), 'https://hero-sms.com/stubs/handler_api.php');
+    expect(
+      _fieldText(w, _urlLabel),
+      'https://hero-sms.com/stubs/handler_api.php',
+    );
+    // الرقاقة تملأ هوية المزود وحدها: الاسم الوهمي المعروض للعميل لا يُمسّ
+    expect(_fieldText(w, _serverLabel), 'Server 1');
 
     _drainExpectedNoise(w);
   });
@@ -103,9 +111,32 @@ void main() {
     await w.tap(find.text('5sim للأرقام الوهمية'));
     await w.pump();
 
-    expect(_fieldText(w, 0), '5sim');
+    expect(_fieldText(w, _nameLabel), '5sim');
     // الجذر الحيّ للمزوّد: api.5sim.net أُزيل فكانت الطلبات تفشل عليه
-    expect(_fieldText(w, 1), 'https://5sim.net/v1');
+    expect(_fieldText(w, _urlLabel), 'https://5sim.net/v1');
+
+    _drainExpectedNoise(w);
+  });
+
+  testWidgets('رقاقتا DogeSMS وSMSPool تملأان الاسم وجذر الـ API', (
+    WidgetTester w,
+  ) async {
+    await _pumpForm(w, AdminProvider());
+
+    expect(find.text('DogeSMS للأرقام الوهمية'), findsOneWidget);
+    expect(find.text('SMSPool للأرقام الوهمية'), findsOneWidget);
+
+    await w.tap(find.text('DogeSMS للأرقام الوهمية'));
+    await w.pump();
+
+    expect(_fieldText(w, _nameLabel), 'DogeSMS');
+    expect(_fieldText(w, _urlLabel), 'https://api.dogesms.com');
+
+    await w.tap(find.text('SMSPool للأرقام الوهمية'));
+    await w.pump();
+
+    expect(_fieldText(w, _nameLabel), 'SMSPool');
+    expect(_fieldText(w, _urlLabel), 'https://api.smspool.net');
 
     _drainExpectedNoise(w);
   });

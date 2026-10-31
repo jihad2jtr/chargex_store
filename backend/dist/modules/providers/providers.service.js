@@ -89,6 +89,17 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
             throw new common_1.NotFoundException('المزود غير موجود');
         return provider;
     }
+    async nextServerLabel() {
+        const existing = await this.providerModel
+            .find({ providerType: { $in: virtual_number_clients_1.VIRTUAL_NUMBER_PROVIDER_TYPES } })
+            .select('serverLabel')
+            .lean();
+        const taken = new Set(existing.map((p) => String(p.serverLabel || '').trim().toLowerCase()));
+        let next = existing.length + 1;
+        while (taken.has(`server ${next}`))
+            next += 1;
+        return `Server ${next}`;
+    }
     async create(createDto) {
         const isBay = createDto.providerType === provider_schema_1.ProviderType.BAY2GAME ||
             createDto.baseUrl?.toLowerCase().includes('bay2game') ||
@@ -102,8 +113,12 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
             : isFox
                 ? provider_schema_1.ProviderType.FOXRELOAD
                 : virtualType ?? (createDto.providerType || provider_schema_1.ProviderType.CUSTOM);
+        const isNumbersProvider = virtual_number_clients_1.VIRTUAL_NUMBER_PROVIDER_TYPES.includes(resolvedType);
+        const serverLabel = (createDto.serverLabel || '').trim() ||
+            (isNumbersProvider ? await this.nextServerLabel() : '');
         const provider = new this.providerModel({
             ...createDto,
+            serverLabel,
             providerType: resolvedType,
             status: provider_schema_1.ProviderStatus.OFFLINE,
             isActive: true,

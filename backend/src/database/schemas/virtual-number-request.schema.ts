@@ -61,6 +61,11 @@ export class VirtualNumberRequest {
   @Prop({ trim: true, default: '' })
   operator: string; // رمز المشغّل (أي مشغّل حين يكون فارغاً)
 
+  // المنتج (تطبيق+دولة+مزود) الذي بيع فعلاً: عقدة تسجيل الجودة. يُخلَّد على الطلب
+  // لأن كتالوج المزود قد يتغير بعدها.
+  @Prop({ type: Types.ObjectId, ref: 'VirtualNumberProduct', index: true })
+  productId?: Types.ObjectId;
+
   // --- المال: يُحاسَب العميل من رصيد محفظته بالدولار ---
   @Prop({ type: Number, required: true, default: 0 })
   amount: number; // سعر البيع للعميل (تكلفة المزود + هامش ربح المزود)
@@ -102,6 +107,14 @@ export class VirtualNumberRequest {
   // وقت إرجاع المبلغ للعميل — وجوده يعني أن الإرجاع وقع، فلا يتكرر في المسح الدوري
   @Prop()
   refundedAt?: Date;
+
+  // النتيجة التي سُجّلت في جودة المنتج: وجودها يعني أن التسجيل وقع، فلا يتكرر
+  // (نفس نمط refundedAt — المسح الدوري والويب هوك وإغلاق العميل قد تسبق بعضها)
+  @Prop({ trim: true })
+  qualityOutcome?: string;
+
+  @Prop()
+  qualityRecordedAt?: Date;
 
   // مهلة الانتظار: بعدها يُلغى الرقم لدى المزود ويُرجع المبلغ تلقائياً
   @Prop({ index: true })

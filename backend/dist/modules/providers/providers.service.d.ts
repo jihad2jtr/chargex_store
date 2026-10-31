@@ -33,6 +33,7 @@ export declare class ProvidersService {
     } & {
         id: string;
     }>;
+    private nextServerLabel;
     create(createDto: {
         name: string;
         baseUrl: string;
@@ -40,6 +41,7 @@ export declare class ProvidersService {
         apiSecret?: string;
         headers?: Record<string, string>;
         providerType?: ProviderType;
+        serverLabel?: string;
     }): Promise<import("mongoose").Document<unknown, {}, ProviderDocument, {}, import("mongoose").DefaultSchemaOptions> & Provider & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: Types.ObjectId;
     }> & {

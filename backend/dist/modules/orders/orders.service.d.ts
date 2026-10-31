@@ -92,7 +92,8 @@ export declare class OrdersService implements OnModuleInit, OnModuleDestroy {
         orderNumber: string;
         requestId?: string;
         userId: Types.ObjectId;
-        appId: Types.ObjectId;
+        appId?: Types.ObjectId;
+        virtualNumberAppId?: Types.ObjectId;
         productId: Types.ObjectId;
         providerId?: Types.ObjectId;
         type: ProductType;

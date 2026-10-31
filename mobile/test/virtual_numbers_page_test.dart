@@ -158,7 +158,9 @@ Future<void> _pumpPage(
   SharedPreferences.setMockInitialValues(<String, Object>{});
   await CacheService.instance.clearAll();
   if (options.isNotEmpty) {
-    await CacheService.instance.setRawList('vn_options', options);
+    // نسخة المفتاح v2: المزود يخزّن العروض مع الدولة، والمخزّن القديم كان
+    // يعرض سيرفرات بلا معرّف منتج فلا يمكن شراء رقم منها
+    await CacheService.instance.setRawList('vn_options_v2', options);
   }
   if (manual.isNotEmpty) {
     await CacheService.instance.setRawList('vn_manual_services', manual);
@@ -260,7 +262,7 @@ void main() {
     expect(find.text('تفعيل تيليجرام يدوي'), findsOneWidget);
     // شارة السعر وشارة «التنفيذ البشري» داخل الكرت
     expect(find.text('\$2.50'), findsOneWidget);
-    expect(find.text('تنفيذ بشري مضمون'), findsOneWidget);
+    expect(find.text('تنفيذ يدوي مضمون'), findsOneWidget);
     // القسم الثاني: كتالوج المزود يبقى بشبكته المعهودة
     expect(find.text('اختر الخدمة'), findsOneWidget);
     expect(find.textContaining('دولة • من \$0.50'), findsOneWidget);
