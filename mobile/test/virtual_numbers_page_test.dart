@@ -12,6 +12,7 @@ import 'package:layan_chargex/providers/auth_provider.dart';
 import 'package:layan_chargex/providers/virtual_numbers_provider.dart';
 import 'package:layan_chargex/providers/wallet_provider.dart';
 import 'package:layan_chargex/screens/user/virtual_numbers_screen.dart';
+import 'package:layan_chargex/widgets/digital_pass_card.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -59,9 +60,13 @@ Map<String, dynamic> _service({
   required String code,
   required String name,
   required List<Map<String, dynamic>> countries,
+  String nameAr = '',
+  String nameEn = '',
 }) => {
   'code': code,
   'name': name,
+  'nameAr': nameAr,
+  'nameEn': nameEn,
   'fromPrice': countries
       .map((c) => c['salePrice'] as double)
       .reduce((a, b) => a < b ? a : b),
@@ -88,6 +93,9 @@ final List<Map<String, dynamic>> _catalog = <Map<String, dynamic>>[
   _service(
     code: 'whatsapp',
     name: 'WhatsApp',
+    // كما في الخادم الحيّ: اسم معروض لاتيني + nameAr عربي + nameEn أجنبي
+    nameAr: 'واتساب',
+    nameEn: 'Whatsapp',
     countries: <Map<String, dynamic>>[
       _country(code: '91', name: 'الهند', salePrice: 0.60),
     ],
@@ -226,6 +234,21 @@ Future<void> _openSheet(WidgetTester w, String service) async {
   await w.pump(const Duration(milliseconds: 400));
 }
 
+/// غلاف التذكرة (فتحات التثقيب على الحافتين) — هوية بطاقات التطبيق
+Finder _ticketClips() => find.byWidgetPredicate(
+  (widget) => widget is ClipPath && widget.clipper is TicketPassClipper,
+);
+
+/// عدد خطوط «DashedLinePainter» الأفقية داخل عنصر بعينه (خط التمزّق)
+int _horizontalTears(WidgetTester w, Finder within) {
+  return w
+      .widgetList<CustomPaint>(
+        find.descendant(of: within, matching: find.byType(CustomPaint)),
+      )
+      .where((p) => p.painter is DashedLinePainter)
+      .length;
+}
+
 void main() {
   setUpAll(() => HttpOverrides.global = _BlockedHttpOverrides());
   tearDownAll(() => HttpOverrides.global = null);
@@ -237,7 +260,9 @@ void main() {
 
     expect(find.text('اختر الخدمة'), findsOneWidget);
     expect(find.text('Telegram'), findsOneWidget);
-    expect(find.text('WhatsApp'), findsOneWidget);
+    // الاسم العربي هو الظاهر، و«WhatsApp» اللاتينية لا تُكرر سطرًا ثانيًا
+    expect(find.text('واتساب'), findsOneWidget);
+    expect(find.text('WhatsApp'), findsNothing);
     // بطاقة الخدمة تذكر عدد الدول وأرخص سعر
     expect(find.textContaining('دولة • من \$0.50'), findsOneWidget);
     // الكارت التعريفي العلوي أُزيل: الصفحة تبدأ بالشبكة مباشرة
@@ -280,6 +305,70 @@ void main() {
       find.widgetWithText(ElevatedButton, 'رصيد غير كافٍ (\$2.50)'),
     );
     expect(confirmButton.onPressed, isNull);
+
+    _expectNoOverflow(w);
+  });
+
+  testWidgets('بلا شريط علوي: لا عدّات خدمات ولا دول ولا مهلة', (
+    WidgetTester w,
+  ) async {
+    await _pumpPage(w, options: _catalog, manual: [_manualService()]);
+
+    // الشريط الذي كان يعرض (خدمة متاحة / دولة / دقيقة مهلة) أُلغي: عدّات
+    // المزوّد ليست قراراً يتخذه العميل، والصفحة تبدأ بـ«تفعيل مضمون»
+    expect(find.text('خدمة متاحة'), findsNothing);
+    expect(find.text('دقيقة مهلة'), findsNothing);
+    expect(find.text('دولة'), findsNothing);
+    // مع ذلك بقيت عناوين الأقسام والشبكة كما هي
+    expect(find.text('تفعيل مضمون'), findsOneWidget);
+    expect(find.text('اختر الخدمة'), findsOneWidget);
+
+    _expectNoOverflow(w);
+  });
+
+  testWidgets('كرت تفعيل مضمون غلاف تذكرة بفتحات وخط تمزّق', (
+    WidgetTester w,
+  ) async {
+    await _pumpPage(w, options: _catalog, manual: [_manualService()]);
+
+    // هوية التذكرة المعتمدة في بقية بطاقات التطبيق: شقّان على الحافتين
+    final Finder ticket = _ticketClips();
+    expect(ticket, findsOneWidget);
+    final TicketPassClipper clipper =
+        w.widget<ClipPath>(ticket.first).clipper as TicketPassClipper;
+    expect(clipper.notchPositionFraction, 0.5);
+    expect(clipper.notchRadius, greaterThan(0));
+    // نصفان تفصلهما نقطة تمزّق واحدة، والمحتوى كله داخل الغلاف
+    expect(_horizontalTears(w, ticket.first), 1);
+    expect(
+      find.descendant(
+        of: ticket.first,
+        matching: find.text('تفعيل تيليجرام يدوي'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: ticket.first, matching: find.text('\$2.50')),
+      findsOneWidget,
+    );
+
+    _expectNoOverflow(w);
+  });
+
+  testWidgets('اسم التطبيق بالعربي وتحته الأجنبي في شبكة الأرقام', (
+    WidgetTester w,
+  ) async {
+    await _pumpPage(w, options: _catalog);
+
+    // «واتساب» عربي سطر أول و«Whatsapp» أجنبي سطر ثانٍ تحته
+    expect(find.text('واتساب'), findsOneWidget);
+    expect(find.text('Whatsapp'), findsOneWidget);
+    // السطر الأجنبي يأخذ nameEn ولا يكرر الاسم المعروض
+    expect(find.text('WhatsApp'), findsNothing);
+    final Text foreign = w.widget<Text>(find.text('Whatsapp'));
+    expect(foreign.textDirection, TextDirection.ltr);
+    // الاسم اللاتيني الصريح لا يُكرَّر في سطر أجنبي ثانٍ
+    expect(find.text('Telegram'), findsOneWidget);
 
     _expectNoOverflow(w);
   });

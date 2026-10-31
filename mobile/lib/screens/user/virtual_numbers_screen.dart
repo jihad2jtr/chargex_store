@@ -12,6 +12,7 @@ import '../../providers/app_catalog_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../../widgets/digital_pass_card.dart';
 import '../../widgets/status_pill.dart';
 import 'topup_screen.dart';
 
@@ -194,8 +195,8 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
             ),
             const SizedBox(height: 18),
           ] else ...[
-            _buildStatStrip(provider),
-            const SizedBox(height: 16),
+            // بلا شريط علوي: الصفحة تبدأ مباشرة بـ«تفعيل مضمون» ثم التطبيقات —
+            // عدّات الخدمات والدول والمهلة ليست قراراً يتخذه العميل
             // القسم الأول: خدمة يدوية يُنفّذها مشرف مقابل تفعيل مضمون
             ..._buildGuaranteedSection(provider),
             _buildSectionHeader(
@@ -292,70 +293,8 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     );
   }
 
-  /// شريط إحصائي خفيف فوق الكتالوج: حجم الخدمات والدول والمهلة المعتمدة
-  Widget _buildStatStrip(VirtualNumbersProvider provider) {
-    final services = provider.options.services;
-    final countries = services.fold<int>(
-      0,
-      (sum, service) => sum + service.countries.length,
-    );
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          _statCell(Icons.apps_rounded, '${services.length}', 'خدمة متاحة'),
-          _statDivider(),
-          _statCell(Icons.public_rounded, '$countries', 'دولة'),
-          _statDivider(),
-          _statCell(
-            Icons.timer_outlined,
-            '${provider.options.waitMinutes}',
-            'دقيقة مهلة',
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _statCell(IconData icon, String value, String label) {
-    return Expanded(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 11),
-        child: Column(
-          children: [
-            Icon(icon, size: 17, color: AppColors.primaryBlue),
-            const SizedBox(height: 5),
-            Text(
-              value,
-              style: AppTypography.cairo(
-                fontSize: 14,
-                fontWeight: FontWeight.w900,
-                color: AppColors.slate900,
-              ),
-            ),
-            Text(
-              label,
-              style: AppTypography.cairo(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.slate500,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statDivider() =>
-      Container(width: 1, height: 36, color: AppColors.slate100);
-
   // ---------------------------------------------------------------------------
-  // القسم الأول: «تفعيل مضمون» — خدمات يدوية على شكل كروت
+  // القسم الأول: «تفعيل مضمون» — خدمة يدوية على شكل كرت تذكرة
   // ---------------------------------------------------------------------------
 
   /// تُعرض فقط حين توجد خدمة يدوية فعّالة، فلا تتغير الصفحة بدونها
@@ -414,7 +353,9 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   Widget _buildAppIconsGrid(List<VirtualNumberServiceOption> services) {
     const double spacing = 10;
     const double targetCell = 84;
-    const double infoHeight = 30;
+    // ثلاث سطور تحت الأيقونة: الاسم العربي (13) + فراغ 3 + الاسم الأجنبي (10)
+    // + سطر الدول والسعر (10)، وإلا رَمي RenderFlex overflow عند ظهور السطر الثاني
+    const double infoHeight = 36;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1394,11 +1335,11 @@ class _ServiceIconTile extends StatelessWidget {
     final displayName = service.nameAr.isNotEmpty
         ? service.nameAr
         : service.name;
-    // الاسم الأجنبي لا يظهر إذا كان المخزّن أجنبياً أصلاً أو مطابقاً له
+    // سطر أجنبي تحت الاسم العربي فقط (اتفاقية شبكة الرئيسية): إن كان الظاهر
+    // لاتينياً أصلاً فلا يُكرر في سطر ثانٍ، وإن طابق الأجنبي العربي يُحجب
+    final foreign = service.nameEn.trim();
     final showEn =
-        service.nameEn.isNotEmpty &&
-        service.nameEn != service.nameAr &&
-        !_hasArabic(displayName);
+        _hasArabic(displayName) && foreign.isNotEmpty && foreign != displayName;
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -1420,9 +1361,10 @@ class _ServiceIconTile extends StatelessWidget {
               height: 1.2,
             ),
           ),
-          if (showEn)
+          if (showEn) ...[
+            const SizedBox(height: 3),
             Text(
-              service.nameEn,
+              foreign,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
@@ -1434,6 +1376,7 @@ class _ServiceIconTile extends StatelessWidget {
                 height: 1.15,
               ),
             ),
+          ],
           Text(
             '${service.countries.length} دولة • من \$${service.bestPrice.toStringAsFixed(2)}',
             maxLines: 1,
@@ -1548,96 +1491,130 @@ class _ManualServiceCard extends StatelessWidget {
 
   const _ManualServiceCard({required this.service, required this.onTap});
 
+  // هوية التذكرة كما في بقية بطاقات التطبيق: شقّان في المنتصف على الحافتين،
+  // وحشو أفقي (14) أعمق من الشقّ (8) حتى لا يلمسه النص
+  static const double _radius = 16;
+  static const double _notch = 8;
+
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(16),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.outlineVariant),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
+    return CustomPaint(
+      painter: TicketPassShadowPainter(
+        cornerRadius: _radius,
+        notchRadius: _notch,
+        notchPositionFraction: 0.5,
+        shadowColor: AppColors.emerald,
+        elevation: 6,
+      ),
+      foregroundPainter: TicketPassBorderPainter(
+        cornerRadius: _radius,
+        notchRadius: _notch,
+        notchPositionFraction: 0.5,
+        borderColor: AppColors.outlineVariant,
+        borderWidth: 1,
+      ),
+      child: ClipPath(
+        clipper: TicketPassClipper(
+          cornerRadius: _radius,
+          notchRadius: _notch,
+          notchPositionFraction: 0.5,
+        ),
+        child: Material(
+          color: Colors.white,
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _appBadge(),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          service.name,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _appBadge(),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              service.name,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.cairo(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.slate900,
+                                height: 1.25,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              service.description.isNotEmpty
+                                  ? service.description
+                                  : 'تفعيل على يد مختص برسم مُخصم من رصيدك',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.cairo(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.slate500,
+                                height: 1.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.slate900,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          '\$${service.price.toStringAsFixed(2)}',
                           style: AppTypography.cairo(
-                            fontSize: 13,
+                            fontSize: 11,
                             fontWeight: FontWeight.w900,
-                            color: AppColors.slate900,
-                            height: 1.25,
+                            color: const Color(0xFFFDE047),
                           ),
                         ),
-                        const SizedBox(height: 3),
-                        Text(
-                          service.description.isNotEmpty
-                              ? service.description
-                              : 'تفعيل على يد مختص برسم مُخصم من رصيدك',
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.cairo(
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.slate500,
-                            height: 1.3,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.slate900,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Text(
-                      '\$${service.price.toStringAsFixed(2)}',
-                      style: AppTypography.cairo(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w900,
-                        color: const Color(0xFFFDE047),
+                  const SizedBox(height: 10),
+                  // خطّ التمزّق بين نصفي التذكرة
+                  SizedBox(
+                    height: 2,
+                    child: CustomPaint(
+                      painter: DashedLinePainter(
+                        color: AppColors.outlineVariant,
+                        dashWidth: 4,
+                        dashSpace: 4,
                       ),
                     ),
                   ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _chip(Icons.verified_user_rounded, 'تنفيذ يدوي مضمون'),
+                      if (service.etaLabel.isNotEmpty)
+                        _chip(Icons.schedule_rounded, service.etaLabel),
+                      if (service.appName.isNotEmpty)
+                        _chip(Icons.apps_rounded, service.appName),
+                      if (service.isSensitive)
+                        _chip(Icons.lock_outline_rounded, 'بيانات سرية'),
+                    ],
+                  ),
                 ],
               ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  _chip(Icons.verified_user_rounded, 'تنفيذ يدوي مضمون'),
-                  if (service.etaLabel.isNotEmpty)
-                    _chip(Icons.schedule_rounded, service.etaLabel),
-                  if (service.appName.isNotEmpty)
-                    _chip(Icons.apps_rounded, service.appName),
-                  if (service.isSensitive)
-                    _chip(Icons.lock_outline_rounded, 'بيانات سرية'),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
