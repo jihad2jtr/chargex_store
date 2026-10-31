@@ -1,6 +1,7 @@
 // «طلباتي» صارت موحّدة: تذاكر المتجر (تطبيقات/ألعاب/خدمات) وتذاكر الأرقام
-// الوهمية في قائمة واحدة مرتّبة زمنياً، مع شريط نوع يفصل بينهما. سجل الأرقام
-// لم يعد منعزلاً في صفحة الأرقام. الاختبار بلا شبكة (الشبكة محجومة).
+// الوهمية في قائمة واحدة مرتّبة زمنياً. شريط فلتر النوع أُزيل وبقي فلتر
+// الحالة والبحث. سجل الأرقام لم يعد منعزلاً في صفحة الأرقام.
+// الاختبار بلا شبكة (الشبكة محجومة).
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -129,15 +130,6 @@ Future<void> _pump(
   await w.pump(const Duration(milliseconds: 400));
 }
 
-/// يفرد النوع المطلوب داخل الشريط الأفقي ثم ينقر عليه
-Future<void> _tapChip(WidgetTester w, String label) async {
-  final Finder chip = find.text(label).first;
-  await w.ensureVisible(chip);
-  await w.pump(const Duration(milliseconds: 200));
-  await w.tap(chip);
-  await w.pump(const Duration(milliseconds: 300));
-}
-
 void main() {
   setUpAll(() => HttpOverrides.global = _BlockedHttpOverrides());
   tearDownAll(() => HttpOverrides.global = null);
@@ -173,70 +165,22 @@ void main() {
     ),
   ];
 
-  testWidgets('شريط النوع يظهر بأعداد الأرقام والأنواع', (w) async {
+  testWidgets('شريط فلتر النوع أُزيل وكل التذاكر تظهر معاً', (w) async {
     await _pump(w, orders: orders, numbers: numbers);
 
-    expect(find.text('تطبيقات'), findsOneWidget);
-    expect(find.text('ألعاب'), findsOneWidget);
-    expect(find.text('خدمات'), findsOneWidget);
-    expect(find.text('أرقام'), findsOneWidget);
-    expect(find.textContaining('VN #VN-AAA'), findsOneWidget);
+    // رقائق النوع لم تعد موجودة
+    expect(find.text('تطبيقات'), findsNothing);
+    expect(find.text('ألعاب'), findsNothing);
+    expect(find.text('أرقام'), findsNothing);
 
-    expect(w.takeException(), isNull);
-  });
-
-  testWidgets('سجل الأرقام مدمج مع تذاكر المتجر في قائمة واحدة', (w) async {
-    await _pump(w, orders: orders, numbers: numbers);
-
-    // تذاكر المتجر
+    // الطلبات والأرقام تُعرض مدموجة بلا طبقة نوع، وسجل الأرقام مدمج
+    // مع تذاكر المتجر في قائمة واحدة (بنفس شكل التذاكر)
     expect(find.text('Netflix Monthly'), findsOneWidget);
     expect(find.text('Free Fire Diamonds'), findsOneWidget);
     expect(find.text('Gmail Recovery'), findsOneWidget);
-    // تذاكر الأرقام (بنفس شكل التذاكر)
     expect(find.text('telegram'), findsOneWidget);
     expect(find.text('whatsapp'), findsOneWidget);
     expect(find.textContaining('VN #VN-AAA'), findsOneWidget);
-
-    expect(w.takeException(), isNull);
-  });
-
-  testWidgets('فلترة الأرقام تُبقي تذاكر الأرقام فقط', (w) async {
-    await _pump(w, orders: orders, numbers: numbers);
-
-    await _tapChip(w, 'أرقام');
-
-    expect(find.text('telegram'), findsOneWidget);
-    expect(find.text('whatsapp'), findsOneWidget);
-    expect(find.text('Netflix Monthly'), findsNothing);
-    expect(find.text('Free Fire Diamonds'), findsNothing);
-    expect(find.text('Gmail Recovery'), findsNothing);
-
-    expect(w.takeException(), isNull);
-  });
-
-  testWidgets('فلترة التطبيقات تُبقي نوع التطبيق المطابق فقط', (w) async {
-    await _pump(w, orders: orders, numbers: numbers);
-
-    await _tapChip(w, 'تطبيقات');
-
-    expect(find.text('Netflix Monthly'), findsOneWidget);
-    expect(find.text('Free Fire Diamonds'), findsNothing);
-    expect(find.text('Gmail Recovery'), findsNothing);
-    expect(find.text('telegram'), findsNothing);
-
-    expect(w.takeException(), isNull);
-  });
-
-  testWidgets('الألعاب نوع مستقل والخدمات تجمع الخدمات', (w) async {
-    await _pump(w, orders: orders, numbers: numbers);
-
-    await _tapChip(w, 'ألعاب');
-    expect(find.text('Free Fire Diamonds'), findsOneWidget);
-    expect(find.text('Netflix Monthly'), findsNothing);
-
-    await _tapChip(w, 'خدمات');
-    expect(find.text('Gmail Recovery'), findsOneWidget);
-    expect(find.text('telegram'), findsNothing);
 
     expect(w.takeException(), isNull);
   });

@@ -25,10 +25,6 @@ class OrdersHistoryScreen extends StatefulWidget {
 
 class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   String _selectedFilter = 'all';
-
-  /// فلتر نوع الخدمة: all / app / game / service / number — طبقة مستقلّة عن
-  /// فلتر الحالة، وفوقه شريط «الكل/قيد الانتظار/...» كما كان.
-  String _selectedKind = 'all';
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
   Timer? _autoRefreshTimer;
@@ -157,14 +153,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)),
       );
 
-    // عدد كل نوع (بلا فلترة) لشريط الأنواع
-    final appCount = allOrders.where((o) => o.serviceKind == 'app').length;
-    final gameCount = allOrders.where((o) => o.serviceKind == 'game').length;
-    final serviceCount = allOrders
-        .where((o) => o.serviceKind == 'service')
-        .length;
-    final numberCount = numberHistory.length;
-
     // إبقاء العناصر بترتيبها الزمني المختلط: الطلبات والأرقام تُزمن معاً
     final entries = <_HistoryRow>[
       ...allOrders.map((o) => _HistoryRow.order(o, o.createdAt)),
@@ -255,17 +243,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             _buildSearchBar(),
             const SizedBox(height: 8),
 
-            // 3. Type filter (أرقام/تطبيقات/ألعاب/خدمات)
-            _buildKindChips(
-              totalCount: entries.length,
-              appCount: appCount,
-              gameCount: gameCount,
-              serviceCount: serviceCount,
-              numberCount: numberCount,
-            ),
-            const SizedBox(height: 8),
-
-            // 4. Tactile Filter Pills (الحالة)
+            // 3. Tactile Filter Pills (الحالة)
             _buildFilterChips(
               totalCount: allOrders.length,
               completedCount: completedCount,
@@ -275,7 +253,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             ),
             const SizedBox(height: 11),
 
-            // 5. Merged list or Empty State
+            // 4. Merged list or Empty State
             if (filtered.isEmpty)
               _buildEmptyState(entries.isEmpty)
             else
@@ -303,7 +281,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     );
   }
 
-  /// يطبّق فلتر الحالة + فلتر النوع + البحث على صف مدمج (طلب أو رقم)
+  /// يطبّق فلتر الحالة + البحث على صف مدمج (طلب أو رقم)
   bool _passesFilter(_HistoryRow row) {
     // 1. Status filter
     if (_selectedFilter != 'all') {
@@ -330,10 +308,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       }
     }
 
-    // 2. Type filter
-    if (_selectedKind != 'all' && row.kind != _selectedKind) return false;
-
-    // 3. Search query
+    // 2. Search query
     if (_searchQuery.trim().isNotEmpty) {
       final q = _searchQuery.trim().toLowerCase();
       if (row case _OrderHistoryRow(:final order)) {
@@ -1686,107 +1661,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   }
 
   // ===========================================================================
-  // TYPE FILTER — شريط الأنواع: الكل / تطبيقات / ألعاب / خدمات / أرقام
-  // الأرقام تُقرأ من مزود الأرقام، والبقية تُصنَّف من نوع التطبيق (appType)
-  // بحيث الاشتراكات واليدوي وكل بلا نوع يدخل تحت «خدمات».
-  // ===========================================================================
-  Widget _buildKindChips({
-    required int totalCount,
-    required int appCount,
-    required int gameCount,
-    required int serviceCount,
-    required int numberCount,
-  }) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          _buildFilterChip('all', 'الكل', totalCount, Icons.dashboard_outlined),
-          const SizedBox(width: 8),
-          _buildKindChip('app', 'تطبيقات', appCount, Icons.apps_rounded),
-          const SizedBox(width: 8),
-          _buildKindChip('game', 'ألعاب', gameCount, Icons.sports_esports),
-          const SizedBox(width: 8),
-          _buildKindChip(
-            'service',
-            'خدمات',
-            serviceCount,
-            Icons.support_agent_outlined,
-          ),
-          const SizedBox(width: 8),
-          _buildKindChip(
-            'number',
-            'أرقام',
-            numberCount,
-            Icons.sim_card_download_outlined,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildKindChip(String key, String label, int count, IconData icon) {
-    final isSelected = _selectedKind == key;
-
-    return InkWell(
-      onTap: () => setState(() => _selectedKind = key),
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF4338CA) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isSelected
-                ? const Color(0xFF4338CA)
-                : const Color(0xFFE2E8F0),
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 12,
-              color: isSelected ? Colors.white : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              label,
-              style: AppTypography.cairo(
-                fontSize: 10.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : const Color(0xFF334155),
-              ),
-            ),
-            const SizedBox(width: 5),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withValues(alpha: 0.18)
-                    : const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Text(
-                '$count',
-                style: AppTypography.technicalCode(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.bold,
-                  color: isSelected ? Colors.white : const Color(0xFF64748B),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ===========================================================================
   // NUMBER TICKET — تذكرة رقم وهمي مدمجة بنفس شكل تذاكر الطلبات
   // ===========================================================================
   String _numberTicketKey(VirtualNumberRequestModel r) =>
@@ -1809,7 +1683,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     String? icon = r.icon.isNotEmpty
         ? (r.icon.startsWith('assets/') ? r.icon : 'assets/icons/${r.icon}.png')
         : null;
-    icon ??= builtinIconAssetExact(r.icon) ??
+    icon ??=
+        builtinIconAssetExact(r.icon) ??
         builtinIconAssetForQuery(r.icon) ??
         builtinIconAssetForName(name) ??
         builtinIconAssetForName(r.service);
@@ -2183,9 +2058,6 @@ sealed class _HistoryRow {
   final DateTime at;
   const _HistoryRow(this.at);
 
-  /// نوع الصف لفلتر «أرقام/تطبيقات/ألعاب/خدمات»
-  String get kind;
-
   const factory _HistoryRow.order(OrderModel order, DateTime at) =
       _OrderHistoryRow;
 
@@ -2198,17 +2070,11 @@ sealed class _HistoryRow {
 class _OrderHistoryRow extends _HistoryRow {
   final OrderModel order;
   const _OrderHistoryRow(this.order, super.at);
-
-  @override
-  String get kind => order.serviceKind;
 }
 
 class _NumberHistoryRow extends _HistoryRow {
   final VirtualNumberRequestModel request;
   const _NumberHistoryRow(this.request, super.at);
-
-  @override
-  String get kind => 'number';
 }
 
 // =============================================================================
