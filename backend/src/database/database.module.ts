@@ -28,6 +28,10 @@ import {
   VirtualNumberAppSchema,
 } from './schemas/virtual-number-app.schema';
 import {
+  VirtualNumberDictionary,
+  VirtualNumberDictionarySchema,
+} from './schemas/virtual-number-dictionary.schema';
+import {
   VirtualNumberProduct,
   VirtualNumberProductSchema,
 } from './schemas/virtual-number-product.schema';
@@ -55,6 +59,10 @@ const featureModels = [
   { name: VirtualNumberRequest.name, schema: VirtualNumberRequestSchema },
   { name: VirtualNumberCatalog.name, schema: VirtualNumberCatalogSchema },
   { name: VirtualNumberApp.name, schema: VirtualNumberAppSchema },
+  {
+    name: VirtualNumberDictionary.name,
+    schema: VirtualNumberDictionarySchema,
+  },
   { name: VirtualNumberProduct.name, schema: VirtualNumberProductSchema },
   {
     name: VirtualNumberQualityEvent.name,

@@ -109,8 +109,9 @@ export class VirtualNumbersController {
   @Post('admin/sync-catalog')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
-  async syncCatalog() {
-    return this.service.syncCatalog();
+  async syncCatalog(@Body('providerId') providerId?: string) {
+    // مزود مُمرَّر = تحديث لقطة هذا السيرفر وحده (أسرع من مسح الكل)
+    return this.service.syncCatalogFor(providerId);
   }
 
   @Post('admin/check-provider')
@@ -189,6 +190,39 @@ export class VirtualNumbersController {
   @Roles(Role.ADMIN)
   async deleteApp(@Param('id') id: string) {
     return this.service.deleteApp(id);
+  }
+
+  // --- 3ب. الإدارة: معجم التطبيقات المتاحة للمزودين والعميل ---
+
+  // كل مدخل المعجم + توفره + وثاقته المخزنة ودولها — شاشة «معجم التطبيقات»
+  @Get('admin/dictionary')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async dictionary() {
+    return this.service.getAdminDictionary();
+  }
+
+  @Patch('admin/dictionary')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async patchDictionary(
+    @Body() body: { key?: string; offered?: boolean },
+  ) {
+    return this.service.patchDictionaryOffered(
+      String(body?.key ?? ''),
+      body?.offered === true,
+    );
+  }
+
+  // دول تطبيق من اللقطة المخزّنة وحدها: ردّ فوري بلا انتظار مزود (شبكة الانتقاء)
+  @Get('admin/apps/:id/countries')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async appCountries(
+    @Param('id') id: string,
+    @Query('providerId') providerId?: string,
+  ) {
+    return this.service.getAppCountries(id, providerId);
   }
 
   // كتالوج المزود مُثري بالمُنتقَى (لتصفح الدول وإضافتها إلى التطبيقات)

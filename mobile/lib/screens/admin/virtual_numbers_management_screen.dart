@@ -98,9 +98,9 @@ class _VirtualNumbersManagementScreenState
       appBar: AppBar(
         title: const Text('إدارة الأرقام '),
         actions: [
-          // تطبيقات الأرقام (تليجرام/واتساب…): تُنشأ فارغة ثم تُنتقى دولها
+          // منتجات الأرقام المضافة من المزود — والمعجم لإتاحة تطبيق جديد منها
           IconButton(
-            tooltip: 'تطبيقات الأرقام',
+            tooltip: 'منتجات الأرقام',
             onPressed: _openApps,
             icon: const Icon(Icons.apps_rounded),
           ),

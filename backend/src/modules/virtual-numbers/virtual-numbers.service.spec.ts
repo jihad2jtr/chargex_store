@@ -1,6 +1,10 @@
 import { Types } from 'mongoose';
+import { existsSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { VirtualNumbersService } from './virtual-numbers.service';
+import { POPULAR_APP_KEYS } from './popular-apps';
+import { VIRTUAL_NUMBER_APPS } from './virtual-numbers-dictionary';
 import { VirtualNumberStatus } from '../../database/schemas/virtual-number-request.schema';
 import { VirtualNumberOutcome } from '../../database/schemas/virtual-number-quality-event.schema';
 import {
@@ -197,6 +201,12 @@ const makeCollectionModel = (docs: FakeDoc[]) => ({
     docs.push(doc);
     return doc;
   },
+  // بذر معجم المتاح يدرج الدفعة الأولى عبر insertMany كما تفعل Mongoose
+  insertMany: async (rows: any[]) => {
+    const created = rows.map((r) => makeDoc({ ...r }));
+    docs.push(...created);
+    return created;
+  },
   deleteMany: async (filter: any = {}) => {
     const kept = docs.filter((d) => !matches(d, filter));
     docs.length = 0;
@@ -241,6 +251,16 @@ const makeCollectionModel = (docs: FakeDoc[]) => ({
 // ---------------------------------------------------------------------------
 // مصنع الاختبار: مزود 5sim + عميل وهمي بلا شبكة
 // ---------------------------------------------------------------------------
+
+/**
+ * معجم المتاح الوهمي: فارغ افتراضياً فيبذره الخادم نفسه بقائمة المشهورات
+ * (200) كما يفعل في الإنتاج، و`offeredKeys` تضبط مجموعة مضبوطة بلا بذر إن
+ * احتاج اختبارٍ تحققاً من بوابة معيّنة (تفعيل/إيقاف مفتاح بعينه).
+ */
+const makeDictionaryModel = (offeredKeys?: string[]) =>
+  makeCollectionModel(
+    (offeredKeys ?? []).map((appKey) => makeDoc({ appKey, offered: true })),
+  );
 
 /**
  * سجل أحداث الجودة الوهمي: `sink` يُمرَّر من الاختبار ليقرأ ما سُجّل، فيثبت أن
@@ -324,6 +344,8 @@ interface Harness {
   // سجل أحداث الجودة ووثائق المنتجات: لاختبارات العدّادات والإيقاف التلقائي
   qualityEvents: FakeDoc[];
   products: FakeDoc[];
+  // معجم المتاح الوهمي: للوصول إليه في اختبارات التفعيل والإيقاف
+  dictionaryModel: ReturnType<typeof makeDictionaryModel>;
 }
 
 const makeHarness = (
@@ -392,6 +414,7 @@ const makeHarness = (
       return doc;
     },
   };
+  const dictionaryModel = makeDictionaryModel();
 
   // المُنتقَى: تطبيق Telegram مفعّل ودولتاه (1 و 20) مفعّلتان، كي يمرّ فلتر getOptions
   // و assertCurated في طلبات الأرقام (لم تعد الشاشة تعرض الكتالوج كامل بلا تنسيق)
@@ -463,6 +486,7 @@ const makeHarness = (
     providerModel as any,
     userModel as any,
     transactionModel as any,
+    dictionaryModel as any,
     {
       createNotification: async (payload: any) => {
         notifications.push(payload);
@@ -483,6 +507,7 @@ const makeHarness = (
     client,
     qualityEvents,
     products,
+    dictionaryModel,
   };
 };
 
@@ -604,6 +629,7 @@ const makeManualHarness = (
     { findOne: async () => provider, findById: async () => provider } as any,
     makeUserModel(users) as any,
     { create: async () => null } as any,
+    makeDictionaryModel() as any,
     { createNotification: async () => undefined } as any,
     { get: () => undefined } as any,
   );
@@ -1256,6 +1282,8 @@ const makeResolverService = (
     } as any,
     makeUserModel([]) as any,
     { create: async () => null } as any,
+    // معجم المتاح: resolveProvider لا يقرأه، شاغل موضع فقط في الترتيب
+    makeDictionaryModel() as any,
     { createNotification: async () => undefined } as any,
     { get: (key: string) => env[key] } as any,
   );
@@ -1370,6 +1398,8 @@ const makeCuratedHarness = (
       services: any[];
     }>;
     balance?: number;
+    // مفاتيح المعجم المتاحة مضبوطة: تُعطّل البذر التلقائي بقائمة المشهورات
+    offered?: string[];
   } = {},
 ) => {
   const providerId = new Types.ObjectId();
@@ -1453,6 +1483,7 @@ const makeCuratedHarness = (
   const appModel = makeCollectionModel(appDocs);
   const productModel = makeCollectionModel(productDocs);
   const qualityEvents: FakeDoc[] = [];
+  const dictionaryModel = makeDictionaryModel(setup.offered);
   // مستخدم ممول وطلبات حيّة وعميل موصّل لكل مزود: مسار الشراء كامل بلا شبكة
   const user = makeDoc({
     _id: new Types.ObjectId(),
@@ -1501,6 +1532,7 @@ const makeCuratedHarness = (
         return doc;
       },
     } as any,
+    dictionaryModel as any,
     {
       createNotification: async (payload: any) => {
         notifications.push(payload);
@@ -1515,6 +1547,7 @@ const makeCuratedHarness = (
     service,
     appModel,
     productModel,
+    dictionaryModel,
     appDocs,
     productDocs,
     provider,
@@ -1642,6 +1675,7 @@ describe('VirtualNumbersService curation (تطبيقات ودول الأرقام
       providerModel as any,
       makeUserModel([]) as any,
       { create: async () => null } as any,
+      makeDictionaryModel() as any,
       { createNotification: async () => undefined } as any,
       { get: () => undefined } as any,
     );
@@ -2431,5 +2465,347 @@ describe('لوحة مراقبة الجودة (مسارات الإدارة)', () 
       ),
     ).toContain('provider down'); // ... وسبب تعطل الآخر باسمه الوهمي
     spy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// الانتقاء السريع: شبكة من التطبيقات المخزنة، ودول تطبيق واحد من اللقطة
+// ---------------------------------------------------------------------------
+
+describe('getAppCountries: دول تطبيق واحد من اللقطة المخزّنة', () => {
+  it('يقرأ اللقطة فوراً بلا مزامنة، ويطابق التطبيق بمفتاح المعجم لا بالرمز', async () => {
+    const h = makeTwoServers();
+    // أي محاولة شبكة تُفشل الاختبار: المسار كله من قاعدة البيانات
+    (h.service as any).clientFor = () => {
+      throw new Error('network touched');
+    };
+
+    // تطبيق السيرفر الثاني (رمزه 'tg') مفتَّح على كتالوج السيرفر الأول
+    // (رمزه 'telegram'): المطابقة المعجمية تجده رغم اختلاف الرمز، والصف
+    // يُوسم بالتطبيق المطابق رمزاً أولاً (تيليجرام الأساسي)
+    const tgApp = h.appDocs[1];
+    const result: any = await h.service.getAppCountries(
+      tgApp._id.toString(),
+      h.provider._id.toString(),
+    );
+
+    expect(result.services).toHaveLength(1);
+    expect(result.services[0].code).toBe('telegram');
+    expect(result.services[0].appId).toBe(h.appDocs[0]._id.toString());
+    // دولة كندا منتجٌ على هذا السيرفر: تُوسم مُنتقاة بمعرّفها
+    const canada = result.services[0].countries.find(
+      (c: any) => c.code === '1',
+    );
+    expect(canada.added).toBe(true);
+    expect(canada.productId).toBe(h.serverOne._id.toString());
+    expect(result.fetchedAt).toBeTruthy();
+    expect(result.stale).toBe(false);
+  });
+
+  it('لقطة قديمة: تُرجَع فوراً مع علامة قدم بلا انتظار أي تجديد', async () => {
+    const h = makeCuratedHarness([
+      { name: 'Telegram', serviceCode: 'telegram' },
+    ]);
+    (h.service as any).catalogModel.docs[0].fetchedAt = new Date(
+      Date.now() - 7 * 60 * 60 * 1000, //جاوز TTL الست ساعات
+    );
+    (h.service as any).clientFor = () => {
+      throw new Error('network touched');
+    };
+
+    const result: any = await h.service.getAppCountries(
+      h.appDocs[0]._id.toString(),
+    );
+
+    expect(result.stale).toBe(true);
+    expect(result.services).toHaveLength(1); // اللقطة جاءت بلا مزامنة
+  });
+
+  it('بلا لقطة إطلاقاً: صفوف فارغة وإرشاد مزامنة بدل الاستثناء البطيء', async () => {
+    const h = makeCuratedHarness([
+      { name: 'Telegram', serviceCode: 'telegram' },
+    ]);
+    (h.service as any).catalogModel.docs.length = 0;
+
+    const result: any = await h.service.getAppCountries(
+      h.appDocs[0]._id.toString(),
+    );
+
+    expect(result.services).toHaveLength(0);
+    expect(result.fetchedAt).toBeNull();
+    expect(result.provider.name).toBe('5sim'); // معلومات السيرفر متاحة دائماً
+  });
+
+  it('تطبيق غير موجود يُرفض 404 ورمز تطبيق خاطئ لا يطابق شيئاً', async () => {
+    const h = makeCuratedHarness([
+      { name: 'Telegram', serviceCode: 'telegram' },
+    ]);
+
+    await expect(h.service.getAppCountries(new Types.ObjectId().toString()))
+      .rejects.toThrow(NotFoundException);
+    expect.assertions(1);
+  });
+
+  it('listAdminApps يُثري التطبيقات بأسماء المعجم وأيقوناته ومفاتيحه', async () => {
+    const { service } = makeTwoServers();
+
+    const result: any = await service.listAdminApps();
+
+    // الشبكة في اللوحة تُرسم من هذا الرد وحده: عربي تحتها أجنبي وأيقونة معجمية
+    expect(result[0].nameAr).toBe('تيليجرام');
+    expect(result[0].nameEn).toBe('Telegram');
+    expect(result[0].appKey).toBe('telegram');
+    expect(result[0].icon).toBe('assets/icons/telegram.png');
+  });
+
+  it('syncCatalogFor يُزامن مزوداً واحداً حين يُمرَّر بدل مسح الكل', async () => {
+    const h = makeTwoServers();
+    const spy = vi
+      .spyOn(h.service as any, 'syncProviderCatalog')
+      .mockImplementation(async () => ({ serviceCount: 1 }));
+
+    await h.service.syncCatalogFor(h.secondId.toString());
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(String((spy.mock.calls[0][0] as any)._id)).toBe(String(h.secondId));
+    spy.mockRestore();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// معجم المتاح: بوابة قاعدة البيانات تحكم اللوحة والانتقاء والواجهة، لا كتالوج
+// المزود كامل — وقائمة المشهورات (200) صارت بذرة أولى فقط عند مجموعة فارغة
+// ---------------------------------------------------------------------------
+
+describe('معجم التطبيقات (بوابة المتاح)', () => {
+  it('الاستيراد الجماعي يُنشئ متاح المعجم فقط من كتالوج المزود', async () => {
+    const h = makeCuratedHarness(
+      [{ name: 'Telegram', serviceCode: 'telegram' }],
+      [],
+      {
+        // معجم مضبوط: واتساب متاح، والكدّاء والمجهولة ليست كذلك
+        offered: ['telegram', 'whatsapp'],
+        catalogs: [
+          {
+            providerIndex: 0,
+            services: [
+              { code: 'telegram', name: 'Telegram', countries: [] },
+              { code: 'whatsapp', name: 'WhatsApp', countries: [] },
+              // معجمية لكنها موقوفة في المعجم، وأخرى ليست في المعجم إطلاقاً
+              { code: 'full', name: 'Full rent', countries: [] },
+              { code: 'zzzunknown', name: 'Unknown', countries: [] },
+            ],
+          },
+        ],
+      },
+    );
+
+    const res: any = await h.service.bulkCreateApps();
+
+    expect(res.created).toBe(1); // واتساب متاح، والموقوفتان لا تُنشآن
+    expect(h.appModel.docs.map((d: any) => d.serviceCode)).toEqual([
+      'telegram',
+      'whatsapp',
+    ]);
+  });
+
+  it('listAdminApps يُخفي وثاقات الموقوف في المعجم بلا حذفها', async () => {
+    const h = makeCuratedHarness(
+      [
+        { name: 'Telegram', serviceCode: 'telegram' },
+        { name: 'Full rent', serviceCode: 'full' },
+      ],
+      [],
+      { offered: ['telegram'] },
+    );
+
+    const result: any = await h.service.listAdminApps();
+
+    expect(result.map((a: any) => a.serviceCode)).toEqual(['telegram']);
+    // الإيقاف من المعجم إخفاءٌ عرضي لا امّحاء: الوثيقة ومنتجاتها تبقيان
+    expect(h.appModel.docs).toHaveLength(2);
+  });
+
+  it('قائمة العميل تُخفي منتجات الموقوف في المعجم', async () => {
+    const h = makeCuratedHarness(
+      [
+        { name: 'Telegram', serviceCode: 'telegram' },
+        { name: 'Full rent', serviceCode: 'full' },
+      ],
+      [
+        {
+          serviceCode: 'telegram',
+          countryCode: '20',
+          countryName: 'مصر',
+          cost: 0.4,
+          count: 5,
+          operators: [],
+        },
+        {
+          serviceCode: 'full',
+          countryCode: '20',
+          countryName: 'مصر',
+          cost: 0.3,
+          count: 5,
+          operators: [],
+        },
+      ],
+      { offered: ['telegram'] },
+    );
+
+    const result: any = await h.service.getOptions();
+
+    expect(result.services.map((s: any) => s.code)).toEqual(['telegram']);
+  });
+
+  it('getAdminDictionary يبذر المشهورات عند مجموعة فارغة ويدمج الوثاقات والعدّات', async () => {
+    const h = makeCuratedHarness(
+      [{ name: 'Telegram', serviceCode: 'telegram' }],
+      [
+        {
+          serviceCode: 'telegram',
+          countryCode: '20',
+          countryName: 'مصر',
+          cost: 0.4,
+          count: 5,
+          operators: [],
+        },
+      ],
+    );
+
+    const result: any = await h.service.getAdminDictionary();
+
+    // كل مدخل المعجم الثابت يُعرض، لا المتاح فقط
+    expect(result).toHaveLength(VIRTUAL_NUMBER_APPS.length);
+    // المجموعة كانت فارغة: بُذرت قائمة المشهورات الـ200 متاحةً
+    expect(h.dictionaryModel.docs).toHaveLength(POPULAR_APP_KEYS.length);
+
+    const telegram = result.find((e: any) => e.key === 'telegram');
+    expect(telegram.offered).toBe(true);
+    expect(telegram.appId).toBe(String(h.appDocs[0]._id));
+    expect(telegram.appName).toBe('Telegram');
+    // رمز الخدمة وأيقونة الوثاقة: شاشة المعجم تُعدّل التطبيق المخزّن بهما
+    expect(telegram.serviceCode).toBe('telegram');
+    expect(telegram.iconUrl).toBe('');
+    expect(telegram.productCount).toBe(1);
+
+    // مشهورة فبُذرت متاحة بلا وثاقة مخزّنة
+    const nonPopular = VIRTUAL_NUMBER_APPS.find(
+      (a) => !POPULAR_APP_KEYS.includes(a.key),
+    )!;
+    const other = result.find((e: any) => e.key === nonPopular.key);
+    expect(other.offered).toBe(false);
+    expect(other.appId).toBe('');
+    expect(other.serviceCode).toBe('');
+    expect(other.productCount).toBe(0);
+  });
+
+  it('PATCH المعجم: تفعيل موقوف يُظهره في كتالوج المزود والاستيراد الجماعي', async () => {
+    const h = makeCuratedHarness(
+      [{ name: 'Telegram', serviceCode: 'telegram' }],
+      [],
+      {
+        offered: ['telegram'],
+        catalogs: [
+          {
+            providerIndex: 0,
+            services: [
+              { code: 'telegram', name: 'Telegram', countries: [] },
+              { code: 'whatsapp', name: 'WhatsApp', countries: [] },
+            ],
+          },
+        ],
+      },
+    );
+
+    const patched: any = await h.service.patchDictionaryOffered(
+      'whatsapp',
+      true,
+    );
+    expect(patched).toEqual({ key: 'whatsapp', offered: true });
+
+    // الإبطال الفوري للكاش: اللقة التالية ترى واتساب متاحاً
+    const catalog: any = await h.service.getAdminCatalog();
+    expect(catalog.services.map((s: any) => s.code)).toEqual([
+      'telegram',
+      'whatsapp',
+    ]);
+
+    const res: any = await h.service.bulkCreateApps();
+    expect(res.created).toBe(1);
+    expect(h.appModel.docs.map((d: any) => d.serviceCode)).toEqual([
+      'telegram',
+      'whatsapp',
+    ]);
+  });
+
+  it('PATCH المعجم: إيقاف متاح يُخفي وثاقته ومنتجاته دون حذف', async () => {
+    const h = makeCuratedHarness(
+      [
+        { name: 'Telegram', serviceCode: 'telegram' },
+        { name: 'WhatsApp', serviceCode: 'whatsapp' },
+      ],
+      [
+        {
+          serviceCode: 'telegram',
+          countryCode: '20',
+          countryName: 'مصر',
+          cost: 0.4,
+          count: 5,
+          operators: [],
+        },
+        {
+          serviceCode: 'whatsapp',
+          countryCode: '20',
+          countryName: 'مصر',
+          cost: 0.3,
+          count: 5,
+          operators: [],
+        },
+      ],
+      { offered: ['telegram', 'whatsapp'] },
+    );
+
+    await h.service.patchDictionaryOffered('whatsapp', false);
+
+    const list: any = await h.service.listAdminApps();
+    expect(list.map((a: any) => a.serviceCode)).toEqual(['telegram']);
+
+    const opts: any = await h.service.getOptions();
+    expect(opts.services.map((s: any) => s.code)).toEqual(['telegram']);
+
+    // غير اتلافي: الوثاقة ومنتجها يبقيان في القاعدة كما هما
+    expect(h.appModel.docs).toHaveLength(2);
+    expect(h.productModel.docs).toHaveLength(2);
+  });
+
+  it('PATCH المعجم يرفض مفتاحاً غير معروف في المعجم الثابت', async () => {
+    const h = makeCuratedHarness([], [], { offered: ['telegram'] });
+
+    await expect(
+      h.service.patchDictionaryOffered('zzzunknown', true),
+    ).rejects.toThrow(BadRequestException);
+  });
+
+  it('سلامة المشهورات: لكل مفتاح مدخل معجم وأيقونته ملفها موجود ورمز Hero-SMS', () => {
+    expect(POPULAR_APP_KEYS).toHaveLength(200);
+    expect(new Set(POPULAR_APP_KEYS).size).toBe(200);
+
+    const byKey = new Map(VIRTUAL_NUMBER_APPS.map((a) => [a.key, a]));
+    // أصول الموبايل بجانب مجلد الباك إند: ../../../../mobile/assets/icons
+    const iconsDir = join(__dirname, '..', '..', '..', '..', 'mobile', 'assets', 'icons');
+
+    for (const key of POPULAR_APP_KEYS) {
+      const meta = byKey.get(key);
+      expect(meta, `مدخل المعجم: ${key}`).toBeTruthy();
+      expect(meta!.icon, `أيقونة: ${key}`).toMatch(/^assets\/icons\/.+/);
+      expect(
+        existsSync(join(iconsDir, basename(meta!.icon))),
+        `ملف الأيقونة: ${key}`,
+      ).toBe(true);
+      // رمز Hero-SMS إلزامي لكل مشهور؛ رمز 5sim اختياري: بعض التطبيقات
+      // غير مقدَّمة لدى 5sim أصلاً (يُوثَّق في scripts/audit-popular-apps.js)
+      expect(meta!.herosmsCode, `رمز Hero-SMS: ${key}`).not.toBe('');
+    }
   });
 });

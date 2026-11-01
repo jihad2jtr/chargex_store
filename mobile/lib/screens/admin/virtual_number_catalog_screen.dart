@@ -1,18 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/app_icon_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
 
-/// كتالوج مزود الأرقام في اللوحة: نفس فكرة «منتجات المزود» في المتجر —
-/// تتصفح خدمات المزود الحيّة بدولها وأسعارها، فتُنشئ تطبيقاً للخدمة إن لم
-/// يكن موجوداً، وتنتقي الدول وتضيفها إلى تطبيقها، ثم تُفعّل أو تُعطّل كل
-/// دولة؛ والدولة المفعّلة وحدها تظهر للعميل في صفحة الأرقام.
-/// تُفتح هذه الشاشة من بطاقة المزود في صفحة «مزودو الأرقام الوهمية».
+/// كتالوج مزود الأرقام في اللوحة: تابين بلا قائمة accordion طويلة:
+/// 1) شبكة التطبيقات المُنتقاة المخزّنة لدى الخادم — تُرسم فوراً من قاعدة
+///    بياناتنا وحدها (بأسماء المعجم عربي وتحتيه الأجنبي) بلا انتظار المزود؛
+/// 2) اختيار تطبيق يحمّل دوله من لقطة كتالوج المزود المخزّنة لديه — ردّ فوري
+///    لأن اللقطة جاهزة، و«مزامنة من المزود» تجدّدها من المصدر عند الحاجة.
+/// ثم ينتقي الأدمن الدول ويضيفها إلى التطبيق، ويفعّل أو يعطّل كل دولة؛
+/// والدولة المفعّلة وحدها تظهر للعميل في صفحة الأرقام.
+/// تُفتح هذه الشاشة من بطاقة المزود في «مزودو الأرقام الوهمية» أو من بطاقة
+/// تطبيق في «تطبيقات الأرقام» (فتبدأ على تفصيله مباشرة).
 class VirtualNumberCatalogScreen extends StatefulWidget {
-  /// عند المرور من بطاقة تطبيق: تُعرض خدمته وحدها مباشرة
+  /// عند المرور من بطاقة تطبيق: يُفتح تفصيله مباشرة
   final VirtualNumberAppModel? focusApp;
 
   /// مزود الأرقام المحدد من بطاقته في صفحة المزودين (غيابه يعني الافتراضي الحيّ)
@@ -29,9 +34,9 @@ class _VirtualNumberCatalogScreenState
     extends State<VirtualNumberCatalogScreen> {
   final _searchCtrl = TextEditingController();
 
-  // التركيز يُضبط هنا مباشرة لا في postFrame: أول بناء يجب أن يكون موسّعاً
-  late String? _expandedCode = widget.focusApp?.serviceCode;
-  bool _onlyCurated = false;
+  // التطبيق المخزَّن المختار في عرض التفصيل: المرور من بطاقة تطبيق يفتحه
+  // مباشرة (لا في postFrame: أول بناء يجب أن يكون على التفصيل)
+  late String? _selectedAppId = widget.focusApp?.id;
   bool _busy = false;
 
   VirtualNumbersProvider get _vn => context.read<VirtualNumbersProvider>();
@@ -40,7 +45,11 @@ class _VirtualNumberCatalogScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _vn.fetchAdminCatalog(providerId: widget.providerId);
+      if (!mounted) return;
+      // التطبيقات من قاعدة بياناتنا: شبكة فورية بلا كتالوج المزود
+      _vn.fetchAdminApps().then((_) {
+        if (mounted && _selectedAppId != null) _fetchCountries();
+      });
     });
   }
 
@@ -50,8 +59,13 @@ class _VirtualNumberCatalogScreenState
     super.dispose();
   }
 
-  Future<void> _reload() =>
-      _vn.fetchAdminCatalog(providerId: widget.providerId);
+  /// إعادة التحديث: التفصيل يقرأ اللقطة، والشبكة تقرأ التطبيقات
+  Future<void> _reload() {
+    final appId = _selectedAppId;
+    return appId == null
+        ? _vn.fetchAdminApps()
+        : _vn.fetchAppCountries(appId: appId, providerId: widget.providerId);
+  }
 
   Future<void> _run(Future<String?> Function() action) async {
     setState(() => _busy = true);
@@ -71,61 +85,108 @@ class _VirtualNumberCatalogScreenState
       ),
     );
     if (message != null) {
-      await provider.fetchAdminCatalog(providerId: widget.providerId);
       await provider.fetchAdminApps(quiet: true);
+      final appId = _selectedAppId;
+      if (appId != null) {
+        await provider.fetchAppCountries(
+          appId: appId,
+          providerId: widget.providerId,
+        );
+      }
     }
+  }
+
+  /// التطبيق المخزَّن المختار إن كان لا يزال في القائمة (قد يُحذف من مكان آخر)
+  VirtualNumberAppModel? _findSelected(List<VirtualNumberAppModel> apps) {
+    final id = _selectedAppId;
+    if (id == null) return null;
+    for (final a in apps) {
+      if (a.id == id) return a;
+    }
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<VirtualNumbersProvider>();
-    final catalog = provider.adminCatalog;
-    final query = _searchCtrl.text.trim().toLowerCase();
-    final focus = widget.focusApp?.serviceCode;
+    final app = _findSelected(provider.adminApps);
+    // تابين: شبكة تطبيقات مُنتقاة أولاً، واختيارها يفتح دولها من اللقطة
+    return app == null
+        ? _gridView(provider, provider.adminApps)
+        : _detailView(provider, app);
+  }
 
-    var services = catalog.services;
-    if (focus != null && focus.isNotEmpty) {
-      services = services.where((s) => s.code == focus).toList();
-    }
+  List<Widget> _appActions(VirtualNumbersProvider provider) => [
+    IconButton(
+      tooltip: 'مزامنة هذا المزود من المصدر',
+      onPressed: provider.isCatalogLoading || _busy ? null : _syncThenReload,
+      icon: const Icon(Icons.sync_rounded),
+    ),
+    IconButton(
+      tooltip: 'تحديث',
+      onPressed: provider.isAppsLoading || _busy ? null : _reload,
+      icon: const Icon(Icons.refresh_rounded),
+    ),
+  ];
+
+  Widget _errorRow(VirtualNumbersProvider provider) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.error_outline_rounded,
+            size: 16,
+            color: AppColors.errorLight,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              provider.errorMessage!,
+              style: AppTypography.cairo(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.errorLight,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // التاب الأول: شبكة التطبيقات المُنتقاة — تُرسم فوراً من قاعدة بياناتنا
+  // ---------------------------------------------------------------------------
+
+  Widget _gridView(
+    VirtualNumbersProvider provider,
+    List<VirtualNumberAppModel> apps,
+  ) {
+    final query = _searchCtrl.text.trim().toLowerCase();
+    var shown = apps;
     if (query.isNotEmpty) {
-      services = services
+      shown = shown
           .where(
-            (s) =>
-                s.name.toLowerCase().contains(query) ||
-                s.code.toLowerCase().contains(query),
+            (a) =>
+                '${a.name} ${a.nameAr} ${a.nameEn} ${a.serviceCode} '
+                        '${a.appKey}'
+                    .toLowerCase()
+                    .contains(query),
           )
           .toList();
-    }
-    if (_onlyCurated) {
-      services = services.where((s) => s.appId.isNotEmpty).toList();
     }
 
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text(
-          focus == null
-              ? 'كتالوج مزود الأرقام'
-              : 'انتقاء دول ${widget.focusApp!.name}',
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'إعادة جلب الكتالوج من المزود',
-            onPressed: provider.isCatalogLoading || _busy
-                ? null
-                : _syncThenReload,
-            icon: const Icon(Icons.sync_rounded),
-          ),
-          IconButton(
-            tooltip: 'تحديث',
-            onPressed: provider.isCatalogLoading ? null : _reload,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-        ],
+        title: const Text('انتقاء دول التطبيقات'),
+        actions: _appActions(provider),
       ),
       body: Column(
         children: [
-          _marginBar(catalog),
+          if (provider.adminCatalog.providerName.isNotEmpty)
+            _marginBar(provider.adminCatalog),
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
             child: Row(
@@ -136,7 +197,7 @@ class _VirtualNumberCatalogScreenState
                     onChanged: (_) => setState(() {}),
                     decoration: InputDecoration(
                       isDense: true,
-                      hintText: 'بحث في ${catalog.services.length} خدمة',
+                      hintText: 'بحث في ${apps.length} تطبيقاً',
                       hintStyle: AppTypography.cairo(
                         fontSize: 12,
                         color: AppColors.slate400,
@@ -159,59 +220,32 @@ class _VirtualNumberCatalogScreenState
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  selected: _onlyCurated,
-                  label: const Text('المُنتقاة'),
-                  onSelected: (v) => setState(() => _onlyCurated = v),
-                  selectedColor: AppColors.slate900,
-                  labelStyle: AppTypography.cairo(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: _onlyCurated ? Colors.white : AppColors.slate700,
-                  ),
-                  checkmarkColor: Colors.white,
-                ),
               ],
             ),
           ),
-          if (provider.errorMessage != null)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    size: 16,
-                    color: AppColors.errorLight,
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      provider.errorMessage!,
-                      style: AppTypography.cairo(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.errorLight,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          if (provider.errorMessage != null) _errorRow(provider),
           Expanded(
-            child: provider.isCatalogLoading && catalog.services.isEmpty
+            child: provider.isAppsLoading && apps.isEmpty
                 ? const Center(child: CircularProgressIndicator())
-                : services.isEmpty
-                ? _emptyState(catalog)
+                : shown.isEmpty
+                ? _emptyState(apps)
                 : RefreshIndicator(
                     onRefresh: _reload,
-                    child: ListView.separated(
+                    child: ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(14, 6, 14, 28),
-                      itemCount: services.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (_, i) => _serviceCard(services[i], catalog),
+                      children: [
+                        Text(
+                          'اختر تطبيقاً لعرض دوله وجلبها — ${shown.length} تطبيقاً',
+                          style: AppTypography.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.slate500,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        _appsGrid(shown),
+                      ],
                     ),
                   ),
           ),
@@ -220,14 +254,490 @@ class _VirtualNumberCatalogScreenState
     );
   }
 
-  /// إعادة الجلب تعيد الكتالوج والتطبيقات معاً (عدّادات الدول تتحدث)
-  Future<void> _syncThenReload() async {
+  /// شبكة بنفس نمط أيقونات العميل: مربّع أيقونة وتحته الاسم العربي وتحتيه
+  /// الأجنبي وسطر الرمز والدول وشارة الحالة — infoH يستوعب السطور بلا طفو
+  Widget _appsGrid(List<VirtualNumberAppModel> apps) {
+    const double spacing = 10;
+    const double targetCell = 84;
+    const double infoH = 62;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final availableWidth = constraints.maxWidth;
+        final crossAxisCount =
+            ((availableWidth + spacing) / (targetCell + spacing))
+                .round()
+                .clamp(3, 8)
+                .toInt();
+        final cellWidth =
+            (availableWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
+
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: EdgeInsets.zero,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing + 4,
+            mainAxisExtent: cellWidth + 6 + infoH,
+          ),
+          itemCount: apps.length,
+          itemBuilder: (_, i) => _appTile(apps[i]),
+        );
+      },
+    );
+  }
+
+  Widget _appTile(VirtualNumberAppModel app) {
+    final displayName = app.nameAr.isNotEmpty ? app.nameAr : app.name;
+    final foreign = app.nameEn.trim();
+    final showForeign =
+        foreign.isNotEmpty && foreign != displayName && _hasArabic(displayName);
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () {
+        setState(() => _selectedAppId = app.id);
+        // الدول تُحمَّل عند الاختيار من لقطة الخادم: ردّ فوري بلا مزامنة
+        _fetchCountries();
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: _iconSquare(_iconAssetFor(app), displayName)),
+          const SizedBox(height: 6),
+          Text(
+            displayName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: AppTypography.cairo(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.slate900,
+              height: 1.2,
+            ),
+          ),
+          if (showForeign)
+            Padding(
+              padding: const EdgeInsets.only(top: 1),
+              child: Text(
+                foreign,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.ltr,
+                style: AppTypography.cairo(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.slate400,
+                  height: 1.1,
+                ),
+              ),
+            )
+          else ...[
+            const SizedBox(height: 2),
+            Text(
+              app.serviceCode,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              textDirection: TextDirection.ltr,
+              style: AppTypography.cairo(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.slate500,
+                height: 1.15,
+              ),
+            ),
+          ],
+          const SizedBox(height: 2),
+          Text(
+            '${app.productCount} دولة مُنتقاة',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: AppTypography.cairo(
+              fontSize: 8.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.slate500,
+              height: 1.15,
+            ),
+          ),
+          const SizedBox(height: 4),
+          // FittedBox: شارة «ظاهرة للعميل» أوسع من الخانة عند 3 أعمدة
+          FittedBox(fit: BoxFit.scaleDown, child: _appStateChip(app)),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // التاب الثاني: تفصيل تطبيق مخزَّن — دوله من اللقطة ثم الانتقاء والتفعيل
+  // ---------------------------------------------------------------------------
+
+  Widget _detailView(
+    VirtualNumbersProvider provider,
+    VirtualNumberAppModel app,
+  ) {
+    final catalog = provider.adminCatalog;
+    final displayName = app.nameAr.isNotEmpty ? app.nameAr : app.name;
+    return PopScope(
+      // رجوع الجهاز يخرج من تفصيل التطبيق إلى الشبكة، لا من الشاشة كلها
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) setState(() => _selectedAppId = null);
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Text(
+            'انتقاء دول $displayName',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          leading: IconButton(
+            tooltip: 'رجوع',
+            onPressed: () => setState(() => _selectedAppId = null),
+            icon: const Icon(Icons.arrow_back_rounded),
+          ),
+          actions: _appActions(provider),
+        ),
+        body: Column(
+          children: [
+            _marginBar(catalog),
+            if (provider.errorMessage != null) _errorRow(provider),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: _reload,
+                child: ListView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  padding: const EdgeInsets.fromLTRB(14, 6, 14, 28),
+                  children: [
+                    _appHeaderCard(app, catalog),
+                    const SizedBox(height: 10),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(color: AppColors.outlineVariant),
+                      ),
+                      child: _countriesSection(app, provider, catalog),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// جسم التفصيل: صفوف هذا التطبيق من لقطة المزود (يُطابقها الخادم بمفتاح
+  /// المعجم حتى لو اختلف رمز الخدمة لديه)، أو إرشاد للمزامنة إن لا لقطة
+  Widget _countriesSection(
+    VirtualNumberAppModel app,
+    VirtualNumbersProvider provider,
+    VirtualNumberAdminCatalog catalog,
+  ) {
+    final rows = catalog.services;
+    if (rows.isEmpty) {
+      if (provider.isCatalogLoading) {
+        return const Padding(
+          padding: EdgeInsets.symmetric(vertical: 48),
+          child: Center(child: CircularProgressIndicator()),
+        );
+      }
+      return Padding(
+        padding: const EdgeInsets.all(18),
+        child: Text(
+          catalog.providerName.isEmpty || catalog.fetchedAt.isEmpty
+              ? 'لم تُجلب دول هذا المزود بعد — اضغط «مزامنة من المزود» أولاً'
+              : 'لا خدمة مطابقة لهذا التطبيق في كتالوج المزود — زامن ثم أعد الجلب',
+          textAlign: TextAlign.center,
+          style: AppTypography.cairo(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w700,
+            color: AppColors.slate500,
+          ),
+        ),
+      );
+    }
+    return Column(
+      children: [
+        for (final row in rows) ...[
+          _countriesBody(row, catalog, true),
+          if (row != rows.last) const Divider(height: 16),
+        ],
+      ],
+    );
+  }
+
+  /// رأس التطبيق: أيقونة واسم عربي والاسم الأجنبي تحته، وزر «جلب الدول» —
+  /// يقرأ الخادمُ دولَ هذا التطبيق من لقطة الكتالوج المخزّنة لديه فوراً، أما
+  /// «مزامنة من المزود» فتجدّد اللقطة كاملة من المصدر وهو المسار الأبطأ،
+  /// ولا مزود يقدّم دول تطبيق واحد وحده في API عنده.
+  Widget _appHeaderCard(
+    VirtualNumberAppModel app,
+    VirtualNumberAdminCatalog catalog,
+  ) {
+    final displayName = app.nameAr.isNotEmpty ? app.nameAr : app.name;
+    final foreign = app.nameEn.trim();
+    final showForeign =
+        foreign.isNotEmpty && foreign != displayName && _hasArabic(displayName);
+    final iconAsset = _iconAssetFor(app);
+    final catalogCountries = catalog.services.fold<int>(
+      0,
+      (sum, s) => sum + s.countries.length,
+    );
+    final providerCode = catalog.services.isNotEmpty
+        ? catalog.services.first.code
+        : app.serviceCode;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              SizedBox(
+                width: 46,
+                height: 46,
+                child: _iconSquare(iconAsset, displayName),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: AppColors.slate900,
+                      ),
+                    ),
+                    if (showForeign) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        foreign,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textDirection: TextDirection.ltr,
+                        style: AppTypography.cairo(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.slate400,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 2),
+                    Text(
+                      'رمز المزود $providerCode • '
+                      '${app.productCount} دولة مُنتقاة'
+                      '${catalogCountries > 0 ? ' • $catalogCountries في كتالوج السيرفر' : ''}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 10,
+                        color: AppColors.slate500,
+                      ),
+                    ),
+                    if (catalog.fetchedAt.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'لقطة الكتالوج ${_shortDateTime(catalog.fetchedAt)}'
+                        '${catalog.stale ? ' — قديمة، زامِنها' : ''}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w700,
+                          color: catalog.stale
+                              ? AppColors.ticketAmber
+                              : AppColors.slate400,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _appStateChip(app),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _busy ? null : _fetchCountries,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.slate900,
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
+                  icon: const Icon(Icons.get_app_rounded, size: 16),
+                  label: Text(
+                    'جلب الدول',
+                    style: AppTypography.cairo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _busy ? null : _syncThenReload,
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                  ),
+                  icon: const Icon(Icons.sync_rounded, size: 16),
+                  label: Text(
+                    'مزامنة من المزود',
+                    style: AppTypography.cairo(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.slate700,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _fetchCountries() async {
+    final appId = _selectedAppId;
+    if (appId == null) return;
     final provider = _vn;
+    final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
-    final message = await provider.adminSyncCatalog();
+    await provider.fetchAppCountries(
+      appId: appId,
+      providerId: widget.providerId,
+    );
+    final error = provider.errorMessage;
     if (!mounted) return;
     setState(() => _busy = false);
-    await provider.fetchAdminCatalog(providerId: widget.providerId);
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error == null ? AppColors.slate800 : AppColors.rose,
+        content: Text(
+          error ?? 'تم جلب الدول من لقطة كتالوج المزود',
+          style: AppTypography.cairo(fontSize: 12.5, color: Colors.white),
+        ),
+      ),
+    );
+  }
+
+  /// تاريخ اللقطة مختصراً بلا اعتماد حزمة intl: «يوم/شهر ساعة:دقيقة»
+  String _shortDateTime(String iso) {
+    final parsed = DateTime.tryParse(iso)?.toLocal();
+    if (parsed == null) return iso;
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(parsed.day)}/${two(parsed.month)} '
+        '${two(parsed.hour)}:${two(parsed.minute)}';
+  }
+
+  // ---------------------------------------------------------------------------
+  // أيقونات التطبيقات: نفس مسارات الحل في صفحة الأرقام (مخزّن ثم مبنيّان)
+  // ---------------------------------------------------------------------------
+
+  String? _iconAssetFor(VirtualNumberAppModel app) {
+    final cleanIcon = app.icon.trim();
+    if (cleanIcon.isNotEmpty) {
+      if (cleanIcon.startsWith('assets/')) return cleanIcon;
+      final direct = builtinIconAssetExact(cleanIcon);
+      if (direct != null) return direct;
+      final byQuery = builtinIconAssetForQuery(cleanIcon);
+      if (byQuery != null) return byQuery;
+    }
+    for (final q in [
+      app.nameAr,
+      app.nameEn,
+      app.name,
+      app.serviceCode,
+      app.appKey,
+    ]) {
+      if (q.trim().isEmpty) continue;
+      final found = iconAssetForApp(iconUrl: cleanIcon, name: q.trim());
+      if (found != null) return found;
+    }
+    return null;
+  }
+
+  static bool _hasArabic(String value) => RegExp(r'[؀-ۿ]').hasMatch(value);
+
+  /// مربّع بحواف دائرية كأيقونة هاتف، وحرف الاسم بديلاً عند غياب الأيقونة
+  Widget _iconSquare(String? iconAsset, String name) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final size = constraints.maxWidth;
+        final radius = (size * 0.27).clamp(12.0, 26.0);
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFF8FAFC), Color(0xFFE9EFF7)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: AppColors.outlineVariant),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: iconAsset != null
+              ? Image.asset(
+                  iconAsset,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) => _letter(name),
+                )
+              : _letter(name),
+        );
+      },
+    );
+  }
+
+  Widget _letter(String name) {
+    final trimmed = name.trim();
+    return Center(
+      child: Text(
+        trimmed.isEmpty ? '#' : trimmed.substring(0, 1).toUpperCase(),
+        style: AppTypography.cairo(
+          fontSize: 18,
+          fontWeight: FontWeight.w800,
+          color: AppColors.slate700,
+        ),
+      ),
+    );
+  }
+
+  /// مزامنة هذا المزود وحده من المصدر (المسار البطيء على طلب صريح)، ثم
+  /// إعادة قراءة اللقطة والتطبيقات: عدّادات الدول تتحدث
+  Future<void> _syncThenReload() async {
+    final provider = _vn;
+    final syncProviderId =
+        widget.providerId ?? provider.adminCatalog.providerId;
+    setState(() => _busy = true);
+    final message = await provider.adminSyncCatalog(providerId: syncProviderId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    await _reload();
     // يُعاد قراءة Messenger بعد التمر (تحديث context عبر await)
     await provider.fetchAdminApps(quiet: true);
     if (!mounted) return;
@@ -287,7 +797,7 @@ class _VirtualNumberCatalogScreenState
     return label.isEmpty ? '' : ' — $label';
   }
 
-  Widget _emptyState(VirtualNumberAdminCatalog catalog) {
+  Widget _emptyState(List<VirtualNumberAppModel> apps) {
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.symmetric(vertical: 60),
@@ -295,9 +805,9 @@ class _VirtualNumberCatalogScreenState
         const Icon(Icons.public_rounded, size: 42, color: AppColors.slate400),
         const SizedBox(height: 10),
         Text(
-          catalog.services.isEmpty
-              ? 'الكتالوج فارغ — مزامنة الكتالوج من شاشة إدارة الأرقام أولاً'
-              : 'لا خدمة مطابقة للفلتر الحالي',
+          apps.isEmpty
+              ? 'لا تطبيقات مُنتقاة بعد — أضِفها من «تطبيقات الأرقام»'
+              : 'لا تطبيق مطابق للفلتر الحالي',
           textAlign: TextAlign.center,
           style: AppTypography.cairo(
             fontSize: 13,
@@ -309,96 +819,13 @@ class _VirtualNumberCatalogScreenState
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // بطاقة خدمة: accordion — الدول تُفتح عند النقر فقط (كتالوج الضخمة)
-  // ---------------------------------------------------------------------------
-
-  Widget _serviceCard(
-    VirtualNumberCatalogService service,
-    VirtualNumberAdminCatalog catalog,
-  ) {
-    final expanded = _expandedCode == service.code;
-    final hasApp = service.appId.isNotEmpty;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: expanded ? AppColors.primaryBlue : AppColors.outlineVariant,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(15),
-            onTap: () =>
-                setState(() => _expandedCode = expanded ? null : service.code),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 11, 12, 11),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          service.nameAr.isNotEmpty
-                              ? service.nameAr
-                              : service.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.cairo(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w900,
-                            color: AppColors.slate900,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          '${service.nameEn.isNotEmpty ? '${service.nameEn} • ' : ''}'
-                          '${service.code} • ${service.countries.length} دولة'
-                          '${service.addedCount > 0 ? ' • مُنتقى ${service.addedCount}' : ''}',
-                          style: AppTypography.cairo(
-                            fontSize: 10.5,
-                            color: AppColors.slate500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // حالة التطبيق المرافق: يظهر للعميل / بلا دول / لا تطبيق
-                  _appStateChip(service),
-                  Icon(
-                    expanded
-                        ? Icons.expand_less_rounded
-                        : Icons.expand_more_rounded,
-                    color: AppColors.slate400,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (expanded) ...[
-            const Divider(height: 1),
-            _countriesBody(service, catalog, hasApp),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _appStateChip(VirtualNumberCatalogService service) {
+  Widget _appStateChip(VirtualNumberAppModel app) {
     final String label;
     final Color tone;
-    if (service.appId.isEmpty) {
-      label = 'بلا تطبيق';
-      tone = AppColors.slate400;
-    } else if (!service.appActive) {
+    if (!app.isActive) {
       label = 'تطبيق موقوف';
       tone = AppColors.rose;
-    } else if (service.addedCount == 0) {
+    } else if (app.activeProductCount == 0) {
       label = 'تطبيق بلا دول';
       tone = AppColors.ticketAmber;
     } else {
@@ -702,7 +1129,7 @@ class _VirtualNumberCatalogScreenState
     );
   }
 
-  /// إضافة الدول المختارة: تُضاف لتطبيق الخدمة، أو يُنشأ التطبيق أولاً
+  /// إضافة الدول المختارة إلى التطبيق المختار (شبكة التطبيقات: له appId دائماً)
   Future<void> _addSelected(
     VirtualNumberCatalogService service,
     List<String> codes,
@@ -713,28 +1140,8 @@ class _VirtualNumberCatalogScreenState
         .where((c) => codes.contains(c.code))
         .toList();
 
-    var appId = service.appId; // '' عند عدم وجود تطبيق مُنتقَى له
-    if (appId.isEmpty) {
-      // نفس فكرة المتجر: التطبيق يُنشأ أولاً باسم الخدمة من الكتالوج إن لم
-      // يكن الأدمن أنشأه مسبقاً من شاشة تطبيقات الأرقام
-      final message = await provider.createAdminApp(
-        name: service.name,
-        serviceCode: service.code,
-        providerId: catalog.providerId,
-      );
-      if (message == null) return;
-      await provider.fetchAdminApps(quiet: true);
-      if (!mounted) return;
-      appId =
-          context
-              .read<VirtualNumbersProvider>()
-              .adminApps
-              .where((a) => a.serviceCode == service.code)
-              .map((a) => a.id)
-              .firstOrNull ??
-          '';
-      if (appId.isEmpty) return;
-    }
+    final appId = _selectedAppId ?? service.appId;
+    if (appId.isEmpty) return;
 
     await _run(
       () => provider.addCountriesToApp(
@@ -743,6 +1150,5 @@ class _VirtualNumberCatalogScreenState
         providerId: catalog.providerId,
       ),
     );
-    if (mounted) setState(() => _expandedCode = service.code);
   }
 }

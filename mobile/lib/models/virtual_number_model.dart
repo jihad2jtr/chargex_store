@@ -634,7 +634,15 @@ class VirtualNumberProviderInfo {
 class VirtualNumberAppModel {
   final String id;
   final String name;
+
+  /// تسمية المعجم العربية/الإنجليزية: الشبكة تعرض العربي وتحتيه الأجنبي
+  final String nameAr;
+  final String nameEn;
   final String iconUrl;
+
+  /// الأيقونة النهائية (مخزّنة أو من المعجم) و مفتاح المعجم الموحد للتطبيق
+  final String icon;
+  final String appKey;
   final String serviceCode;
   final bool isActive;
   final int sortOrder;
@@ -645,7 +653,11 @@ class VirtualNumberAppModel {
   const VirtualNumberAppModel({
     required this.id,
     required this.name,
+    this.nameAr = '',
+    this.nameEn = '',
     this.iconUrl = '',
+    this.icon = '',
+    this.appKey = '',
     required this.serviceCode,
     this.isActive = true,
     this.sortOrder = 0,
@@ -658,7 +670,11 @@ class VirtualNumberAppModel {
       VirtualNumberAppModel(
         id: (json['id'] ?? json['_id'] ?? '').toString(),
         name: (json['name'] ?? '').toString(),
+        nameAr: (json['nameAr'] ?? '').toString(),
+        nameEn: (json['nameEn'] ?? '').toString(),
         iconUrl: (json['iconUrl'] ?? '').toString(),
+        icon: (json['icon'] ?? '').toString(),
+        appKey: (json['appKey'] ?? '').toString(),
         serviceCode: (json['serviceCode'] ?? '').toString(),
         isActive: json['isActive'] != false,
         sortOrder: _num(json['sortOrder']).toInt(),
@@ -677,6 +693,77 @@ class VirtualNumberAppModel {
 
   /// العميل لا يرى الخدمة إلا إذا كان للتطبيق دولة مفعّلة واحدة على الأقل
   bool get visibleToClients => isActive && activeProductCount > 0;
+}
+
+/// عنصر من `GET /virtual-numbers/admin/dictionary`: مدخل من معجم التطبيقات
+/// الكامل مع توفره في القاعدة (بوابة «متاح للمزودين») ووثاقته المخزّنة إن أُضيفت
+class VirtualNumberDictionaryEntry {
+  final String key;
+  final String nameAr;
+  final String nameEn;
+  final String icon;
+  final String herosmsCode;
+  final String fivesimCode;
+
+  /// متاح للمزودين: وحده تظهر في انتقاء الدول والاستيراد الجميلي وشاشة العميل
+  final bool offered;
+
+  /// وثاقة التطبيق المخزّنة من المزود (فارغة إن لم تُضَف بعد) وعدّة دولها
+  final String appId;
+  final String appName;
+
+  /// رمز الخدمة وأيقونة الوثاقة المخزّنة: شاشة المعجم تُعدّل التطبيق بها
+  final String serviceCode;
+  final String iconUrl;
+  final int productCount;
+
+  const VirtualNumberDictionaryEntry({
+    required this.key,
+    this.nameAr = '',
+    this.nameEn = '',
+    this.icon = '',
+    this.herosmsCode = '',
+    this.fivesimCode = '',
+    this.offered = false,
+    this.appId = '',
+    this.appName = '',
+    this.serviceCode = '',
+    this.iconUrl = '',
+    this.productCount = 0,
+  });
+
+  factory VirtualNumberDictionaryEntry.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberDictionaryEntry(
+        key: (json['key'] ?? '').toString(),
+        nameAr: (json['nameAr'] ?? '').toString(),
+        nameEn: (json['nameEn'] ?? '').toString(),
+        icon: (json['icon'] ?? '').toString(),
+        herosmsCode: (json['herosmsCode'] ?? '').toString(),
+        fivesimCode: (json['fivesimCode'] ?? '').toString(),
+        offered: json['offered'] == true,
+        appId: (json['appId'] ?? '').toString(),
+        appName: (json['appName'] ?? '').toString(),
+        serviceCode: (json['serviceCode'] ?? '').toString(),
+        iconUrl: (json['iconUrl'] ?? '').toString(),
+        productCount: _num(json['productCount']).toInt(),
+      );
+
+  /// نسخة معدّلة محلياً بعد نجاح PATCH من دون إعادة جلب المعجم كاملًا
+  VirtualNumberDictionaryEntry copyWith({bool? offered}) =>
+      VirtualNumberDictionaryEntry(
+        key: key,
+        nameAr: nameAr,
+        nameEn: nameEn,
+        icon: icon,
+        herosmsCode: herosmsCode,
+        fivesimCode: fivesimCode,
+        offered: offered ?? this.offered,
+        appId: appId,
+        appName: appName,
+        serviceCode: serviceCode,
+        iconUrl: iconUrl,
+        productCount: productCount,
+      );
 }
 
 /// دولة داخل بطاقة تطبيق الأرقام (تُعرض مباشرة بدون فتح الكتالوج)
@@ -854,6 +941,11 @@ class VirtualNumberAdminCatalog {
   final double marginValue;
   final List<VirtualNumberCatalogService> services;
 
+  /// تاريخ لقطة الكتالوج المخزّنة وقدامتها (من مسار دول التطبيق الفوري):
+  /// اللوحة تعرضه وتقترح المزامنة حين اللقطة قديمة أو غائبة
+  final String fetchedAt;
+  final bool stale;
+
   const VirtualNumberAdminCatalog({
     this.providerId = '',
     this.providerName = '',
@@ -862,6 +954,8 @@ class VirtualNumberAdminCatalog {
     this.marginType = 'percentage',
     this.marginValue = 0,
     this.services = const [],
+    this.fetchedAt = '',
+    this.stale = false,
   });
 
   factory VirtualNumberAdminCatalog.fromJson(Map<String, dynamic> json) {
@@ -878,6 +972,8 @@ class VirtualNumberAdminCatalog {
       providerServerLabel: (provider['serverLabel'] ?? '').toString(),
       marginType: (margin['type'] ?? 'percentage').toString(),
       marginValue: _num(margin['value']),
+      fetchedAt: (json['fetchedAt'] ?? '').toString(),
+      stale: json['stale'] == true,
       services: (json['services'] as List? ?? const <dynamic>[])
           .whereType<Map>()
           .map(

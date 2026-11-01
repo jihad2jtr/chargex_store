@@ -5,13 +5,13 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
-import '../../widgets/app_asset_picker.dart';
+import '../../widgets/virtual_number_app_form_dialog.dart';
 import 'virtual_number_catalog_screen.dart';
+import 'virtual_number_dictionary_screen.dart';
 
-/// تطبيقات الأرقام الوهمية: نفس فكرة «تطبيقات المتجر» —
-/// تُنشئ هنا تطبيقاً فارغاً لكل خدمة (تليجرام/واتساب…)، ثم تنتقي دولها
-/// (منتجاتها) من كتالوج المزود عبر صفحة مزودي الأرقام. لا تظهر أي خدمة
-/// للعميل قبل إضافة دولة مفعّلة إلى تطبيقها.
+/// منتجات الأرقام المضافة: وثاقات التطبيقات التي أُضيفت من المزود ولها دولة
+/// واحدة على الأقل. إتاحة تطبيق جديد للمزودين وإضافته والاستيراد الجماعي
+/// تتم من «معجم التطبيقات»؛ هنا تُدار الدول والجودة والتفعيل فقط.
 class VirtualNumberAppsScreen extends StatefulWidget {
   const VirtualNumberAppsScreen({super.key});
 
@@ -85,7 +85,8 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     if (!mounted) return;
     final saved = await showDialog<bool>(
       context: context,
-      builder: (_) => _AppFormDialog(app: app, catalogServices: codes),
+      builder: (_) =>
+          VirtualNumberAppFormDialog(app: app, catalogServices: codes),
     );
     if (saved == true) await _reload();
   }
@@ -133,7 +134,10 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   Widget build(BuildContext context) {
     final provider = context.watch<VirtualNumbersProvider>();
     final query = _searchCtrl.text.trim().toLowerCase();
+    // شاشة المنتجات: الوثاقات المضافة من المزود التي لها دولة واحدة على الأقل؛
+    // الفارغة تُدار من «معجم التطبيقات» وشبكة الانتقاء
     final apps = provider.adminApps
+        .where((app) => app.productCount > 0)
         .where(
           (app) =>
               query.isEmpty ||
@@ -145,22 +149,17 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('تطبيقات الأرقام'),
+        title: const Text('منتجات الأرقام المضافة'),
         actions: [
           IconButton(
-            tooltip: 'إضافة تطبيق لكل خدمة في كتالوج المزود',
-            onPressed: _busy ? null : _bulkImport,
-            icon: const Icon(Icons.playlist_add_rounded),
+            tooltip: 'معجم التطبيقات',
+            onPressed: _openDictionary,
+            icon: const Icon(Icons.menu_book_rounded),
           ),
           IconButton(
             tooltip: 'تحديث',
             onPressed: provider.isAppsLoading ? null : _reload,
             icon: const Icon(Icons.refresh_rounded),
-          ),
-          IconButton(
-            tooltip: 'تطبيق جديد',
-            onPressed: _busy ? null : () => _openForm(),
-            icon: const Icon(Icons.add_rounded),
           ),
         ],
       ),
@@ -242,33 +241,12 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     );
   }
 
-  Future<void> _bulkImport() async {
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('استيراد كتالوج الخدمات'),
-        content: Text(
-          'يُنشئ تطبيقاً مفعّلاً لكل خدمة في كتالوج المزود لم تُضَف بعد — '
-          'بلا دول. تُنتقى الدول لكل خدمة لاحقاً من كتالوج المزود، '
-          'فلا يظهر شيء للعميل قبل الانتقاء.',
-          style: AppTypography.cairo(fontSize: 12.5, height: 1.6),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('تراجع'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('استيراد'),
-          ),
-        ],
-      ),
+  Future<void> _openDictionary() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const VirtualNumberDictionaryScreen()),
     );
-    if (go != true) return;
-    await _run(
-      () => context.read<VirtualNumbersProvider>().bulkCreateAdminApps(),
-    );
+    // العودة من المعجم: تطبيق أُتيح أو وُثِّق قد يغيّر قائمة المنتجات
+    if (mounted) await _reload();
   }
 
   Widget _hintBar() {
@@ -290,8 +268,9 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
           const SizedBox(width: 7),
           Expanded(
             child: Text(
-              'أنشئ التطبيق فارغاً هنا، ثم انتقِ دوله من «مزودو الأرقام الوهمية». '
-              'الخدمة لا تظهر للعميل إلا بتطبيق مفعّل ودولة مفعّلة واحدة على الأقل.',
+              'هذه منتجات التطبيقات المُضافة من المزود؛ لإتاحة تطبيق جديد '
+              'للمزودين أو إضافته ادخل إلى «معجم التطبيقات»، ثم انتقِ دوله من '
+              'صفحة مزودي الأرقام. الخدمة لا تظهر للعميل إلا بدولة مفعّلة.',
               style: AppTypography.cairo(
                 fontSize: 10.5,
                 fontWeight: FontWeight.w700,
@@ -320,7 +299,8 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
         const SizedBox(height: 10),
         Text(
           query.isEmpty
-              ? 'لا توجد تطبيقات بعد — أنشئ تطبيقاً لكل خدمة تريد بيع أرقامها'
+              ? 'لم تُضف أي دولة من المزود بعد — افتح المعجم وأتق التطبيقات '
+                    'ثم انتقِ دولها من صفحة المزود'
               : 'لا نتيجة مطابقة للبحث',
           textAlign: TextAlign.center,
           style: AppTypography.cairo(
@@ -333,9 +313,9 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
           const SizedBox(height: 14),
           Center(
             child: FilledButton.icon(
-              onPressed: _busy ? null : () => _openForm(),
-              icon: const Icon(Icons.add_rounded, size: 17),
-              label: const Text('تطبيق جديد'),
+              onPressed: _openDictionary,
+              icon: const Icon(Icons.menu_book_rounded, size: 17),
+              label: const Text('فتح معجم التطبيقات'),
             ),
           ),
         ],
@@ -734,194 +714,6 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
         Text(
           label,
           style: AppTypography.cairo(fontSize: 10.5, color: AppColors.slate500),
-        ),
-      ],
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// حوار إنشاء/تعديل تطبيق أرقام (الاسم + رمز الخدمة + أيقونة اختيارية)
-// ---------------------------------------------------------------------------
-
-class _AppFormDialog extends StatefulWidget {
-  final VirtualNumberAppModel? app;
-  final List<({String code, String name})> catalogServices;
-
-  const _AppFormDialog({this.app, this.catalogServices = const []});
-
-  @override
-  State<_AppFormDialog> createState() => _AppFormDialogState();
-}
-
-class _AppFormDialogState extends State<_AppFormDialog> {
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _codeCtrl;
-  late final TextEditingController _iconCtrl;
-  bool _saving = false;
-
-  bool get _isEdit => widget.app != null;
-
-  @override
-  void initState() {
-    super.initState();
-    _nameCtrl = TextEditingController(text: widget.app?.name ?? '');
-    _codeCtrl = TextEditingController(text: widget.app?.serviceCode ?? '');
-    _iconCtrl = TextEditingController(text: widget.app?.iconUrl ?? '');
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _codeCtrl.dispose();
-    _iconCtrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _save() async {
-    final name = _nameCtrl.text.trim();
-    final code = _codeCtrl.text.trim().toLowerCase();
-    if (name.isEmpty || (!_isEdit && code.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الاسم ورمز الخدمة مطلوبان')),
-      );
-      return;
-    }
-    setState(() => _saving = true);
-    final provider = context.read<VirtualNumbersProvider>();
-    final message = _isEdit
-        ? await provider.updateAdminApp(
-            widget.app!.id,
-            name: name,
-            iconUrl: _iconCtrl.text.trim(),
-          )
-        : await provider.createAdminApp(
-            name: name,
-            serviceCode: code,
-            iconUrl: _iconCtrl.text.trim(),
-          );
-    if (!mounted) return;
-    if (message != null) Navigator.pop(context, true);
-    setState(() => _saving = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final usedCodes = context
-        .read<VirtualNumbersProvider>()
-        .adminApps
-        .map((a) => a.serviceCode)
-        .toSet();
-    // اقتراح الخدمات المتبقية من الكتالوج الحيّ (تُملأ بالنقر)
-    final suggestions = widget.catalogServices
-        .where((s) => !_isEdit && !usedCodes.contains(s.code))
-        .take(12)
-        .toList();
-
-    return AlertDialog(
-      title: Text(_isEdit ? 'تعديل التطبيق' : 'تطبيق أرقام جديد'),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(
-                labelText: 'الاسم المعروض للعميل',
-                hintText: 'Telegram',
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _codeCtrl,
-              enabled: !_isEdit, // الرمز ثابت: المطابقة مع كتالوج المزود
-              decoration: InputDecoration(
-                labelText: _isEdit
-                    ? 'رمز الخدمة (ثابت)'
-                    : 'رمز الخدمة لدى المزود',
-                hintText: _isEdit ? null : 'telegram',
-                helperText: _isEdit
-                    ? null
-                    : 'طابِقه من كتالوج المزود — به تُطابَق الأسعار والدول',
-                helperMaxLines: 2,
-                isDense: true,
-              ),
-            ),
-            if (suggestions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Text(
-                'خدمات من كتالوج المزود:',
-                style: AppTypography.cairo(
-                  fontSize: 10.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.slate500,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: suggestions
-                    .map(
-                      (s) => ActionChip(
-                        label: Text(
-                          '${s.name} · ${s.code}',
-                          style: AppTypography.cairo(fontSize: 10),
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _codeCtrl.text = s.code;
-                            if (_nameCtrl.text.trim().isEmpty) {
-                              _nameCtrl.text = s.name;
-                            }
-                          });
-                        },
-                      ),
-                    )
-                    .toList(),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _iconCtrl,
-              decoration: const InputDecoration(
-                labelText: 'أيقونة (اختياري)',
-                hintText: 'رابط أو مسار من المعرض أدناه',
-                isDense: true,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SizedBox(
-              height: 210,
-              child: AppAssetPicker(
-                selected: _iconCtrl.text,
-                onSelected: (path, label, category) {
-                  setState(() {
-                    _iconCtrl.text = path;
-                    if (_nameCtrl.text.trim().isEmpty) _nameCtrl.text = label;
-                  });
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context, false),
-          child: const Text('تراجع'),
-        ),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: _saving
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : Text(_isEdit ? 'حفظ' : 'إنشاء'),
         ),
       ],
     );

@@ -26,6 +26,10 @@ import {
   VirtualNumberAppDocument,
 } from '../../database/schemas/virtual-number-app.schema';
 import {
+  VirtualNumberDictionary,
+  VirtualNumberDictionaryDocument,
+} from '../../database/schemas/virtual-number-dictionary.schema';
+import {
   VirtualNumberProduct,
   VirtualNumberProductDocument,
 } from '../../database/schemas/virtual-number-product.schema';
@@ -75,6 +79,7 @@ import {
   createVirtualNumberClient,
 } from './virtual-number-clients';
 import {
+  VIRTUAL_NUMBER_APPS,
   resolveAppMeta,
   resolveCountryMeta,
 } from './virtual-numbers-dictionary';
@@ -84,6 +89,7 @@ import {
   OUTCOME_COUNTER_FIELD,
 } from './virtual-number-quality';
 import { isHiddenServerName } from './fivesim.client';
+import { POPULAR_APP_KEYS } from './popular-apps';
 
 /** يُخفي سيرفرات المزوّد الداخلية (virtual4، virtual21…) عن كل واجهات العرض */
 function visibleOperators(
@@ -143,6 +149,13 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     { label: string; name: string; at: number }
   >();
 
+  // بوابة المعجم: مفاتيح التطبيقات المتاحة كاش قصير الأجل — كل مسارات
+  // الانتقاء والبيع تمر بها، فلا يُستقرئ المعجم في كل طلب
+  private offeredCache: { keys: Set<string>; at: number } | null = null;
+  private offeredTtlMs = 30_000;
+  // البذر الأول (200 مشهورة) يجري مرة واحدة لكل عملية ولو تزامنت الطلبات
+  private dictionarySeedPromise: Promise<void> | null = null;
+
   constructor(
     @InjectModel(VirtualNumberRequest.name)
     private readonly requestModel: Model<VirtualNumberRequestDocument>,
@@ -167,6 +180,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     private readonly userModel: Model<UserDocument>,
     @InjectModel(WalletTransaction.name)
     private readonly transactionModel: Model<WalletTransactionDocument>,
+    // معجم التطبيقات المتاحة:بوابة «ما يظهر للمزودين والعميل» صارت بيانات تُدار
+    // من صفحة المعجم بدل قائمة الكود الثابتة (popular-apps.ts للبذر الأول فقط)
+    @InjectModel(VirtualNumberDictionary.name)
+    private readonly dictionaryModel: Model<VirtualNumberDictionaryDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly configService: ConfigService,
   ) {}
@@ -471,6 +488,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     }
 
     const services = await this.buildCuratedServices(providers, catalogs);
+    const offered = await this.getOfferedSet();
     const syncedAt =
       catalogs
         .map((c) => (c.fetchedAt ? new Date(c.fetchedAt).getTime() : 0))
@@ -482,9 +500,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       // بلا أسماء ولا رسائل مزودين، حتى لا يُستنتج من الشاشة مورد الخدمة
       providerOnline: providers.some((p) => p.status === ProviderStatus.ONLINE),
       waitMinutes: this.waitTtlMinutes(),
-      // الكتالوج مُنتقًى: تُبلغ الصفحة الإدارةَ بعدّة التطبيقات كي تعرف إن كان
-      // عليها تنسيق المنتجات قبل أن تظهر أي أرقام للعملاء
-      curated: await this.appModel.countDocuments({}),
+      // الكتالوج مُنتقًى: تُبلغ الصفحة الإدارةَ بعدّة تطبيقات المعجم المتاحة
+      // كي تعرف إن كان عليها تنسيق المنتجات قبل أن تظهر أي أرقام للعملاء
+      curated: (
+        await this.appModel.find().select('serviceCode appKey')
+      ).filter((a: any) => this.isOfferedApp(a, offered)).length,
       // الهامش لم يعد واحداً: كل عرض يحمل سعره المحسوب بهامش مزوده، وهذا الحقل
       // يبقى للعرض فقط (مزود واحد على الأقل) كي لا تنكسر واجهات قديمة تقرأه
       margin: {
@@ -509,6 +529,140 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn(`Guaranteed manual services skipped: ${err.message}`);
       return [];
     }
+  }
+
+  /**
+   * البذر الأول لمعجم المتاح: أول قراءة بعد النشر تُدرج قائمة المشهورات
+   * الثابتة (200 تطبيقاً) متاحة، فتبقى التصرّفات كما عرّفها الإدارة من هناك
+   */
+  private async ensureDictionarySeeded(): Promise<void> {
+    if (!this.dictionarySeedPromise) {
+      this.dictionarySeedPromise = (async () => {
+        if ((await this.dictionaryModel.countDocuments({})) > 0) return;
+        await this.dictionaryModel.insertMany(
+          POPULAR_APP_KEYS.map((appKey) => ({ appKey, offered: true })),
+        );
+      })().catch((e) => {
+        // فشل البذر مؤقت (قاعدة مشغولة مثلاً): يُعاد في القراءة التالية
+        this.logger.warn(`بذر معجم الأرقام فشل: ${e?.message ?? e}`);
+        this.dictionarySeedPromise = null;
+      });
+    }
+    await this.dictionarySeedPromise;
+  }
+
+  /** مفاتيح المعجم المتاحة حالياً (كاش قصير يُبطَل عند كل تعديل من اللوحة) */
+  private async getOfferedSet(): Promise<Set<string>> {
+    await this.ensureDictionarySeeded();
+    const now = Date.now();
+    if (this.offeredCache && now - this.offeredCache.at < this.offeredTtlMs) {
+      return this.offeredCache.keys;
+    }
+    const docs = await this.dictionaryModel
+      .find({ offered: true })
+      .select('appKey')
+      .lean();
+    const keys = new Set(
+      docs.map((d: any) => String(d.appKey || '').toLowerCase()),
+    );
+    this.offeredCache = { keys, at: now };
+    return keys;
+  }
+
+  /** إبطال كاش المتاح بعد تغيير البوابة من صفحة المعجم */
+  private invalidateOfferedCache() {
+    this.offeredCache = null;
+  }
+
+  /**
+   * هل التطبيق متاح في المعجم؟ يُطابق أولاً بمفتاح المعجم المخزّن على الوثاقة،
+   * ثم برمز خدمته محوّلاً بالمفتاح الموحّد — فيبقى التطبيق واحداً ولو اختلف
+   * رمزه لدى كل مزود. متجاهَلة القيم الفارغة كما في بوابة المشهورات السابقة.
+   */
+  private isOfferedApp(
+    app: { appKey?: string; serviceCode?: string },
+    offered: Set<string>,
+    providerType?: string,
+  ): boolean {
+    const hit = (codeOrKey: string): boolean => {
+      if (!codeOrKey) return false;
+      if (offered.has(codeOrKey.toLowerCase())) return true;
+      return offered.has(resolveAppMeta(codeOrKey, providerType).key);
+    };
+    return hit(app.appKey || '') || hit(app.serviceCode || '');
+  }
+
+  /**
+   * معجم التطبيقات للوحة: كل مدخل المعجم الثابت + توفره من القاعدة،
+   * ووثاقة التطبيق المخزّن إن وُجد (معرّفه وعدّة دوله المضافة من المزود).
+   */
+  async getAdminDictionary() {
+    await this.ensureDictionarySeeded();
+    const [offeredDocs, apps] = await Promise.all([
+      this.dictionaryModel.find().select('appKey offered').lean(),
+      this.appModel.find().select('name appKey serviceCode iconUrl'),
+    ]);
+    const offeredByKey = new Map<string, boolean>(
+      offeredDocs.map((d: any) => [String(d.appKey).toLowerCase(), d.offered !== false]),
+    );
+
+    // وثاقات التطبيقات تُربط بمفتاح المعجم (المخزّن أو المحلول من رمز الخدمة)
+    const appByKey = new Map<string, any>();
+    for (const app of apps) {
+      const key = (
+        app.appKey || resolveAppMeta(app.serviceCode, '').key || app.serviceCode
+      ).toLowerCase();
+      if (!appByKey.has(key)) appByKey.set(key, app);
+    }
+    const products = await this.productModel
+      .find({ appId: { $in: apps.map((a) => a._id) } })
+      .select('appId')
+      .lean();
+    const productCountByKey = new Map<string, number>();
+    for (const p of products) {
+      for (const [key, app] of appByKey) {
+        if (String(app._id) === String((p as any).appId)) {
+          productCountByKey.set(key, (productCountByKey.get(key) ?? 0) + 1);
+          break;
+        }
+      }
+    }
+
+    return VIRTUAL_NUMBER_APPS.map((meta) => {
+      const app = appByKey.get(meta.key);
+      return {
+        key: meta.key,
+        nameAr: meta.nameAr,
+        nameEn: meta.nameEn,
+        icon: meta.icon,
+        herosmsCode: meta.herosmsCode,
+        fivesimCode: meta.fivesimCode,
+        offered: offeredByKey.get(meta.key) === true,
+        appId: app ? String(app._id) : '',
+        appName: app ? app.name : '',
+        // رمز الخدمة وأيقونة الوثاقة: شاشة المعجم تُعدّل التطبيق المخزّن بها
+        serviceCode: app ? String(app.serviceCode || '') : '',
+        iconUrl: app ? String(app.iconUrl || '') : '',
+        productCount: productCountByKey.get(meta.key) ?? 0,
+      };
+    });
+  }
+
+  /** تفعيل/إيقاف توفر مفتاح من المعجم — البوابة الوحيدة لما يظهر للمزودين */
+  async patchDictionaryOffered(key: string, offered: boolean) {
+    const appKey = String(key || '').trim().toLowerCase();
+    if (!VIRTUAL_NUMBER_APPS.some((a) => a.key === appKey)) {
+      throw new BadRequestException(`مفتاح المعجم غير معروف: ${appKey}`);
+    }
+    const existing = await this.dictionaryModel.findOne({ appKey });
+    if (existing) {
+      existing.offered = offered;
+      await existing.save();
+    } else {
+      await this.dictionaryModel.create({ appKey, offered });
+    }
+    this.invalidateOfferedCache();
+    return { key: appKey, offered };
   }
 
   /**
@@ -541,6 +695,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       catalogs.map((c) => [String(c.providerId), c.services ?? []]),
     );
     const appsById = new Map(apps.map((a) => [String(a._id), a]));
+    // بوابة المعجم: كاش الخدمة نفسه يجعل الطلب المكرر هنا مجانياً
+    const offered = await this.getOfferedSet();
 
     // appId منطقي → رمز دولة قانوني → عروض
     const appGroups = new Map<
@@ -557,6 +713,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         app.appKey ||
         resolveAppMeta(app.serviceCode, provider.providerType).key ||
         app.serviceCode;
+      // تطبيقات المعجم المتاحة وحدها تُعرض للعميل: كتالوجات المزودين تحوي
+      // مئات الخدمات المجهولة، فلا شبكة أرقام ولا بيع لما أوقفته اللوحة
+      if (!this.isOfferedApp(app, offered, provider.providerType)) continue;
       const cMeta = resolveCountryMeta(
         product.countryCode || product.countryName,
         provider.providerType,
@@ -730,6 +889,15 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       serviceCount,
       providers: results,
     };
+  }
+
+  /** مزامنة مزود معيّن بالـid إن صلح، وإلا مسح كل المزودين النشطين (السلوك القديم) */
+  async syncCatalogFor(providerId?: string) {
+    if (providerId && Types.ObjectId.isValid(providerId)) {
+      const found = await this.providerModel.findById(providerId);
+      if (found) return this.syncProviderCatalog(found);
+    }
+    return this.syncCatalog();
   }
 
   /** مزامنة كتالوج مزود واحد وتخزينه */
@@ -2165,9 +2333,13 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
   /** تطبيقات الأرقام مع عدّ منتجاتها — لشاشة «إدارة الأرقام» */
   async listAdminApps() {
-    const apps = await this.appModel
+    const allApps = await this.appModel
       .find()
       .sort({ sortOrder: 1, createdAt: -1 });
+    // اللوحة تُعرض تطبيقات المعجم المتاحة فقط: الوثاقات الموقوفة من المعجم
+    // أو المجهولة خارجة عن الشبكة بلا حذف لمنتجاتها
+    const offered = await this.getOfferedSet();
+    const apps = allApps.filter((app) => this.isOfferedApp(app, offered));
     if (apps.length === 0) return [];
 
     // أجلب كل المنتجات (الدول) لكل التطبيقات ثم أجمّعها يدويًا
@@ -2201,13 +2373,39 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       productsByApp.set(key, list);
     }
 
+    // تسمية المعجم لكل تطبيق (عربي/إنجليزي/أيقونة): الشبكة تُرسم فوراً من
+    // قاعدة بياناتنا وحدها بلا كتالوج المزود، بأسماء موحّدة مهما اختلف رمز
+    // الخدمة لدى كل مزود
+    const appProviderTypes = await this.providerModel
+      .find({
+        _id: {
+          $in: [
+            ...new Set(
+              apps.map((a) => String(a.providerId ?? '')).filter(Boolean),
+            ),
+          ],
+        },
+      })
+      .select('_id providerType');
+    const typeByProviderId = new Map(
+      appProviderTypes.map((p) => [String(p._id), p.providerType]),
+    );
+
     return apps.map((app) => {
       const products = productsByApp.get(app._id.toString()) ?? [];
       const activeCount = products.filter((p) => p.isActive !== false).length;
+      const appMeta = resolveAppMeta(
+        app.serviceCode,
+        typeByProviderId.get(String(app.providerId ?? '')),
+      );
       return {
         id: app._id.toString(),
         name: app.name,
+        nameAr: appMeta.nameAr,
+        nameEn: appMeta.nameEn,
+        appKey: app.appKey || appMeta.key,
         iconUrl: app.iconUrl ?? '',
+        icon: app.iconUrl || appMeta.icon,
         serviceCode: app.serviceCode,
         isActive: app.isActive !== false,
         sortOrder: app.sortOrder ?? 0,
@@ -2315,18 +2513,25 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * مُسرِّع التنسيق: يُنشئ تطبيقاً مفعّلاً لكل خدمة في كتالوج المزود لم تُضَف بعد،
-   * بلا دول (تُضاف وتُفعَّل لاحقاً من صفحة المزود). لا يُصدِر أي رقم قبل اختيار الدول.
+   * مُسرِّع التنسيق: يُنشئ تطبيقاً مفعّلاً لكل خدمة مشهورة (ضمن قائمة الـ200)
+   * لم تُضَف بعد، بلا دول (تُضاف وتُفعَّل لاحقاً من صفحة المزود). لا يُصدِر أي
+   * رقم قبل اختيار الدول، ولا يُنشئ شيئاً من مئات خدمات الكتالوج المجهولة.
    */
   async bulkCreateApps(providerId?: string) {
     const provider = await this.resolveAdminProvider(providerId);
     const services = await this.ensureFreshCatalog(provider);
     const existing = await this.appModel.distinct('serviceCode');
     const have = new Set(existing.map((s) => String(s)));
+    const offered = await this.getOfferedSet();
 
     let created = 0;
     for (const svc of services) {
       if (have.has(svc.code)) continue;
+      // الاستيراد الجماعي يحترم بوابة المعجم: الموقوف لا يُنشى تطبيقه
+      if (
+        !this.isOfferedApp({ serviceCode: svc.code }, offered, provider?.providerType)
+      )
+        continue;
       const appMeta = resolveAppMeta(svc.code, provider?.providerType);
       await this.appModel.create({
         name: svc.name || appMeta.name,
@@ -2345,14 +2550,68 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * كتالوج المزود مُثري بالمُنتقَى: لكل خدمة ودولها، هل لها تطبيق، وهل أُضيفت
-   * الدولة منتجاً وحالتها — يملأ شاشة «المنتجات» في صفحة مزودي الأرقام.
+   * الدولة منتجاً وحالتها — يُستعمل عند التحديث الصريح للكتالوج، لذا قد ينتظر
+   * تجديداً من المزود إن بليات اللقطة (مسار بطيء مقصود على طلب المستخدم).
    */
   async getAdminCatalog(providerId?: string) {
     const provider = await this.resolveAdminProvider(providerId);
-    const services = await this.ensureFreshCatalog(provider);
+    const offered = await this.getOfferedSet();
+    const services = (await this.ensureFreshCatalog(provider)).filter((svc) =>
+      // اللوحة لا تُغرق بمئات خدمات الكتالوج: تطبيقات المعجم المتاحة فقط
+      this.isOfferedApp({ serviceCode: svc.code }, offered, provider.providerType),
+    );
+    return this.buildAdminCatalogView(provider, services);
+  }
 
+  /**
+   * دول تطبيق واحد من اللقطة المخزّنة لدى الخادم بلا مزامنة مع المزود:
+   * الردّ فوري مهما كبر الكتالوج. مطابقة التطبيق تتم بمفتاح المعجم لا برمز
+   * المزود وحده، فتطابق خدمةَ التطبيق حتى لو اختلف رمزها لدى هذا المزود.
+   */
+  async getAppCountries(appId: string, providerId?: string) {
+    if (!Types.ObjectId.isValid(appId)) {
+      throw new BadRequestException('معرّف تطبيق غير صالح');
+    }
+    const app = await this.appModel.findById(appId);
+    if (!app) throw new NotFoundException('التطبيق غير موجود');
+
+    const provider = await this.resolveAdminProvider(providerId);
+    const catalog = await this.catalogModel.findOne({
+      providerId: provider._id,
+    });
+    const snapshot = (catalog?.services ?? []) as VirtualNumberService[];
+    const appKey = app.appKey || resolveAppMeta(app.serviceCode).key;
+    const matched = snapshot.filter(
+      (svc) =>
+        svc.code === app.serviceCode ||
+        (!!appKey &&
+          resolveAppMeta(svc.code, provider.providerType).key === appKey),
+    );
+
+    const view = await this.buildAdminCatalogView(provider, matched);
+    const fetchedAt = catalog?.fetchedAt ? new Date(catalog.fetchedAt) : null;
+    return {
+      ...view,
+      // تاريخ اللقطة وقدامتها: اللوحة تعرضهما وتقترح المزامنة عند الحاجة
+      fetchedAt: fetchedAt ? fetchedAt.toISOString() : null,
+      stale: !fetchedAt || Date.now() - fetchedAt.getTime() > CATALOG_TTL_MS,
+    };
+  }
+
+  /** تركيب عرض الكتالوج المُثري: وسم كل خدمة بتطبيقها وكل دولة بمنتجها */
+  private async buildAdminCatalogView(
+    provider: ProviderDocument,
+    services: VirtualNumberService[],
+  ) {
     const apps = await this.appModel.find();
     const appByService = new Map(apps.map((a) => [a.serviceCode, a]));
+    // مطابقة عابرة للمزودين بمفتاح المعجم: التطبيق يبقى واحداً (واتساب مثلاً)
+    // مهما اختلف رمز خدمته لدى كل مزود
+    const appByKey = new Map<string, VirtualNumberAppDocument>();
+    for (const a of apps) {
+      const key = a.appKey || resolveAppMeta(a.serviceCode).key;
+      if (key) appByKey.set(key, a);
+    }
 
     // كل المنتجات الحالية مفهرسة بمفتاح مزود|خدمة|دولة: الدولة نفسها من مزود
     // آخر منتجٌ مستقل، فلا تُوسم «مُنتقاة» في كتالوج هذا المزود لمجرد أن مزوداً
@@ -2380,7 +2639,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       },
       margin: { type: marginType, value: marginValue },
       services: services.map((svc) => {
-        const app = appByService.get(svc.code);
+        // تطبيق هذا المزود برمزٍ مطابق، أو تطبيق مُنتقَى من مزود آخر بنفس
+        // مفتاح المعجم: واتساب المخزَّن بـ 'wa' يبقى تطبيق 'whatsapp' نفسه
+        const app =
+          appByService.get(svc.code) ??
+          appByKey.get(resolveAppMeta(svc.code, provider?.providerType).key);
         const appMeta = resolveAppMeta(svc.code, provider?.providerType);
         return {
           code: svc.code,

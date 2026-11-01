@@ -97,6 +97,10 @@ class ApiConstants {
   static const String adminVirtualNumberAddCountries =
       '/virtual-numbers/admin/catalog/add-countries';
 
+  // معجم التطبيقات: بوابة «متاح للمزودين» التي تتحكم بالانتقاء واللوحة والعميل
+  static const String adminVirtualNumberDictionary =
+      '/virtual-numbers/admin/dictionary';
+
   // مراقبة جودة الأرقام: عدّادات كل سيرفر وسجل أحداثه وإعادة تفعيله
   static const String adminVirtualNumberQuality =
       '/virtual-numbers/admin/quality';

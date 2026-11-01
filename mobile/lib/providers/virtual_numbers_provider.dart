@@ -24,6 +24,7 @@ class VirtualNumbersProvider extends ChangeNotifier {
   List<VirtualNumberRequestModel> _adminRequests = const [];
   VirtualNumberStats _stats = VirtualNumberStats.empty();
   List<VirtualNumberAppModel> _adminApps = const [];
+  List<VirtualNumberDictionaryEntry> _adminDictionary = const [];
   VirtualNumberAdminCatalog _adminCatalog = VirtualNumberAdminCatalog.empty();
   List<VirtualNumberManualServiceModel> _adminManualServices = const [];
 
@@ -37,6 +38,7 @@ class VirtualNumbersProvider extends ChangeNotifier {
   bool _isSubmitting = false;
   bool _isAdminLoading = false;
   bool _isAppsLoading = false;
+  bool _isDictionaryLoading = false;
   bool _isCatalogLoading = false;
   bool _isManualLoading = false;
   String? _errorMessage;
@@ -63,6 +65,8 @@ class VirtualNumbersProvider extends ChangeNotifier {
   bool get isSubmitting => _isSubmitting;
   bool get isAdminLoading => _isAdminLoading;
   bool get isAppsLoading => _isAppsLoading;
+  List<VirtualNumberDictionaryEntry> get adminDictionary => _adminDictionary;
+  bool get isDictionaryLoading => _isDictionaryLoading;
   bool get isCatalogLoading => _isCatalogLoading;
   bool get isManualLoading => _isManualLoading;
   String? get errorMessage => _errorMessage;
@@ -499,8 +503,13 @@ class VirtualNumbersProvider extends ChangeNotifier {
     } catch (_) {}
   }
 
-  Future<String?> adminSyncCatalog() =>
-      _adminAction(ApiConstants.adminVirtualNumbersSync);
+  /// مزامنة الكتالوج: مزود معيّن إن مُرّر (أسرع)، وإلا مسح لكل المزودين النشطين
+  Future<String?> adminSyncCatalog({String? providerId}) => _adminAction(
+    ApiConstants.adminVirtualNumbersSync,
+    body: {
+      if (providerId != null && providerId.isNotEmpty) 'providerId': providerId,
+    },
+  );
 
   Future<String?> adminCheckProvider() =>
       _adminAction(ApiConstants.adminVirtualNumbersCheck);
@@ -606,6 +615,59 @@ class VirtualNumbersProvider extends ChangeNotifier {
     onDone: () => fetchAdminApps(quiet: true),
   );
 
+  /// معجم التطبيقات: كل مدخل معجم مع علامة «متاح للمزودين» ووثاقته المخزّنة
+  Future<void> fetchAdminDictionary({bool quiet = false}) async {
+    if (!quiet) {
+      _isDictionaryLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
+    try {
+      final res = await _api.get(ApiConstants.adminVirtualNumberDictionary);
+      _adminDictionary = (res is List)
+          ? res
+                .whereType<Map>()
+                .map(
+                  (e) => VirtualNumberDictionaryEntry.fromJson(
+                    Map<String, dynamic>.from(e),
+                  ),
+                )
+                .toList()
+          : const [];
+    } catch (e) {
+      if (!quiet) _errorMessage = _clientError(e);
+    }
+    _isDictionaryLoading = false;
+    notifyListeners();
+  }
+
+  /// تفعيل/إيقاف توفر مفتاح: يُطبَّق محلياً بعد نجاح PATCH بلا إعادة جلب
+  /// المعجم كامل (812 مدخلاً)، فتبقى الاستجابة فورية على الجهاز
+  Future<String?> toggleDictionaryOffered(String key, bool offered) async {
+    _errorMessage = null;
+    _infoMessage = null;
+    try {
+      await _api.patch(
+        ApiConstants.adminVirtualNumberDictionary,
+        body: {'key': key, 'offered': offered},
+      );
+      _adminDictionary = _adminDictionary
+          .map((e) => e.key == key ? e.copyWith(offered: offered) : e)
+          .toList();
+      _infoMessage = offered
+          ? 'تم إتاحة التطبيق للمزودين'
+          : 'تم إخفاء التطبيق من المزودين';
+      notifyListeners();
+      return _infoMessage;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = _clientError(e);
+    }
+    notifyListeners();
+    return null;
+  }
+
   /// كتالوج المزود مُثري بالمُنتقَى: كل دولة مُعلَّم عليها added/productId
   Future<void> fetchAdminCatalog({String? providerId}) async {
     _isCatalogLoading = true;
@@ -614,6 +676,33 @@ class VirtualNumbersProvider extends ChangeNotifier {
     try {
       final res = await _api.get(
         ApiConstants.adminVirtualNumberCatalog,
+        queryParams: {
+          if (providerId != null && providerId.isNotEmpty)
+            'providerId': providerId,
+        },
+      );
+      _adminCatalog = res is Map
+          ? VirtualNumberAdminCatalog.fromJson(Map<String, dynamic>.from(res))
+          : VirtualNumberAdminCatalog.empty();
+    } catch (e) {
+      _errorMessage = _clientError(e);
+    }
+    _isCatalogLoading = false;
+    notifyListeners();
+  }
+
+  /// دول تطبيق واحد من اللقطة المخزّنة لدى الخادم — بلا مزامنة مع المزود،
+  /// لذا الردّ فوري؛ تُعبّئ adminCatalog بصفوف هذا التطبيق وحده
+  Future<void> fetchAppCountries({
+    required String appId,
+    String? providerId,
+  }) async {
+    _isCatalogLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+    try {
+      final res = await _api.get(
+        '${ApiConstants.adminVirtualNumberApps}/$appId/countries',
         queryParams: {
           if (providerId != null && providerId.isNotEmpty)
             'providerId': providerId,

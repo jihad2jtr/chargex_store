@@ -88,7 +88,8 @@ void main() {
 
     // الأقسام ما زالت كلها ظاهرة
     expect(find.text('مزودو الأرقام الوهمية'), findsOneWidget);
-    expect(find.text('إدارة تطبيقات الارقام'), findsOneWidget);
+    expect(find.text('معجم تطبيقات الأرقام'), findsOneWidget);
+    expect(find.text('منتجات الأرقام'), findsOneWidget);
     expect(find.text('خدمات التفعيل المضمون'), findsOneWidget);
     expect(find.text('سجل التفعيلات التلقائية'), findsOneWidget);
     expect(find.text('مزودو خدمات الشحن'), findsOneWidget);

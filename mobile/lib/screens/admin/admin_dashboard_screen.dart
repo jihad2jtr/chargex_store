@@ -17,6 +17,7 @@ import 'users_management_screen.dart';
 import 'service_templates_screen.dart';
 import 'virtual_numbers_management_screen.dart';
 import 'virtual_number_apps_screen.dart';
+import 'virtual_number_dictionary_screen.dart';
 import 'virtual_number_manual_services_screen.dart';
 import 'virtual_number_quality_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
@@ -466,10 +467,26 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         },
       ),
 
-      // 2. تطبيقات الأرقام الوهمية: صفحة الانتقاء معزولة كقسم مستقل
-      //    (كانت خلف زر أيقوني داخل «الأرقام الوهمية» فقط)
+      // 2. معجم التطبيقات: بوابة «متاح للمزودين» — يتحكم بما يظهر في الانتقاء
       _AdminSectionItem(
-        title: 'إدارة تطبيقات الارقام',
+        title: 'معجم تطبيقات الأرقام',
+        icon: Icons.menu_book_rounded,
+        color: const Color(0xFF1D4ED8), // Blue 800 — هوية المعجم والإتاحة
+        category: 'numbers',
+        statusText: '',
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(
+              builder: (_) => const VirtualNumberDictionaryScreen(),
+            ),
+          );
+        },
+      ),
+
+      // 2a. منتجات الأرقام: الوثاقات المضافة من المزود التي لها دولة واحدة
+      //     على الأقل (الإضافة والاستيراد الجماعي صارا داخل المعجم)
+      _AdminSectionItem(
+        title: 'منتجات الأرقام',
         icon: Icons.apps_rounded,
         color: const Color(0xFF0D9488), // Teal — هوية صفحة الانتقاء نفسها
         category: 'numbers',
