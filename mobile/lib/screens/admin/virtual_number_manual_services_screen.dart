@@ -6,6 +6,8 @@ import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
+import '../../widgets/ops_ticket_card.dart';
+import '../../widgets/virtual_app_ticket_leading.dart';
 
 /// شاشة إدارة «خدمات الأرقام اليدوية» (تفعيل مضمون).
 ///
@@ -113,8 +115,7 @@ class _VirtualNumberManualServicesScreenState
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.all(14),
                 itemCount: services.length,
-                separatorBuilder: (context, index) =>
-                    const SizedBox(height: 10),
+                separatorBuilder: (context, index) => const SizedBox(height: 2),
                 itemBuilder: (context, index) {
                   final service = services[index];
                   return _ManualServiceCard(
@@ -534,7 +535,8 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
 }
 
 // ---------------------------------------------------------------------------
-// بطاقة خدمة واحدة
+// بطاقة خدمة واحدة — بأسلوب التذكرة: أيقونة التطبيق + لون هويته + خط تمزّق
+// + تذييل إجراءات، فتتماشى مع بقية تذاكر لوحات الأدمن
 // ---------------------------------------------------------------------------
 
 class _ManualServiceCard extends StatelessWidget {
@@ -554,117 +556,99 @@ class _ManualServiceCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
+    // هوية التطبيق (ولون الأيقونة) مستقلة عن حالة الخدمة: الحالة تُقرأ من
+    // وسم «مفعّلة/موقوفة»، بينما يبقى اللون إشارة إلى التطبيق المخدوم.
+    // الخدمة الموقوفة تُطفأ إلى رمادي حتى لا توحي بالنشاط
+    final appAccent = virtualAppAccent('${service.appId}|${service.appName}');
+    final accent = service.isActive ? appAccent : AppColors.slate400;
+    final tag = service.appServiceCode.isNotEmpty
+        ? service.appServiceCode
+        : 'تفعيل مضمون';
+
+    return OpsTicketCard(
+      accent: accent,
+      leading: VirtualAppLeading(
+        iconRaw: service.appIcon,
+        appKey: service.appId,
+        name: service.appName.isNotEmpty ? service.appName : service.name,
+        accent: appAccent,
       ),
-      padding: const EdgeInsets.fromLTRB(12, 10, 6, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      service.name,
-                      style: AppTypography.cairo(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.slate900,
-                      ),
-                    ),
-                    if (service.appName.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        'تطبيق: ${service.appName}',
-                        style: AppTypography.cairo(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.slate500,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              _priceTag(service.price),
-            ],
+      tag: tag,
+      title: service.name,
+      subtitle: service.appName.isNotEmpty
+          ? 'تطبيق: ${service.appName}'
+          : 'بلا تطبيق محدد',
+      amount: _priceTag(service.price),
+      status: _statusChip(service.isActive),
+      rows: [
+        OpsTicketInfoRow(
+          icon: Icons.person_pin_rounded,
+          label: 'المشرف',
+          value: service.supervisorName.isNotEmpty
+              ? service.supervisorName
+              : 'غير مسند',
+        ),
+        if (service.etaLabel.isNotEmpty)
+          OpsTicketInfoRow(
+            icon: Icons.timer_outlined,
+            label: 'المهلة',
+            value: service.etaLabel,
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _chip(
-                Icons.person_pin_rounded,
-                service.supervisorName.isNotEmpty
-                    ? service.supervisorName
-                    : 'غير مسند',
-              ),
-              if (service.etaLabel.isNotEmpty)
-                _chip(Icons.timer_outlined, service.etaLabel),
-              if (service.isSensitive)
-                _chip(Icons.lock_rounded, 'بيانات حساسة'),
-              if (service.openOrders > 0)
-                _chip(
-                  Icons.pending_actions_rounded,
-                  '${service.openOrders} جاري',
-                ),
-              _chip(
-                Icons.toggle_on_rounded,
-                service.isActive ? 'مفعّلة' : 'موقوفة',
-                tone: service.isActive ? AppColors.emerald : AppColors.slate400,
-              ),
-            ],
+        if (service.isSensitive)
+          OpsTicketInfoRow(
+            icon: Icons.lock_rounded,
+            label: 'البيانات',
+            value: 'حساسة — تُشفَّر مؤقتاً',
+            tint: AppColors.rose,
           ),
-          const SizedBox(height: 6),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              IconButton(
-                tooltip: service.isActive ? 'إيقاف' : 'تفعيل',
-                visualDensity: VisualDensity.compact,
-                onPressed: busy ? null : onToggle,
-                icon: Icon(
-                  service.isActive
-                      ? Icons.toggle_on_rounded
-                      : Icons.toggle_off_rounded,
-                  color: service.isActive
-                      ? AppColors.emerald
-                      : AppColors.slate400,
-                ),
-              ),
-              IconButton(
-                tooltip: 'تعديل',
-                visualDensity: VisualDensity.compact,
-                onPressed: busy ? null : onEdit,
-                icon: const Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: AppColors.slate700,
-                ),
-              ),
-              IconButton(
-                tooltip: 'حذف',
-                visualDensity: VisualDensity.compact,
-                onPressed: busy ? null : onDelete,
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  size: 18,
-                  color: AppColors.rose,
-                ),
-              ),
-            ],
+        if (service.openOrders > 0)
+          OpsTicketInfoRow(
+            icon: Icons.pending_actions_rounded,
+            label: 'قيد التنفيذ',
+            value: '${service.openOrders} طلب',
+            tint: AppColors.ticketAmber,
           ),
-        ],
-      ),
+        if (service.requiredFields.isNotEmpty)
+          OpsTicketInfoRow(
+            icon: Icons.input_rounded,
+            label: 'الحقول',
+            value: service.requiredFields.join('، '),
+          ),
+      ],
+      note: service.description.isNotEmpty ? service.description : null,
+      actions: [
+        IconButton(
+          tooltip: service.isActive ? 'إيقاف' : 'تفعيل',
+          visualDensity: VisualDensity.compact,
+          onPressed: busy ? null : onToggle,
+          icon: Icon(
+            service.isActive
+                ? Icons.toggle_on_rounded
+                : Icons.toggle_off_rounded,
+            color: service.isActive ? AppColors.emerald : AppColors.slate400,
+          ),
+        ),
+        IconButton(
+          tooltip: 'تعديل',
+          visualDensity: VisualDensity.compact,
+          onPressed: busy ? null : onEdit,
+          icon: const Icon(
+            Icons.edit_outlined,
+            size: 18,
+            color: AppColors.slate700,
+          ),
+        ),
+        IconButton(
+          tooltip: 'حذف',
+          visualDensity: VisualDensity.compact,
+          onPressed: busy ? null : onDelete,
+          icon: const Icon(
+            Icons.delete_outline_rounded,
+            size: 18,
+            color: AppColors.rose,
+          ),
+        ),
+      ],
     );
   }
 
@@ -686,28 +670,21 @@ class _ManualServiceCard extends StatelessWidget {
     );
   }
 
-  Widget _chip(IconData icon, String label, {Color? tone}) {
-    final color = tone ?? AppColors.slate600;
+  Widget _statusChip(bool isActive) {
+    final tone = isActive ? AppColors.emerald : AppColors.slate400;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
+        color: tone.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: AppTypography.cairo(
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-              color: color,
-            ),
-          ),
-        ],
+      child: Text(
+        isActive ? 'مفعّلة' : 'موقوفة',
+        style: AppTypography.cairo(
+          fontSize: 9.5,
+          fontWeight: FontWeight.w800,
+          color: tone,
+        ),
       ),
     );
   }

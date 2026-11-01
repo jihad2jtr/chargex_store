@@ -68,11 +68,17 @@ class OpsTicketCard extends StatelessWidget {
                 Container(
                   width: 36,
                   height: 36,
-                  decoration: BoxDecoration(
-                    color: accent.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: accent.withValues(alpha: 0.22)),
-                  ),
+                  // ودجت leading يرسم إطاره الخاص (كأيقونة التطبيق الملوّنة):
+                  // يُترك له الإطار، والتلوين التلقائي يبقى للأيقونة المجردة
+                  decoration: leading != null
+                      ? null
+                      : BoxDecoration(
+                          color: accent.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(
+                            color: accent.withValues(alpha: 0.22),
+                          ),
+                        ),
                   child: leading ?? Icon(icon, size: 18, color: accent),
                 ),
                 const SizedBox(width: 10),

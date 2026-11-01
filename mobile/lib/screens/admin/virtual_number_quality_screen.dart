@@ -7,6 +7,7 @@ import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/virtual_app_ticket_leading.dart';
 
 /// لوحة مراقبة جودة الأرقام: صف لكل منتج (سيرفر + تطبيق + دولة) بعدّاداته
 /// ونسبة وصول أكواده. التقييم لكل مزود على حدة، فلا يُدمج تقييم سيرفر مع
@@ -328,10 +329,18 @@ class _VirtualNumberQualityScreenState
   Widget _productCard(VirtualNumberQualityRow row) {
     final accent = _accent(row);
     final rate = row.effectiveCodeRate;
+    // لون هوية التطبيق مستقل عن حالة الجودة: التذكرة تُلوّن بالحالة
+    // (لون تحذيري عند الإيقاف/المراقبة)، والأيقونة تحمل هوية التطبيق نفسه
+    final appAccent = virtualAppAccent('${row.appId}|${row.appName}');
 
     return OpsTicketCard(
       accent: accent,
-      icon: Icons.sim_card_rounded,
+      leading: VirtualAppLeading(
+        iconRaw: row.appIcon,
+        appKey: row.appId,
+        name: row.appName,
+        accent: appAccent,
+      ),
       tag: row.title,
       title: '${row.flag} ${row.countryName}',
       subtitle: '${row.appName} • رمز الدولة ${row.countryCode}',

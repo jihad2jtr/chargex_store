@@ -8,6 +8,7 @@ import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/virtual_app_ticket_leading.dart';
 import 'providers_management_screen.dart';
 import 'virtual_number_apps_screen.dart';
 
@@ -492,113 +493,147 @@ class _VirtualNumbersManagementScreenState
   }
 
   Widget _requestCard(VirtualNumberRequestModel request) {
-    final accent = request.hasCode
-        ? AppColors.emerald
-        : (request.isLive
-              ? AppColors.ticketAmber
-              : (request.isRefunded ? AppColors.slate500 : AppColors.rose));
+    // الطلب يبدأ مطوياً: رأسٌ يحمل هوية التطبيق (لون + أيقونة) ووسم الحالة
+    // والسعر. النقر يفرد التفاصيل (الرقم/الرمز/التكلفة/الملاحظات/الأزرار).
+    // لون التذكرة من هوية التطبيق، وحالة الطلب نفسها تُقرأ من StatusPill
+    final appAccent = virtualAppAccent('${request.service}|${request.title}');
 
-    final customer = [
-      if (request.userName.isNotEmpty) request.userName,
-      if (request.customUserId.isNotEmpty) request.customUserId,
-      if (request.userEmail.isNotEmpty) request.userEmail,
-    ].join(' • ');
+    return _CollapsibleTicket(
+      builder: (context, open) {
+        final customer = [
+          if (request.userName.isNotEmpty) request.userName,
+          if (request.customUserId.isNotEmpty) request.customUserId,
+          if (request.userEmail.isNotEmpty) request.userEmail,
+        ].join(' • ');
 
-    return OpsTicketCard(
-      accent: accent,
-      icon: Icons.sim_card_rounded,
-      tag: '#${request.requestNumber}',
-      title: '${request.title} • ${request.countryName}',
-      subtitle: customer.isNotEmpty
-          ? customer
-          : (request.operator.isEmpty ? 'أي مشغّل' : request.operator),
-      amount: Text(
-        '\$${request.amount.toStringAsFixed(2)}',
-        style: AppTypography.price(fontSize: 13, color: AppColors.slate900),
-      ),
-      status: StatusPill(status: request.status, label: request.statusLabel),
-      rows: [
-        OpsTicketInfoRow(
-          icon: Icons.phone_rounded,
-          label: 'الرقم',
-          value: request.phoneNumber ?? '— لم يُجهّز بعد',
-          mono: true,
-          trailing: request.phoneNumber == null
-              ? null
-              : IconButton(
-                  visualDensity: VisualDensity.compact,
-                  tooltip: 'نسخ الرقم',
-                  onPressed: () => _copy(request.phoneNumber!, 'الرقم'),
-                  icon: const Icon(
-                    Icons.copy_rounded,
-                    size: 15,
-                    color: AppColors.slate500,
-                  ),
-                ),
-        ),
-        if (request.hasCode)
-          OpsTicketInfoRow(
-            icon: Icons.key_rounded,
-            label: 'رمز التحقق',
-            value: request.smsCode!,
-            mono: true,
-            tint: AppColors.tertiaryLight,
-            trailing: IconButton(
-              visualDensity: VisualDensity.compact,
-              tooltip: 'نسخ الرمز',
-              onPressed: () => _copy(request.smsCode!, 'الرمز'),
-              icon: const Icon(
-                Icons.copy_rounded,
-                size: 15,
-                color: AppColors.tertiaryLight,
-              ),
+        return OpsTicketCard(
+          accent: appAccent,
+          leading: VirtualAppLeading(
+            iconRaw: request.icon,
+            appKey: request.service,
+            name: request.title,
+            accent: appAccent,
+          ),
+          tag: '#${request.requestNumber}',
+          title: '${request.title} • ${request.countryName}',
+          subtitle: open
+              ? (customer.isNotEmpty
+                    ? customer
+                    : (request.operator.isEmpty
+                          ? 'أي مشغّل'
+                          : request.operator))
+              : (request.phoneNumber ??
+                    (request.operator.isEmpty
+                        ? 'بلا مشغّل محدد'
+                        : request.operator)),
+          amount: Text(
+            '\$${request.amount.toStringAsFixed(2)}',
+            style: AppTypography.price(
+              fontSize: 13,
+              color: AppColors.slate900,
             ),
           ),
-        OpsTicketInfoRow(
-          icon: Icons.request_quote_rounded,
-          label: 'التكلفة / الربح',
-          value:
-              '\$${request.cost.toStringAsFixed(2)} / '
-              '\$${request.profit.toStringAsFixed(2)}',
-        ),
-        if (request.providerRef.isNotEmpty)
-          OpsTicketInfoRow(
-            icon: Icons.tag_rounded,
-            label: 'مرجع المزود',
-            value: request.providerRef,
-            mono: true,
+          status: StatusPill(
+            status: request.status,
+            label: request.statusLabel,
           ),
-      ],
-      // اللوحة ترى السبب الداخلي (اسم المزود وملاحظة من نفّذ الإجراء)،
-      // أما العميل فلا يصله سوى العبارة العامة في حقل note
-      note: request.adminNote.isNotEmpty ? request.adminNote : request.note,
-      meta: _metaLine(request),
-      actions: request.isLive
-          ? [
-              if (request.hasCode)
-                TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _run(
-                          () => context
-                              .read<VirtualNumbersProvider>()
-                              .adminFinish(request.id),
-                        ),
-                  child: const Text('إغلاق'),
-                ),
-              FilledButton(
-                onPressed: _busy ? null : () => _cancelRequest(request),
-                style: FilledButton.styleFrom(
-                  backgroundColor: AppColors.slate700,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
+          rows: open
+              ? [
+                  OpsTicketInfoRow(
+                    icon: Icons.phone_rounded,
+                    label: 'الرقم',
+                    value: request.phoneNumber ?? '— لم يُجهّز بعد',
+                    mono: true,
+                    trailing: request.phoneNumber == null
+                        ? null
+                        : IconButton(
+                            visualDensity: VisualDensity.compact,
+                            tooltip: 'نسخ الرقم',
+                            onPressed: () => _copy(request.phoneNumber!, 'الرقم'),
+                            icon: const Icon(
+                              Icons.copy_rounded,
+                              size: 15,
+                              color: AppColors.slate500,
+                            ),
+                          ),
                   ),
-                ),
-                child: const Text('إلغاء وإرجاع'),
-              ),
-            ]
-          : const [],
+                  if (request.hasCode)
+                    OpsTicketInfoRow(
+                      icon: Icons.key_rounded,
+                      label: 'رمز التحقق',
+                      value: request.smsCode!,
+                      mono: true,
+                      tint: AppColors.tertiaryLight,
+                      trailing: IconButton(
+                        visualDensity: VisualDensity.compact,
+                        tooltip: 'نسخ الرمز',
+                        onPressed: () => _copy(request.smsCode!, 'الرمز'),
+                        icon: const Icon(
+                          Icons.copy_rounded,
+                          size: 15,
+                          color: AppColors.tertiaryLight,
+                        ),
+                      ),
+                    ),
+                  OpsTicketInfoRow(
+                    icon: Icons.request_quote_rounded,
+                    label: 'التكلفة / الربح',
+                    value:
+                        '\$${request.cost.toStringAsFixed(2)} / '
+                        '\$${request.profit.toStringAsFixed(2)}',
+                  ),
+                  if (request.providerRef.isNotEmpty)
+                    OpsTicketInfoRow(
+                      icon: Icons.tag_rounded,
+                      label: 'مرجع المزود',
+                      value: request.providerRef,
+                      mono: true,
+                    ),
+                ]
+              : const [],
+          // اللوحة ترى السبب الداخلي (اسم المزود وملاحظة من نفّذ الإجراء)،
+          // أما العميل فلا يصله سوى العبارة العامة في حقل note
+          note: open && request.adminNote.isNotEmpty
+              ? request.adminNote
+              : (open ? request.note : ''),
+          meta: _metaLine(request),
+          actions: open
+              ? (request.isLive
+                    ? [
+                        if (request.hasCode)
+                          TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () => _run(
+                                    () => context
+                                        .read<VirtualNumbersProvider>()
+                                        .adminFinish(request.id),
+                                  ),
+                            child: const Text('إغلاق'),
+                          ),
+                        FilledButton(
+                          onPressed: _busy ? null : () => _cancelRequest(request),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.slate700,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                          ),
+                          child: const Text('إلغاء وإرجاع'),
+                        ),
+                      ]
+                    : const <Widget>[])
+              : const <Widget>[
+                  // السهم وحده في الطيّ: يلمّح بالنقر لفرد التفاصيل
+                  Icon(
+                    Icons.expand_more_rounded,
+                    size: 18,
+                    color: AppColors.slate400,
+                  ),
+                ],
+        );
+      },
     );
   }
 
@@ -690,4 +725,29 @@ class _StatusTab {
   final String? statusCode;
 
   const _StatusTab(this.key, this.label, this.statusCode);
+}
+
+/// غلاف طيّ/فرد لتذاكر الأدمن: يعرض رأس التذكرة دائماً، ويفرد أسطرها
+/// وأزرارها عند النقر. يُستعمل في سجل التفعيلات التلقائية لئلا تطغى
+/// التفاصيل على الشاشة قبل أن يطلبها الأدمن صراحة.
+class _CollapsibleTicket extends StatefulWidget {
+  final Widget Function(BuildContext context, bool expanded) builder;
+
+  const _CollapsibleTicket({required this.builder});
+
+  @override
+  State<_CollapsibleTicket> createState() => _CollapsibleTicketState();
+}
+
+class _CollapsibleTicketState extends State<_CollapsibleTicket> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => setState(() => _open = !_open),
+      child: widget.builder(context, _open),
+    );
+  }
 }

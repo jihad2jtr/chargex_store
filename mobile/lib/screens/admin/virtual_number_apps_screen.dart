@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/app_icon_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/ops_ticket_card.dart';
+import '../../widgets/virtual_app_ticket_leading.dart';
 import '../../widgets/virtual_number_app_form_dialog.dart';
 import 'virtual_number_catalog_screen.dart';
 import 'virtual_number_dictionary_screen.dart';
@@ -330,92 +330,6 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   // (نفس لغة OpsTicketCard المستخدمة في بقية لوحات الإدارة)
   // ---------------------------------------------------------------------------
 
-  /// لوحة ألوان الهوية: كل تطبيق يأخذ لونه الثابت من هاش مفتاحه، فتتميز
-  /// البطاقات دون خروج عن ألوان النظام (سيان/كهرمان/زمرد/بنفسجي/قرمزي)
-  static const List<Color> _palette = [
-    AppColors.primaryBlue,
-    AppColors.ticketAmber,
-    AppColors.emerald,
-    AppColors.violet,
-    AppColors.slate700,
-    AppColors.rose,
-  ];
-
-  /// لون ثابت للتطبيق مهما تبدّل ترتيب القائمة
-  Color _accentFor(VirtualNumberAppModel app) {
-    final seed = '${app.appKey}|${app.serviceCode}|${app.name}'.toLowerCase();
-    // FNV-1a: هاش مستقر عبر التشغيلات (Object.hash غير مضمون الثبات)
-    var h = 0x811c9dc5;
-    for (final u in seed.runes) {
-      h = ((h ^ u) * 0x01000193) & 0x7fffffff;
-    }
-    return _palette[h % _palette.length];
-  }
-
-  /// الأيقونة من مخزن الأيقونات: مسار حزمة صريح، ثم سجل الأصول بالاسم
-  /// والمفتاح، ثم رابط HTTP مرفوع من أدمن، وحرف الاسم بديلاً أخيراً
-  String? _iconAsset(VirtualNumberAppModel app) {
-    for (final raw in [app.icon, app.iconUrl]) {
-      final v = raw.trim();
-      if (v.isEmpty || v.startsWith('http')) continue;
-      if (v.startsWith('assets/')) return v;
-      final direct = builtinIconAssetExact(v) ?? builtinIconAssetForQuery(v);
-      if (direct != null) return direct;
-    }
-    return iconAssetForApp(iconUrl: app.appKey, name: app.name) ??
-        iconAssetForApp(iconUrl: app.serviceCode, name: app.name);
-  }
-
-  /// مربّع أيقونة التذكرة (36): صورة من الأصول أو شبكة أو حرف ملوّن بالثيم
-  Widget _appIcon(VirtualNumberAppModel app, Color accent) {
-    final asset = _iconAsset(app);
-    final iconUrl = app.icon.trim();
-    final isNetwork =
-        asset == null &&
-        (iconUrl.startsWith('http') || app.iconUrl.trim().startsWith('http'));
-    return Container(
-      width: 36,
-      height: 36,
-      alignment: Alignment.center,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: accent.withValues(alpha: 0.25)),
-      ),
-      child: asset != null
-          ? Image.asset(
-              asset,
-              width: 36,
-              height: 36,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  _iconLetter(app, accent),
-            )
-          : isNetwork
-          ? Image.network(
-              iconUrl.startsWith('http') ? iconUrl : app.iconUrl.trim(),
-              width: 36,
-              height: 36,
-              fit: BoxFit.cover,
-              errorBuilder: (context, error, stackTrace) =>
-                  _iconLetter(app, accent),
-            )
-          : _iconLetter(app, accent),
-    );
-  }
-
-  Widget _iconLetter(VirtualNumberAppModel app, Color accent) {
-    return Text(
-      app.name.isEmpty ? '?' : app.name.characters.first,
-      style: AppTypography.cairo(
-        fontSize: 15,
-        fontWeight: FontWeight.w900,
-        color: accent,
-      ),
-    );
-  }
-
   Widget _appCard(VirtualNumberAppModel app) {
     // الدول تُقرأ مباشرة من `app.countries` (ناتج listAdminApps الذي يقرأ
     // قاعدة البيانات)، حتى تظهر التطبيقات ودولها في اللوحة ولو كان المزود
@@ -423,11 +337,19 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     final countries = app.countries.isNotEmpty
         ? app.countries
         : _countriesFromCatalog(app);
-    final accent = _accentFor(app);
+    final accent = virtualAppAccent(
+      '${app.appKey}|${app.serviceCode}|${app.name}',
+    );
+    final iconRaw = app.icon.isNotEmpty ? app.icon : app.iconUrl;
 
     return OpsTicketCard(
       accent: accent,
-      leading: _appIcon(app, accent),
+      leading: VirtualAppLeading(
+        iconRaw: iconRaw,
+        appKey: app.appKey,
+        name: app.name,
+        accent: accent,
+      ),
       // رمز الخدمة تحت الاسم مباشرة (مربّع الأيقونة الأوضح في الرأس)
       title: app.name,
       subtitle: 'رمز الخدمة: ${app.serviceCode}',
