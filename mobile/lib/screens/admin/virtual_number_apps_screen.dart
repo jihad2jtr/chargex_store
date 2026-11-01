@@ -83,10 +83,10 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
       }
     }
     if (!mounted) return;
-    final saved = await showDialog<bool>(
-      context: context,
-      builder: (_) =>
-          VirtualNumberAppFormDialog(app: app, catalogServices: codes),
+    final saved = await VirtualNumberAppFormDialog.open(
+      context,
+      app: app,
+      catalogServices: codes,
     );
     if (saved == true) await _reload();
   }

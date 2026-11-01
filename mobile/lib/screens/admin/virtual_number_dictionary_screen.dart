@@ -168,10 +168,7 @@ class _VirtualNumberDictionaryScreenState
   Future<void> _openForm() async {
     final codes = await _catalogCodes();
     if (!mounted) return;
-    await showDialog<bool>(
-      context: context,
-      builder: (_) => VirtualNumberAppFormDialog(catalogServices: codes),
-    );
+    await VirtualNumberAppFormDialog.open(context, catalogServices: codes);
     // وثاقة جديدة قد تغيّر عدّادات المعجم
     if (mounted) await _reload();
   }
@@ -190,20 +187,18 @@ class _VirtualNumberDictionaryScreenState
             serviceCode: entry.serviceCode,
             iconUrl: entry.iconUrl,
           );
-    await showDialog<bool>(
-      context: context,
-      builder: (_) => VirtualNumberAppFormDialog(
-        app: editing,
-        catalogServices: codes,
-        initialName: editing == null
-            ? (entry.nameEn.isNotEmpty ? entry.nameEn : entry.nameAr)
-            : '',
-        initialServiceCode: editing == null
-            ? (entry.fivesimCode.isNotEmpty
-                  ? entry.fivesimCode
-                  : entry.herosmsCode)
-            : '',
-      ),
+    await VirtualNumberAppFormDialog.open(
+      context,
+      app: editing,
+      catalogServices: codes,
+      initialName: editing == null
+          ? (entry.nameEn.isNotEmpty ? entry.nameEn : entry.nameAr)
+          : '',
+      initialServiceCode: editing == null
+          ? (entry.fivesimCode.isNotEmpty
+                ? entry.fivesimCode
+                : entry.herosmsCode)
+          : '',
     );
     // التعديل يغيّر appName/serviceCode الظاهرة في المدخل نفسه
     if (mounted) await _reload();
@@ -234,20 +229,32 @@ class _VirtualNumberDictionaryScreenState
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('معجم التطبيقات'),
+        // عنوان مرن بملالغة: ثلاثة أزرار (استيراد/تحديث/إضافة) تضيق على
+        // الشاشات النحيلة فتتداخل أزرار الـ appBar مع العنوان بلا Flexible
+        title: const Flexible(
+          child: Text(
+            'معجم التطبيقات',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: 2),
         actions: [
           IconButton(
             tooltip: 'إضافة تطبيق لكل خدمة في كتالوج المزود',
+            visualDensity: VisualDensity.compact,
             onPressed: _busy ? null : _bulkImport,
             icon: const Icon(Icons.playlist_add_rounded),
           ),
           IconButton(
             tooltip: 'تحديث',
+            visualDensity: VisualDensity.compact,
             onPressed: provider.isDictionaryLoading ? null : _reload,
             icon: const Icon(Icons.refresh_rounded),
           ),
           IconButton(
             tooltip: 'تطبيق جديد',
+            visualDensity: VisualDensity.compact,
             onPressed: _busy ? null : _openForm,
             icon: const Icon(Icons.add_rounded),
           ),
@@ -459,12 +466,16 @@ class _VirtualNumberDictionaryScreenState
               ],
             ),
           ),
-          // تعديل الوثاقة المخزّنة (اسم/أيقونة) أو توثيق المدخل إنشاءً
+          // تعديل الوثاقة المخزّنة (اسم/أيقونة) أو توثيق المدخل إنشاءً —
+          // مقصوص كي لا يتجاوز ارتفاع itemExtent فيقتطع حافة البطاقة
           IconButton(
             tooltip: entry.appId.isNotEmpty
                 ? 'تعديل التطبيق'
                 : 'توثيق التطبيق من المزود',
+            iconSize: 18,
             visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
             onPressed: _togglingKey != null ? null : () => _openEditForm(entry),
             icon: Icon(
               entry.appId.isNotEmpty
@@ -474,6 +485,7 @@ class _VirtualNumberDictionaryScreenState
               color: AppColors.slate700,
             ),
           ),
+          const SizedBox(width: 4),
           if (toggling)
             const SizedBox(
               width: 20,
@@ -481,9 +493,15 @@ class _VirtualNumberDictionaryScreenState
               child: CircularProgressIndicator(strokeWidth: 2),
             )
           else
-            Switch(
-              value: entry.offered,
-              onChanged: _togglingKey != null ? null : (v) => _toggle(entry, v),
+            // مقصوص بالارتفاع: المفتاح الافتراضي أطول من السطر ويترجم التداخل
+            Transform.scale(
+              scale: 0.8,
+              child: Switch(
+                value: entry.offered,
+                onChanged: _togglingKey != null
+                    ? null
+                    : (v) => _toggle(entry, v),
+              ),
             ),
         ],
       ),
