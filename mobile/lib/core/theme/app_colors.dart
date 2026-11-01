@@ -94,6 +94,9 @@ class AppColors {
   static const Color emerald = Color(0xFF10B981);
   static const Color rose = Color(0xFFEF4444);
 
+  // Brand Violet (accent لوحات التذاكر — نفس بنفسجي بطاقات المتجر)
+  static const Color violet = Color(0xFF8B5CF6);
+
   // Critical / Error
   static const Color error = rose;
   static const Color errorLight = Color(0xFFDC2626);

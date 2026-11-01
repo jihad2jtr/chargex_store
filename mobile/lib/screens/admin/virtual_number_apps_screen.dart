@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/constants/app_icon_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
+import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/virtual_number_app_form_dialog.dart';
 import 'virtual_number_catalog_screen.dart';
 import 'virtual_number_dictionary_screen.dart';
@@ -231,7 +233,7 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: const EdgeInsets.fromLTRB(14, 4, 14, 28),
                       itemCount: apps.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      separatorBuilder: (_, _) => const SizedBox(height: 2),
                       itemBuilder: (_, i) => _appCard(apps[i]),
                     ),
             ),
@@ -324,8 +326,95 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // بطاقة تطبيق: عدّاد الدول + إجراءات (تفعيل/تعديل/انتقاء/حذف)
+  // تذكرة تطبيق: ثيم ولون لكل تطبيق + أيقونته + خط تمزّق + تذييل إجراءات
+  // (نفس لغة OpsTicketCard المستخدمة في بقية لوحات الإدارة)
   // ---------------------------------------------------------------------------
+
+  /// لوحة ألوان الهوية: كل تطبيق يأخذ لونه الثابت من هاش مفتاحه، فتتميز
+  /// البطاقات دون خروج عن ألوان النظام (سيان/كهرمان/زمرد/بنفسجي/قرمزي)
+  static const List<Color> _palette = [
+    AppColors.primaryBlue,
+    AppColors.ticketAmber,
+    AppColors.emerald,
+    AppColors.violet,
+    AppColors.slate700,
+    AppColors.rose,
+  ];
+
+  /// لون ثابت للتطبيق مهما تبدّل ترتيب القائمة
+  Color _accentFor(VirtualNumberAppModel app) {
+    final seed = '${app.appKey}|${app.serviceCode}|${app.name}'.toLowerCase();
+    // FNV-1a: هاش مستقر عبر التشغيلات (Object.hash غير مضمون الثبات)
+    var h = 0x811c9dc5;
+    for (final u in seed.runes) {
+      h = ((h ^ u) * 0x01000193) & 0x7fffffff;
+    }
+    return _palette[h % _palette.length];
+  }
+
+  /// الأيقونة من مخزن الأيقونات: مسار حزمة صريح، ثم سجل الأصول بالاسم
+  /// والمفتاح، ثم رابط HTTP مرفوع من أدمن، وحرف الاسم بديلاً أخيراً
+  String? _iconAsset(VirtualNumberAppModel app) {
+    for (final raw in [app.icon, app.iconUrl]) {
+      final v = raw.trim();
+      if (v.isEmpty || v.startsWith('http')) continue;
+      if (v.startsWith('assets/')) return v;
+      final direct = builtinIconAssetExact(v) ?? builtinIconAssetForQuery(v);
+      if (direct != null) return direct;
+    }
+    return iconAssetForApp(iconUrl: app.appKey, name: app.name) ??
+        iconAssetForApp(iconUrl: app.serviceCode, name: app.name);
+  }
+
+  /// مربّع أيقونة التذكرة (36): صورة من الأصول أو شبكة أو حرف ملوّن بالثيم
+  Widget _appIcon(VirtualNumberAppModel app, Color accent) {
+    final asset = _iconAsset(app);
+    final iconUrl = app.icon.trim();
+    final isNetwork =
+        asset == null &&
+        (iconUrl.startsWith('http') || app.iconUrl.trim().startsWith('http'));
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: accent.withValues(alpha: 0.25)),
+      ),
+      child: asset != null
+          ? Image.asset(
+              asset,
+              width: 36,
+              height: 36,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  _iconLetter(app, accent),
+            )
+          : isNetwork
+          ? Image.network(
+              iconUrl.startsWith('http') ? iconUrl : app.iconUrl.trim(),
+              width: 36,
+              height: 36,
+              fit: BoxFit.cover,
+              errorBuilder: (context, error, stackTrace) =>
+                  _iconLetter(app, accent),
+            )
+          : _iconLetter(app, accent),
+    );
+  }
+
+  Widget _iconLetter(VirtualNumberAppModel app, Color accent) {
+    return Text(
+      app.name.isEmpty ? '?' : app.name.characters.first,
+      style: AppTypography.cairo(
+        fontSize: 15,
+        fontWeight: FontWeight.w900,
+        color: accent,
+      ),
+    );
+  }
 
   Widget _appCard(VirtualNumberAppModel app) {
     // الدول تُقرأ مباشرة من `app.countries` (ناتج listAdminApps الذي يقرأ
@@ -334,146 +423,114 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     final countries = app.countries.isNotEmpty
         ? app.countries
         : _countriesFromCatalog(app);
+    final accent = _accentFor(app);
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: app.isActive ? AppColors.outlineVariant : AppColors.slate300,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: AppColors.slate900,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Center(
-                  child: Text(
-                    app.name.isEmpty ? '?' : app.name.characters.first,
-                    style: AppTypography.cairo(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                      color: const Color(0xFFFDE047),
-                    ),
+    return OpsTicketCard(
+      accent: accent,
+      leading: _appIcon(app, accent),
+      // رمز الخدمة تحت الاسم مباشرة (مربّع الأيقونة الأوضح في الرأس)
+      title: app.name,
+      subtitle: 'رمز الخدمة: ${app.serviceCode}',
+      status: _visibilityChip(app),
+      rows: [
+        // الانتقاء والإدارة يفتحان كتالوج المزود — نفس مسار تطبيقات المتجر
+        Row(
+          children: [
+            Expanded(
+              child: InkWell(
+                onTap: _busy ? null : () => _openCatalog(app),
+                borderRadius: BorderRadius.circular(8),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 6,
+                    vertical: 4,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.public_rounded,
+                        size: 15,
+                        color: accent.withValues(alpha: 0.85),
+                      ),
+                      const SizedBox(width: 5),
+                      Flexible(
+                        child: Text(
+                          app.productCount == 0
+                              ? 'انتقِ دول هذه الخدمة من كتالوج المزود'
+                              : 'إدارة الدول والأسعار من كتالوج المزود',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.cairo(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            color: accent,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      app.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cairo(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.slate900,
-                      ),
-                    ),
-                    Text(
-                      'رمز الخدمة: ${app.serviceCode}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cairo(
-                        fontSize: 10.5,
-                        color: AppColors.slate500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              // مؤشر ما يراه العميل: يظهر فقط عند وجود دولة مفعّلة
-              _visibilityChip(app),
-            ],
-          ),
-          const SizedBox(height: 9),
-          Row(
-            children: [
-              _countBadge(
-                '${app.activeProductCount}/${app.productCount}',
-                'دولة مفعّلة',
-              ),
-              const Spacer(),
-              IconButton(
-                tooltip: app.isActive ? 'إيقاف التطبيق' : 'تفعيل التطبيق',
-                visualDensity: VisualDensity.compact,
-                onPressed: _busy
-                    ? null
-                    : () => _run(
-                        () => context
-                            .read<VirtualNumbersProvider>()
-                            .toggleAdminApp(app.id),
-                      ),
-                icon: Icon(
-                  app.isActive
-                      ? Icons.power_settings_new_rounded
-                      : Icons.power_off_rounded,
-                  size: 19,
-                  color: app.isActive ? AppColors.emerald : AppColors.slate400,
-                ),
-              ),
-              IconButton(
-                tooltip: 'تعديل الاسم أو الأيقونة',
-                visualDensity: VisualDensity.compact,
-                onPressed: _busy ? null : () => _openForm(app: app),
-                icon: const Icon(
-                  Icons.edit_outlined,
-                  size: 18,
-                  color: AppColors.slate700,
-                ),
-              ),
-              IconButton(
-                tooltip: 'حذف التطبيق ودوله',
-                visualDensity: VisualDensity.compact,
-                onPressed: _busy ? null : () => _confirmDelete(app),
-                icon: const Icon(
-                  Icons.delete_outline_rounded,
-                  size: 18,
-                  color: AppColors.rose,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          // الانتقاء يتم من كتالوج المزود — نفس مسار تطبيقات المتجر
-          FilledButton.tonalIcon(
-            onPressed: _busy ? null : () => _openCatalog(app),
-            icon: const Icon(Icons.public_rounded, size: 16),
-            label: Text(
-              app.productCount == 0
-                  ? 'انتقِ دول هذه الخدمة من كتالوج المزود'
-                  : 'إدارة الدول والأسعار من كتالوج المزود',
-              style: AppTypography.cairo(fontSize: 11.5),
             ),
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.primaryBlue.withValues(alpha: 0.08),
-              foregroundColor: AppColors.primaryBlue,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            ),
-          ),
-          // عرض أسماء الدول المفعّلة مباشرة داخل البطاقة
-          if (countries.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 5,
-              runSpacing: 4,
-              children: countries.map(_countryChip).toList(),
+            const SizedBox(width: 6),
+            _countBadge(
+              '${app.activeProductCount}/${app.productCount}',
+              'دولة مفعّلة',
             ),
           ],
-        ],
-      ),
+        ),
+      ],
+      // الدول المفعّلة داخل جسم التذكرة: نقطة الجودة + وسم السيرفر لكل دولة
+      media: countries.isEmpty
+          ? null
+          : Wrap(
+              spacing: 5,
+              runSpacing: 4,
+              children: [
+                for (final country in countries) _countryChip(country),
+              ],
+            ),
+      // التذييل بعد خط التمزّق: إجراءات التطبيق (كما في بقية تذاكر الإدارة)
+      actions: [
+        IconButton(
+          tooltip: app.isActive ? 'إيقاف التطبيق' : 'تفعيل التطبيق',
+          visualDensity: VisualDensity.compact,
+          onPressed: _busy
+              ? null
+              : () => _run(
+                  () => context.read<VirtualNumbersProvider>().toggleAdminApp(
+                    app.id,
+                  ),
+                ),
+          icon: Icon(
+            app.isActive
+                ? Icons.power_settings_new_rounded
+                : Icons.power_off_rounded,
+            size: 19,
+            color: app.isActive ? AppColors.emerald : AppColors.slate400,
+          ),
+        ),
+        IconButton(
+          tooltip: 'تعديل الاسم أو الأيقونة',
+          visualDensity: VisualDensity.compact,
+          onPressed: _busy ? null : () => _openForm(app: app),
+          icon: const Icon(
+            Icons.edit_outlined,
+            size: 18,
+            color: AppColors.slate700,
+          ),
+        ),
+        IconButton(
+          tooltip: 'حذف التطبيق ودوله',
+          visualDensity: VisualDensity.compact,
+          onPressed: _busy ? null : () => _confirmDelete(app),
+          icon: const Icon(
+            Icons.delete_outline_rounded,
+            size: 18,
+            color: AppColors.rose,
+          ),
+        ),
+      ],
     );
   }
 
