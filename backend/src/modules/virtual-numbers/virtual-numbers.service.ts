@@ -30,6 +30,14 @@ import {
   VirtualNumberDictionaryDocument,
 } from '../../database/schemas/virtual-number-dictionary.schema';
 import {
+  VirtualNumberDictCountry,
+  VirtualNumberDictCountryDocument,
+} from '../../database/schemas/virtual-number-dict-country.schema';
+import {
+  VirtualNumberDictReview,
+  VirtualNumberDictReviewDocument,
+} from '../../database/schemas/virtual-number-dict-review.schema';
+import {
   VirtualNumberProduct,
   VirtualNumberProductDocument,
 } from '../../database/schemas/virtual-number-product.schema';
@@ -80,6 +88,13 @@ import {
 } from './virtual-number-clients';
 import {
   VIRTUAL_NUMBER_APPS,
+  VIRTUAL_NUMBER_COUNTRIES,
+  DictionaryIndex,
+  DictMatch,
+  toDictAppEntry,
+  toDictCountryEntry,
+  providerCodeKey,
+  slugifyDictKey,
   resolveAppMeta,
   resolveCountryMeta,
 } from './virtual-numbers-dictionary';
@@ -155,6 +170,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   private offeredTtlMs = 30_000;
   // البذر الأول (200 مشهورة) يجري مرة واحدة لكل عملية ولو تزامنت الطلبات
   private dictionarySeedPromise: Promise<void> | null = null;
+  // فهرس المعجم المرتكز على القاعدة: المرجع الموحّد للهوية عبر كل المزودين.
+  // يحمَّل بعد التهيئة ويُبطَل عند كل استيراد/تعديل، فتمرّ كل نقاط الحلّ به.
+  private dictIndex: DictionaryIndex | null = null;
+  private dictIndexPromise: Promise<DictionaryIndex> | null = null;
 
   constructor(
     @InjectModel(VirtualNumberRequest.name)
@@ -184,6 +203,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     // من صفحة المعجم بدل قائمة الكود الثابتة (popular-apps.ts للبذر الأول فقط)
     @InjectModel(VirtualNumberDictionary.name)
     private readonly dictionaryModel: Model<VirtualNumberDictionaryDocument>,
+    // معجم الدول الموحّد: هوية الدولة ورموزها لدى كل مزود (البذر من الثابت + الاستيراد)
+    @InjectModel(VirtualNumberDictCountry.name)
+    private readonly dictCountryModel: Model<VirtualNumberDictCountryDocument>,
+    // قائمة مراجعة المعجم: بنود استُوردت ولم تُحسم هويتها الموحّدة
+    @InjectModel(VirtualNumberDictReview.name)
+    private readonly dictReviewModel: Model<VirtualNumberDictReviewDocument>,
     private readonly notificationsService: NotificationsService,
     private readonly configService: ConfigService,
   ) {}
@@ -215,6 +240,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
    * لا يمسّ ما هو معبأ أصلاً، فيُمكن إعادة التشغيل بلا أثر.
    */
   private async healProductIdentity() {
+    // المرجع الموحّد للهوية: يحمَّل قبل ترحيل appKey حتى تُحلّ الرموز عبر المعجم
+    await this.ensureDictionaryIndex();
     const numberProviders = await this.providerModel
       .find({ providerType: { $in: VIRTUAL_NUMBER_PROVIDER_TYPES } })
       .sort({ createdAt: 1 });
@@ -236,7 +263,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const apps = await this.appModel.find({});
     for (const app of apps) {
       if (app.appKey) continue;
-      const key = resolveAppMeta(
+      const key = this.appMeta(
         app.serviceCode,
         app.providerId
           ? numberProviders.find((p) => p._id.equals(app.providerId))
@@ -424,10 +451,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * خيارات الأرقام المعروضة للعميل: تُقرأ من التخزين المحلي وإن تجاوز مهلته,
-   * ويُجلب الجديد من المزود عند الغياب فقط حتى لا تتعطل الصفحة بتعطل مزود واحد.
-   * المرجع المنتجاتُ لا الكتالوج: لكل تطبيق مفعّل دوله المفعّلة غير الموقوفة
-   * جودةً، وتحتها عروض كل مزود يبيعها — كل عرض بسعره ومخزونه ومشغّلاته.
+   * خيارات الأرقام المعروضة للعميل: تُقرأ من لقطة المنتجات المخزّنة في المعجم
+   * فقط، بلا جلب من المزود ولا قراءة للكتالوج الحيّ (تلك أدوات إدارة/مزامنة لاحقة).
+   * المرجع المنتجاتُ: لكل تطبيق مفعّل دوله المفعّلة غير الموقوفة جودةً، وتحتها
+   * عروض كل مزود يبيعها — كل عرض بسعره المخزَّن ومخزونه ومشغّلاته.
    */
   async getOptions() {
     const providers = await this.resolveActiveProviders();
@@ -456,43 +483,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const ids = providers.map((p) => p._id);
-    let catalogs = await this.catalogModel.find({ providerId: { $in: ids } });
-
-    // أي كتالوج غائب أو قديم يُجدَّد، وكل مزود في فرع مستقل: تعطل مزود لا
-    // يُعطّل الصفحة ولا يمسح كتالوج أخيه، بل تبقى لقطة منتجاته تُسعّر العرض
-    const staleIds = providers
-      .filter((p) => {
-        const catalog = catalogs.find((c) => c.providerId?.equals(p._id));
-        return (
-          !catalog ||
-          !catalog.fetchedAt ||
-          Date.now() - new Date(catalog.fetchedAt).getTime() > CATALOG_TTL_MS
-        );
-      })
-      .map((p) => String(p._id));
-
-    if (staleIds.length > 0) {
-      await Promise.allSettled(
-        providers
-          .filter((p) => staleIds.includes(String(p._id)))
-          .map((p) =>
-            this.syncCatalog(p).catch((err: any) => {
-              this.logger.warn(
-                `Virtual numbers catalog refresh failed for ${p.name}: ${err.message}`,
-              );
-            }),
-          ),
-      );
-      catalogs = await this.catalogModel.find({ providerId: { $in: ids } });
-    }
-
-    const services = await this.buildCuratedServices(providers, catalogs);
+    // وقت التشغيل لا يقرأ الكتالوج الحيّ إطلاقاً: القائمة تُبنى من لقطة المنتجات
+    // المخزّنة (رمز الخدمة + الدولة + سعرها المحفوظ لحظة الإضافة). الكتالوج يبقى
+    // أداةً للإدارة فقط (انتقاء الدول + مزامنة الأسعار اللاحقة).
+    const services = await this.buildCuratedServices(providers);
     const offered = await this.getOfferedSet();
-    const syncedAt =
-      catalogs
-        .map((c) => (c.fetchedAt ? new Date(c.fetchedAt).getTime() : 0))
-        .sort((a, b) => b - a)[0] ?? null;
 
     return {
       available: services.length > 0,
@@ -514,7 +509,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       services,
       // القسم الأول في صفحة الأرقام: خدمات التفعيل المضمون (يدوية بمشرف)
       manualServices: await this.safeManualServices(),
-      syncedAt,
+      // وقت التشغيل لم يعد يجلب الكتالوج: لا طابع زمني لمزامنة حيّة يُبلغ به العميل
+      syncedAt: null,
     };
   }
 
@@ -532,16 +528,18 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * البذر الأول لمعجم المتاح: أول قراءة بعد النشر تُدرج قائمة المشهورات
-   * الثابتة (200 تطبيقاً) متاحة، فتبقى التصرّفات كما عرّفها الإدارة من هناك
+   * البذر/الترقية لمعجم الكيانات (تطبيقات + دول): يجعل القاعدة المرجع الموحّد
+   * للهوية. يُدعى مرة لكل عملية، وهو idempotent وآمن للبيانات:
+   *   - التطبيقات: يُنشئ كياناً لكل مدخل في المعجم الثابت بـ codes لكل مزود،
+   *     ويحمل `offered` من الوثاقات القديمة (أو المشهورات إن حديثة) دون قلبه.
+   *   - الدول: يبذر من الثابت مع دمج تصادم الرموز إلى ISO قياسي وحفظ القديم alias.
+   * الترقية (upsert) تثرِي الوثاقات القديمة بالنnames/codes دون المساس بـ offered.
    */
   private async ensureDictionarySeeded(): Promise<void> {
     if (!this.dictionarySeedPromise) {
       this.dictionarySeedPromise = (async () => {
-        if ((await this.dictionaryModel.countDocuments({})) > 0) return;
-        await this.dictionaryModel.insertMany(
-          POPULAR_APP_KEYS.map((appKey) => ({ appKey, offered: true })),
-        );
+        await this.seedDictApps();
+        await this.seedDictCountries();
       })().catch((e) => {
         // فشل البذر مؤقت (قاعدة مشغولة مثلاً): يُعاد في القراءة التالية
         this.logger.warn(`بذر معجم الأرقام فشل: ${e?.message ?? e}`);
@@ -549,6 +547,176 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       });
     }
     await this.dictionarySeedPromise;
+  }
+
+  /** يحوّل كود مزود إلى خريطة codes (يتجاهل الفارغ) */
+  private dictCodes(herosms: string, fivesim: string): Record<string, string> {
+    const codes: Record<string, string> = {};
+    if (herosms) codes.herosms = herosms;
+    if (fivesim) codes.fivesim = fivesim;
+    return codes;
+  }
+
+  /** يبذر/يرقي كيانات التطبيقات من الثابت، محافظاً على `offered` الحالي */
+  private async seedDictApps(): Promise<void> {
+    const docs = await this.dictionaryModel
+      .find({})
+      .select('appKey offered')
+      .lean();
+    const offeredByKey = new Map<string, boolean>(
+      docs.map((d: any) => [
+        String(d.appKey || '').toLowerCase(),
+        d.offered === true,
+      ]),
+    );
+    const popular = new Set(
+      POPULAR_APP_KEYS.map((k) => String(k).toLowerCase()),
+    );
+
+    const fresh: any[] = [];
+    for (const meta of VIRTUAL_NUMBER_APPS) {
+      const key = String(meta.key).toLowerCase();
+      const identity = {
+        nameAr: meta.nameAr ?? '',
+        nameEn: meta.nameEn ?? '',
+        icon: meta.icon ?? '',
+        codes: this.dictCodes(meta.herosmsCode, meta.fivesimCode),
+        aliases: meta.aliases ?? [],
+      };
+      if (offeredByKey.has(key)) {
+        // كيان موجود: اثرِ الهوية فقط، ولا تلمس بوابة المتاح
+        await this.dictionaryModel.updateOne(
+          { appKey: key },
+          { $set: { ...identity } },
+        );
+      } else {
+        fresh.push({
+          appKey: key,
+          offered: popular.has(key),
+          origin: 'seed',
+          reviewStatus: 'ok',
+          ...identity,
+        });
+      }
+    }
+    if (fresh.length > 0) await this.dictionaryModel.insertMany(fresh);
+  }
+
+  /** يبذر كيانات الدول من الثابت مع دمج تصادم الرموز إلى ISO قياسي */
+  private async seedDictCountries(): Promise<void> {
+    if ((await this.dictCountryModel.countDocuments({})) > 0) return;
+
+    // رموز قديمة غير قياسية تُطبَّع للـISO الحقيقي ويُحفظ القديم alias
+    const override: Record<string, string> = {
+      DD: 'DE',
+      CS: 'RS',
+      YD: 'YE',
+      RH: 'ZW',
+    };
+    const merged = new Map<string, any>();
+    for (const c of VIRTUAL_NUMBER_COUNTRIES) {
+      const original = String(c.code).toUpperCase();
+      const code = (override[original] || original).toUpperCase();
+      const isAuthoritative = original === code; // ليست مُعاد تسميتها
+      const row = merged.get(code) ?? {
+        code,
+        nameAr: '',
+        nameEn: '',
+        flag: '🌐',
+        codes: {} as Record<string, string>,
+        aliases: [] as string[],
+        origin: 'seed',
+        reviewStatus: 'ok',
+      };
+      if (isAuthoritative) {
+        row.nameAr = c.nameAr;
+        row.nameEn = c.nameEn;
+        row.flag = c.flag;
+      } else if (!row.nameAr) {
+        // لا يوجد مدخل قياسي (مثل YE/ZW منفردة): نستخدم هذا المدخل أساساً
+        row.nameAr = c.nameAr;
+        row.nameEn = c.nameEn;
+        row.flag = c.flag;
+      }
+      const codes = this.dictCodes(c.herosmsCode, c.fivesimCode);
+      for (const [k, v] of Object.entries(codes))
+        if (!row.codes[k]) row.codes[k] = v;
+      const aliasSet = new Set<string>([
+        ...row.aliases,
+        ...(c.aliases ?? []),
+        ...(original !== code ? [original] : []),
+      ]);
+      aliasSet.delete(code);
+      row.aliases = [...aliasSet];
+      merged.set(code, row);
+    }
+    await this.dictCountryModel.insertMany([...merged.values()]);
+  }
+
+  /**
+   * يحمّل فهرس المعجم من القاعدة ويخزّنه. كل نقاط الحلّ (الهوية في الشاشات
+   * والشراء) تمرّ به؛ يُبطَل عند الاستيراد/التعديل فيُعاد حِمله. إن غاب يُرجَع
+   * إلى المعجم الثابت مؤقتاً فلا تنكسر القراءة قبل اكتمال التحميل.
+   */
+  private async ensureDictionaryIndex(): Promise<DictionaryIndex> {
+    if (this.dictIndex) return this.dictIndex;
+    if (!this.dictIndexPromise) {
+      this.dictIndexPromise = (async () => {
+        await this.ensureDictionarySeeded();
+        const [appDocs, countryDocs] = await Promise.all([
+          this.dictionaryModel
+            .find({})
+            .select('appKey nameAr nameEn icon codes aliases')
+            .lean(),
+          this.dictCountryModel
+            .find({})
+            .select('code nameAr nameEn flag codes aliases')
+            .lean(),
+        ]);
+        const index = new DictionaryIndex(
+          (appDocs as any[]).map((d) => toDictAppEntry(d)),
+          (countryDocs as any[]).map((d) => toDictCountryEntry(d)),
+        );
+        this.dictIndex = index;
+        return index;
+      })().catch((e) => {
+        this.logger.warn(`تحميل فهرس المعجم فشل: ${e?.message ?? e}`);
+        this.dictIndexPromise = null;
+        throw e;
+      });
+    }
+    return this.dictIndexPromise;
+  }
+
+  /** يُبطَل فهرس المعجم بعد استيراد/تعديل كيانات الهوية */
+  private invalidateDictionaryCache() {
+    this.dictIndex = null;
+    this.dictIndexPromise = null;
+    this.invalidateOfferedCache();
+  }
+
+  /**
+   * حلّ هوية التطبيق من المعجم المركزي، مع سقوط احتياطي للثابت إن لم يكن
+   * الفهرس محمَّلاً بعد. لا يُنتظر فيه وعاء الشبكة: يُستدعى بعد
+   * ensureDictionaryIndex في بداية كل مسار، فيُقرأ من الذاكرة بالتزامن.
+   */
+  private appMeta(
+    codeOrName: string,
+    providerType?: string,
+  ): ReturnType<typeof resolveAppMeta> {
+    const hit = this.dictIndex?.appMeta(codeOrName, providerType);
+    if (hit) return hit;
+    return resolveAppMeta(codeOrName, providerType);
+  }
+
+  /** حلّ هوية الدولة من المعجم المركزي مع سقوط احتياطي للثابت */
+  private countryMeta(
+    codeOrName: string,
+    providerType?: string,
+  ): ReturnType<typeof resolveCountryMeta> {
+    const hit = this.dictIndex?.countryMeta(codeOrName, providerType);
+    if (hit) return hit;
+    return resolveCountryMeta(codeOrName, providerType);
   }
 
   /** مفاتيح المعجم المتاحة حالياً (كاش قصير يُبطَل عند كل تعديل من اللوحة) */
@@ -569,6 +737,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     return keys;
   }
 
+
   /** إبطال كاش المتاح بعد تغيير البوابة من صفحة المعجم */
   private invalidateOfferedCache() {
     this.offeredCache = null;
@@ -587,30 +756,34 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const hit = (codeOrKey: string): boolean => {
       if (!codeOrKey) return false;
       if (offered.has(codeOrKey.toLowerCase())) return true;
-      return offered.has(resolveAppMeta(codeOrKey, providerType).key);
+      return offered.has(this.appMeta(codeOrKey, providerType).key);
     };
     return hit(app.appKey || '') || hit(app.serviceCode || '');
   }
 
   /**
-   * معجم التطبيقات للوحة: كل مدخل المعجم الثابت + توفره من القاعدة،
-   * ووثاقة التطبيق المخزّن إن وُجد (معرّفه وعدّة دوله المضافة من المزود).
+   * معجم التطبيقات للوحة: كل مدخل من كيانات المعجم في القاعدة (الثابتة والمستوردة)
+   * مع توفره ورموز كل مزود ومصدره، ووثاقة التطبيق المخزّن إن وُجد (معرّفه وعدّة
+   * دوله المضافة). هذا المرجع الموحّد هو ما تعرضه شاشة المعجم وتدير منه الإتاحة.
    */
   async getAdminDictionary() {
-    await this.ensureDictionarySeeded();
-    const [offeredDocs, apps] = await Promise.all([
-      this.dictionaryModel.find().select('appKey offered').lean(),
+    // يحمّل الفهرس قبل هذه الدوال المتزامنة؛ ثم تُقرأ الكيانات نفسها للوحة
+    await this.ensureDictionaryIndex();
+    const [dictDocs, apps] = await Promise.all([
+      this.dictionaryModel
+        .find()
+        .select(
+          'appKey nameAr nameEn icon codes aliases offered origin reviewStatus',
+        )
+        .lean(),
       this.appModel.find().select('name appKey serviceCode iconUrl'),
     ]);
-    const offeredByKey = new Map<string, boolean>(
-      offeredDocs.map((d: any) => [String(d.appKey).toLowerCase(), d.offered !== false]),
-    );
 
     // وثاقات التطبيقات تُربط بمفتاح المعجم (المخزّن أو المحلول من رمز الخدمة)
     const appByKey = new Map<string, any>();
     for (const app of apps) {
       const key = (
-        app.appKey || resolveAppMeta(app.serviceCode, '').key || app.serviceCode
+        app.appKey || this.appMeta(app.serviceCode, '').key || app.serviceCode
       ).toLowerCase();
       if (!appByKey.has(key)) appByKey.set(key, app);
     }
@@ -628,41 +801,564 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    return VIRTUAL_NUMBER_APPS.map((meta) => {
-      const app = appByKey.get(meta.key);
-      return {
-        key: meta.key,
-        nameAr: meta.nameAr,
-        nameEn: meta.nameEn,
-        icon: meta.icon,
-        herosmsCode: meta.herosmsCode,
-        fivesimCode: meta.fivesimCode,
-        offered: offeredByKey.get(meta.key) === true,
-        appId: app ? String(app._id) : '',
-        appName: app ? app.name : '',
-        // رمز الخدمة وأيقونة الوثاقة: شاشة المعجم تُعدّل التطبيق المخزّن بها
-        serviceCode: app ? String(app.serviceCode || '') : '',
-        iconUrl: app ? String(app.iconUrl || '') : '',
-        productCount: productCountByKey.get(meta.key) ?? 0,
-      };
-    });
+    return dictDocs
+      .map((d: any) => {
+        const key = String(d.appKey || '').toLowerCase();
+        const app = appByKey.get(key);
+        const codes = (d.codes ?? {}) as Record<string, string>;
+        return {
+          key,
+          nameAr: d.nameAr ?? '',
+          nameEn: d.nameEn ?? '',
+          icon: d.icon ?? '',
+          herosmsCode: codes.herosms ?? '',
+          fivesimCode: codes.fivesim ?? '',
+          // رموز كل مزود + المصدر + حالة المراجعة: شاشة المعجم تعرضها وتُديرها
+          codes,
+          aliases: d.aliases ?? [],
+          origin: d.origin ?? 'seed',
+          reviewStatus: d.reviewStatus ?? 'ok',
+          offered: d.offered === true,
+          appId: app ? String(app._id) : '',
+          appName: app ? app.name : '',
+          // رمز الخدمة وأيقونة الوثاقة: شاشة المعجم تُعدّل التطبيق المخزّن بها
+          serviceCode: app ? String(app.serviceCode || '') : '',
+          iconUrl: app ? String(app.iconUrl || '') : '',
+          productCount: productCountByKey.get(key) ?? 0,
+        };
+      })
+      .sort(
+        (a, b) =>
+          Number(b.offered) - Number(a.offered) ||
+          a.nameEn.localeCompare(b.nameEn) ||
+          a.key.localeCompare(b.key),
+      );
   }
 
   /** تفعيل/إيقاف توفر مفتاح من المعجم — البوابة الوحيدة لما يظهر للمزودين */
   async patchDictionaryOffered(key: string, offered: boolean) {
     const appKey = String(key || '').trim().toLowerCase();
-    if (!VIRTUAL_NUMBER_APPS.some((a) => a.key === appKey)) {
+    // يُقبل أي مفتاح موجود في كيانات المعجم (ثابتة كانت أو مستوردة)
+    const existing = await this.dictionaryModel.findOne({ appKey });
+    if (!existing && !VIRTUAL_NUMBER_APPS.some((a) => a.key === appKey)) {
       throw new BadRequestException(`مفتاح المعجم غير معروف: ${appKey}`);
     }
-    const existing = await this.dictionaryModel.findOne({ appKey });
     if (existing) {
       existing.offered = offered;
       await existing.save();
     } else {
-      await this.dictionaryModel.create({ appKey, offered });
+      await this.dictionaryModel.create({ appKey, offered, origin: 'seed' });
     }
     this.invalidateOfferedCache();
     return { key: appKey, offered };
+  }
+
+  // ===========================================================================
+  // المرحلة 4 — محرّك الاستيراد الذكي من المزودين إلى المعجم المركزي
+  // ===========================================================================
+
+  /**
+   * استيراد هويات التطبيقات والدول من كتالوج المزودين إلى المعجم المركزي.
+   * لا يفعّل البيع إطلاقاً (offered لا يُقلب)، ولا يحذف، ولا يمسّ المنتجات/
+   * الأسعار. قابل للتكرار: كل عملية upsert بمعرّف+(مزود)، فإعادة التشغيل لا
+   * تكرّر السجلات. المزودون = النشطون، أو مزود واحد إن مُرِّر providerId.
+   */
+  async importDictionaryFromProviders(providerId?: string) {
+    await this.ensureDictionaryIndex();
+
+    const targets: ProviderDocument[] = [];
+    if (providerId && Types.ObjectId.isValid(providerId)) {
+      const one = await this.providerModel.findById(providerId);
+      if (one) targets.push(one);
+    } else {
+      targets.push(...(await this.resolveActiveProviders()));
+    }
+
+    // عدّادات موحّدة (Set) فلا يُحسب الكيان مرتين عبر المزودين/الخدمات
+    const appsLinked = new Set<string>();
+    const appsCreated = new Set<string>();
+    const appsPending = new Set<string>();
+    const countriesLinked = new Set<string>();
+    const countriesCreated = new Set<string>();
+    const countriesPending = new Set<string>();
+    let servicesScanned = 0;
+
+    // registries محلية للكيانات المُنشأة في هذه الجولة: تكشف مكرّر «جديد» بين
+    // مزودين قبل أن يظهر في الفهرس المحمَّل (الفهرس لا يُعاد بناؤه أثناء التشغيل)
+    const localAppTokens = new Map<string, string>(); // normalized token → key
+    const localCountryTokens = new Map<string, string>();
+    const seenCountry = new Set<string>(); // pkey::normCode::normName لكل مزود
+
+    const at = new Date();
+    for (const provider of targets) {
+      const pkey = providerCodeKey(provider.providerType);
+      const services = await this.ensureFreshCatalog(provider);
+      servicesScanned += services.length;
+
+      for (const svc of services) {
+        const rawCode = String(svc.code ?? '');
+        const rawName = String(svc.name ?? '');
+        const decision = this.decideApp(
+          rawCode,
+          rawName,
+          localAppTokens,
+        );
+        if (decision.status === 'link') {
+          await this.linkDictApp(decision.key, pkey, rawCode, rawName, at);
+          appsLinked.add(decision.key);
+        } else if (decision.status === 'review') {
+          const id = await this.ensureReviewOpen(
+            'app',
+            provider,
+            pkey,
+            rawCode,
+            rawName,
+            decision.candidates,
+          );
+          if (id) appsPending.add(id);
+        } else {
+          const key = await this.createDictApp(
+            rawCode,
+            rawName,
+            pkey,
+            localAppTokens,
+            at,
+          );
+          if (key) appsCreated.add(key);
+        }
+
+        // الدول ضمن كل خدمة: فريدة بـ(مزود،رمز،اسم) لا لكل خدمة، لئلا تُحلَّب مئات المرّات
+        for (const c of svc.countries ?? []) {
+          const cCode = String(c.code ?? '');
+          const cName = String(c.name ?? '');
+          const dedupe = `${pkey}::${cCode.toLowerCase()}::${cName.toLowerCase()}`;
+          if (seenCountry.has(dedupe)) continue;
+          seenCountry.add(dedupe);
+
+          const cDecision = this.decideCountry(
+            cCode,
+            cName,
+            localCountryTokens,
+          );
+          if (cDecision.status === 'link') {
+            await this.linkDictCountry(
+              cDecision.key,
+              pkey,
+              cCode,
+              cName,
+              at,
+            );
+            countriesLinked.add(cDecision.key);
+          } else if (cDecision.status === 'review') {
+            const id = await this.ensureReviewOpen(
+              'country',
+              provider,
+              pkey,
+              cCode,
+              cName,
+              cDecision.candidates,
+            );
+            if (id) countriesPending.add(id);
+          } else {
+            const code = await this.createDictCountry(
+              cCode,
+              cName,
+              pkey,
+              localCountryTokens,
+              at,
+            );
+            if (code) countriesCreated.add(code);
+          }
+        }
+      }
+    }
+
+    // الكيانات تغيّرت: يُبطَل الفهرس وكاش المتاح فتقرأ القراءة التالية المعجم الجديد
+    this.invalidateDictionaryCache();
+
+    return {
+      providers: targets.length,
+      servicesScanned,
+      appsLinked: appsLinked.size,
+      appsCreated: appsCreated.size,
+      appsPending: appsPending.size,
+      countriesLinked: countriesLinked.size,
+      countriesCreated: countriesCreated.size,
+      countriesPending: countriesPending.size,
+      at,
+    };
+  }
+
+  /**
+   * قرار هوية تطبيق مستورد: يطابق بالفهرس؛ وإن قال «جديد» فحص رموز الجولة
+   * المحلية (قد يكون أُنبئ به مزود آخر في هذا التشغيل نفسه) فربط به.
+   */
+  private decideApp(
+    rawCode: string,
+    rawName: string,
+    localTokens: Map<string, string>,
+  ): DictMatch {
+    const hit = this.dictIndex?.matchApp(rawCode, rawName);
+    if (hit && hit.status !== 'new') return hit;
+    // جديد نظيف من الفهرس: ابحث في رموز ما أُنشئ في هذه الجولة
+    for (const token of [rawCode, rawName]) {
+      const t = slugifyDictKey(token);
+      if (t && t !== 'unknown' && localTokens.has(t))
+        return { status: 'link', key: localTokens.get(t)! };
+    }
+    return { status: 'new' };
+  }
+
+  /** قرار هوية دولة مستورد (مثل decideApp لكن بخريطة الدول) */
+  private decideCountry(
+    rawCode: string,
+    rawName: string,
+    localTokens: Map<string, string>,
+  ): DictMatch {
+    const hit = this.dictIndex?.matchCountry(rawCode, rawName);
+    if (hit && hit.status !== 'new') return hit;
+    for (const token of [rawCode, rawName]) {
+      const t = slugifyDictKey(token);
+      if (t && t !== 'unknown' && localTokens.has(t))
+        return { status: 'link', key: localTokens.get(t)! };
+    }
+    return { status: 'new' };
+  }
+
+  /** يربط كيان تطبيق قائم برمز مزوده ويُسجّل مصدره (idempotent بمزود+رمز) */
+  private async linkDictApp(
+    appKey: string,
+    pkey: string,
+    rawCode: string,
+    rawName: string,
+    at: Date,
+  ) {
+    const doc = await this.dictionaryModel.findOne({ appKey });
+    if (!doc) return;
+    doc.codes = doc.codes ?? {};
+    if (rawCode) doc.codes[pkey] = rawCode;
+    this.mergeSource(doc.sources, pkey, rawCode, rawName, at);
+    await doc.save();
+  }
+
+  /** يربط كيان دولة قائم برمز مزوده ويُسجّل مصدرها */
+  private async linkDictCountry(
+    code: string,
+    pkey: string,
+    rawCode: string,
+    rawName: string,
+    at: Date,
+  ) {
+    const doc = await this.dictCountryModel.findOne({ code });
+    if (!doc) return;
+    doc.codes = doc.codes ?? {};
+    if (rawCode) doc.codes[pkey] = rawCode;
+    this.mergeSource(doc.sources, pkey, rawCode, rawName, at);
+    await doc.save();
+  }
+
+  /** يُدرج/يُحدّث سجل مصدر حسب (مزود،رمز) فلا يتكرر مع إعادة الاستيراد */
+  private mergeSource(
+    sources: Array<{
+      providerType: string;
+      rawCode: string;
+      rawName: string;
+      syncedAt: Date;
+    }> | undefined,
+    pkey: string,
+    rawCode: string,
+    rawName: string,
+    at: Date,
+  ) {
+    if (!Array.isArray(sources)) return;
+    const found = sources.find(
+      (s) => s && s.providerType === pkey && s.rawCode === rawCode,
+    );
+    if (found) {
+      found.rawName = rawName || found.rawName;
+      found.syncedAt = at;
+    } else {
+      sources.push({ providerType: pkey, rawCode, rawName, syncedAt: at });
+    }
+  }
+
+  /** يُنشئ كيان تطبيق مستورد (غير متاح) بمفتاح فريد، ويسجّله في رموز الجولة */
+  private async createDictApp(
+    rawCode: string,
+    rawName: string,
+    pkey: string,
+    localTokens: Map<string, string>,
+    at: Date,
+  ): Promise<string | null> {
+    const base = slugifyDictKey(rawName || rawCode);
+    if (base === 'unknown') return null;
+    let key = base;
+    let n = 1;
+    while (
+      localTokens.has(key) ||
+      (await this.dictionaryModel.exists({ appKey: key }))
+    ) {
+      key = `${base}-${pkey || 'x'}${n > 1 ? n : ''}`;
+      n += 1;
+      if (n > 50) return null;
+    }
+    const codes: Record<string, string> = {};
+    if (rawCode) codes[pkey] = rawCode;
+    await this.dictionaryModel.create({
+      appKey: key,
+      offered: false, // الاستيراد لا يفعّل البيع
+      origin: 'import',
+      reviewStatus: 'ok',
+      nameEn: rawName,
+      nameAr: '',
+      icon: '',
+      codes,
+      aliases: [],
+      sources: [{ providerType: pkey, rawCode, rawName, syncedAt: at }],
+    });
+    localTokens.set(key, key);
+    const nameToken = slugifyDictKey(rawName);
+    if (nameToken && nameToken !== 'unknown') localTokens.set(nameToken, key);
+    return key;
+  }
+
+  /** يُنشئ كيان دولة مستورد برمز موحّد فريد (slug الاسم، يُصحَّح للـISO عند المراجعة) */
+  private async createDictCountry(
+    rawCode: string,
+    rawName: string,
+    pkey: string,
+    localTokens: Map<string, string>,
+    at: Date,
+  ): Promise<string | null> {
+    const base = slugifyDictKey(rawName || rawCode).toUpperCase();
+    if (base === 'UNKNOWN') return null;
+    let code = base;
+    let n = 1;
+    while (
+      localTokens.has(code) ||
+      (await this.dictCountryModel.exists({ code }))
+    ) {
+      code = `${base}-${(pkey || 'X').toUpperCase()}${n > 1 ? n : ''}`;
+      n += 1;
+      if (n > 50) return null;
+    }
+    const codes: Record<string, string> = {};
+    if (rawCode) codes[pkey] = rawCode;
+    await this.dictCountryModel.create({
+      code,
+      origin: 'import',
+      reviewStatus: 'ok',
+      nameEn: rawName,
+      nameAr: '',
+      flag: '🌐',
+      codes,
+      aliases: [],
+      sources: [{ providerType: pkey, rawCode, rawName, syncedAt: at }],
+    });
+    localTokens.set(code, code);
+    const nameToken = slugifyDictKey(rawName).toUpperCase();
+    if (nameToken && nameToken !== 'UNKNOWN') localTokens.set(nameToken, code);
+    return code;
+  }
+
+  /**
+   * يُنشئ/يُحدّث بند مراجعة مفتوحاً لهذا المزود+الرمز (idempotent)، ويعيد
+   * معرّف البند إن كان جديداً ليُحسب مرة واحدة في التقرير.
+   */
+  private async ensureReviewOpen(
+    kind: 'app' | 'country',
+    provider: ProviderDocument,
+    pkey: string,
+    rawCode: string,
+    rawName: string,
+    candidates: string[],
+  ): Promise<string | null> {
+    const existing = await this.dictReviewModel.findOne({
+      kind,
+      providerType: pkey,
+      rawCode,
+      status: 'open',
+    });
+    if (existing) {
+      // البند قائم: لا يُعاد حسابه «جديداً»، لكن تُثرى مرشّحاته إن استجدّت
+      if (candidates.length && !existing.candidateKeys?.length) {
+        existing.candidateKeys = candidates;
+        await existing.save();
+      }
+      return null;
+    }
+    const created = await this.dictReviewModel.create({
+      kind,
+      providerType: pkey,
+      providerId: provider?._id,
+      rawCode,
+      rawName,
+      candidateKeys: candidates,
+      status: 'open',
+    });
+    return String((created as any)._id);
+  }
+
+  // --- المرحلة 5: قراءة/تعديل الدول وقائمة المراجعة وحلّها ------------------
+
+  /** كل كيانات الدول الموحّدة في المعجم (هوية + رموز كل مزود + مصدر) */
+  async getDictionaryCountries() {
+    await this.ensureDictionaryIndex();
+    const docs = await this.dictCountryModel
+      .find()
+      .select('code nameAr nameEn flag codes aliases origin reviewStatus')
+      .lean();
+    return (docs as any[])
+      .map((d) => ({
+        code: String(d.code ?? '').toUpperCase(),
+        nameAr: d.nameAr ?? '',
+        nameEn: d.nameEn ?? '',
+        flag: d.flag ?? '',
+        codes: (d.codes ?? {}) as Record<string, string>,
+        aliases: d.aliases ?? [],
+        origin: d.origin ?? 'seed',
+        reviewStatus: d.reviewStatus ?? 'ok',
+      }))
+      .sort((a, b) => a.nameEn.localeCompare(b.nameEn) || a.code.localeCompare(b.code));
+  }
+
+  /**
+   * تعديل/دمج دولة في المعجم. إما تحديث أسماء/علم لدولة برمزها، أو دمجها في
+   * أخرى: تُنقل رموزها ومصادرها إلى الهدف ويُحفظ رمزها alias فيستمر حلّه.
+   */
+  async patchDictionaryCountry(body: {
+    code: string;
+    nameAr?: string;
+    nameEn?: string;
+    flag?: string;
+    mergeInto?: string;
+  }) {
+    const code = String(body.code ?? '').trim().toUpperCase();
+    if (!code) throw new BadRequestException('رمز الدولة مطلوب');
+    const doc = await this.dictCountryModel.findOne({ code });
+    if (!doc) throw new NotFoundException(`الدولة غير موجودة في المعجم: ${code}`);
+
+    const target = String(body.mergeInto ?? '').trim().toUpperCase();
+    if (target && target !== code) {
+      const dest = await this.dictCountryModel.findOne({ code: target });
+      if (!dest) throw new NotFoundException(`دمج إلى دولة غير موجودة: ${target}`);
+      // الرموز: الهدف أبقى عند التعارض، والمصدَر يُنقل ما ليس موجوداً
+      dest.codes = dest.codes ?? {};
+      for (const [k, v] of Object.entries(doc.codes ?? {}))
+        if (v && !dest.codes[k]) dest.codes[k] = v;
+      const aliases = new Set<string>([
+        ...(dest.aliases ?? []),
+        ...(doc.aliases ?? []),
+        code,
+      ]);
+      aliases.delete(target);
+      dest.aliases = [...aliases];
+      // المصادر تُنقل كاملة (تدقيق)
+      dest.sources = [...(dest.sources ?? []), ...(doc.sources ?? [])];
+      await dest.save();
+      await this.dictCountryModel.deleteOne({ _id: doc._id });
+      this.invalidateDictionaryCache();
+      return { code: target, merged: code };
+    }
+
+    if (body.nameAr !== undefined) doc.nameAr = String(body.nameAr).trim();
+    if (body.nameEn !== undefined) doc.nameEn = String(body.nameEn).trim();
+    if (body.flag !== undefined) doc.flag = String(body.flag).trim();
+    doc.reviewStatus = 'ok';
+    await doc.save();
+    this.invalidateDictionaryCache();
+    return { code };
+  }
+
+  /** قائمة مراجعة المعجم: البنود الغامضة المفتوحة من كل المزودين */
+  async getReviewQueue() {
+    const docs = await this.dictReviewModel
+      .find({ status: 'open' })
+      .sort({ createdAt: -1 });
+    return (docs as any[]).map((r) => ({
+      id: String(r._id),
+      kind: r.kind,
+      providerType: r.providerType,
+      providerId: r.providerId ? String(r.providerId) : '',
+      rawCode: r.rawCode,
+      rawName: r.rawName,
+      candidateKeys: r.candidateKeys ?? [],
+      status: r.status,
+    }));
+  }
+
+  /**
+   * حلّ بند مراجعة: link بربطه بكيان قائم، أو create بإنشاء كيان جديد غير
+   * متاحة، أو dismiss بإسقاطه. كلها تُبقي السجل للتدقيق وتُبطل الكاش.
+   */
+  async resolveReviewItem(
+    id: string,
+    action: 'link' | 'create' | 'dismiss',
+    targetKey?: string,
+  ) {
+    if (!Types.ObjectId.isValid(id))
+      throw new BadRequestException('معرّف مراجعة غير صالح');
+    const review = await this.dictReviewModel.findById(id);
+    if (!review) throw new NotFoundException('بند المراجعة غير موجود');
+    if (review.status !== 'open')
+      throw new BadRequestException('البند محلول مسبقاً');
+
+    const pkey = providerCodeKey(review.providerType);
+    const at = new Date();
+
+    if (action === 'dismiss') {
+      review.status = 'dismissed';
+      await review.save();
+      return { id, status: 'dismissed' };
+    }
+
+    if (action === 'link') {
+      const key = String(targetKey ?? '').trim().toLowerCase();
+      if (!key) throw new BadRequestException('يجب تحديد كيان للربط');
+      if (review.kind === 'country') {
+        await this.linkDictCountry(
+          key.toUpperCase(),
+          pkey,
+          review.rawCode,
+          review.rawName,
+          at,
+        );
+      } else {
+        await this.linkDictApp(key, pkey, review.rawCode, review.rawName, at);
+      }
+      review.status = 'linked';
+      review.resolvedKey = key;
+      await review.save();
+      this.invalidateDictionaryCache();
+      return { id, status: 'linked', resolvedKey: key };
+    }
+
+    // create: كيان جديد غير متاح (offered=false) بمعرّف موحّد من الاسم
+    let newKey: string | null;
+    if (review.kind === 'country') {
+      newKey = await this.createDictCountry(
+        review.rawCode,
+        review.rawName,
+        pkey,
+        new Map<string, string>(),
+        at,
+      );
+    } else {
+      newKey = await this.createDictApp(
+        review.rawCode,
+        review.rawName,
+        pkey,
+        new Map<string, string>(),
+        at,
+      );
+    }
+    if (!newKey)
+      throw new BadRequestException('تعذّر إنشاء كيان من هذا البند');
+    review.status = 'created';
+    review.resolvedKey = newKey;
+    await review.save();
+    this.invalidateDictionaryCache();
+    return { id, status: 'created', resolvedKey: newKey };
   }
 
   /**
@@ -670,13 +1366,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
    * بمفتاحها المنطقي (واتساب تطبيق واحد وإن اختلف رمزه لدى مزودين)، وتحتها
    * الدول مجمّعة برمزها القانوني، وكل دولة تحمل عروض مزوديها مستقلة.
    *
-   * كل عرض يقرأ تكلفته ومخزونه ومشغّلاته من كتالوج مزوده الحيّ؛ وإن غاب الكتالوج
-   * يرجع إلى لقطة المنتج — فيبقى العرض معروضاً بسعره ولو تعطل المزود مؤقتاً.
+   * كل عرض يقرأ تكلفته ومخزونه ومشغّلاته من لقطة المنتج المخزّنة وحدها؛ وقت
+   * التشغيل لا يمس الكتالوج الحيّ (يبقى للإدارة ولمزامنة الأسعار اللاحقة).
    */
-  private async buildCuratedServices(
-    providers: ProviderDocument[],
-    catalogs: VirtualNumberCatalogDocument[],
-  ) {
+  private async buildCuratedServices(providers: ProviderDocument[]) {
+    // المرجع الموحّد للهوية قبل أن تقرأ الحلقات appMeta/countryMeta بالتزامن
+    await this.ensureDictionaryIndex();
     const apps = await this.appModel
       .find({ isActive: true })
       .sort({ sortOrder: 1, createdAt: -1 });
@@ -691,9 +1386,6 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (products.length === 0) return [];
 
     const providersById = new Map(providers.map((p) => [String(p._id), p]));
-    const catalogsByProvider = new Map(
-      catalogs.map((c) => [String(c.providerId), c.services ?? []]),
-    );
     const appsById = new Map(apps.map((a) => [String(a._id), a]));
     // بوابة المعجم: كاش الخدمة نفسه يجعل الطلب المكرر هنا مجانياً
     const offered = await this.getOfferedSet();
@@ -711,12 +1403,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
       const appKey =
         app.appKey ||
-        resolveAppMeta(app.serviceCode, provider.providerType).key ||
+        this.appMeta(app.serviceCode, provider.providerType).key ||
         app.serviceCode;
       // تطبيقات المعجم المتاحة وحدها تُعرض للعميل: كتالوجات المزودين تحوي
       // مئات الخدمات المجهولة، فلا شبكة أرقام ولا بيع لما أوقفته اللوحة
       if (!this.isOfferedApp(app, offered, provider.providerType)) continue;
-      const cMeta = resolveCountryMeta(
+      const cMeta = this.countryMeta(
         product.countryCode || product.countryName,
         provider.providerType,
       );
@@ -729,14 +1421,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         ''
       ).trim();
 
-      // كتالوج هذا المزود بالذات، ودولته عنده برمزها الأصلي لا برمز غيره
-      const services = catalogsByProvider.get(String(provider._id)) ?? [];
-      const svc = services.find((s) => s.code === product.serviceCode);
-      const live = (svc?.countries ?? []).find(
-        (c) => c.code === product.countryCode,
-      );
-
-      const cost = Number(live?.cost ?? product.cost) || 0;
+      // السعر والمخزون والمشغّلون من لقطة المنتج المخزّنة — لا قراءة للكتالوج الحيّ
+      const cost = Number(product.cost) || 0;
       const salePrice = this.computeSalePrice(
         cost,
         provider.profitMarginType ?? ProfitMarginType.PERCENTAGE,
@@ -751,11 +1437,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         serverLabel: (provider as any).serverLabel || 'Server',
         service: product.serviceCode,
         country: product.countryCode,
-        countryName: live?.name || product.countryName || cMeta.name,
+        countryName: product.countryName || cMeta.name,
         cost,
         salePrice,
-        count: live?.count ?? product.count ?? 0,
-        operators: visibleOperators(live?.operators ?? product.operators),
+        count: product.count ?? 0,
+        operators: visibleOperators(product.operators),
       };
 
       const group = appGroups.get(appKey) ?? {
@@ -778,12 +1464,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       const app = group.apps[0];
       const repProvider =
         providersById.get(String(app.providerId)) ?? providers[0];
-      const appMeta = resolveAppMeta(
+      const appMeta = this.appMeta(
         app.serviceCode,
         repProvider?.providerType,
       );
-      const repCatalog = catalogsByProvider.get(String(repProvider?._id)) ?? [];
-      const repSvc = repCatalog.find((s) => s.code === app.serviceCode);
 
       const countries = [...group.countries.entries()]
         .map(([code, offers]) => {
@@ -792,7 +1476,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
             offers[0],
           );
           const owner = providersById.get(cheapest.providerId);
-          const meta = resolveCountryMeta(code, owner?.providerType);
+          const meta = this.countryMeta(code, owner?.providerType);
           return {
             code,
             name:
@@ -818,12 +1502,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       if (countries.length === 0) continue; // تطبيق بلا دولة مفعّلة بسعر صالح
       out.push({
         code: app.serviceCode,
-        name: app.name || (repSvc as any)?.name || appMeta.name,
-        nameAr: (repSvc as any)?.nameAr || appMeta.nameAr,
-        nameEn: (repSvc as any)?.nameEn || appMeta.nameEn,
-        icon: app.iconUrl || (repSvc as any)?.icon || appMeta.icon,
-        herosmsCode: (repSvc as any)?.herosmsCode || appMeta.herosmsCode,
-        fivesimCode: (repSvc as any)?.fivesimCode || appMeta.fivesimCode,
+        name: app.name || appMeta.name,
+        nameAr: appMeta.nameAr,
+        nameEn: appMeta.nameEn,
+        icon: app.iconUrl || appMeta.icon,
+        herosmsCode: appMeta.herosmsCode,
+        fivesimCode: appMeta.fivesimCode,
         countries,
         // «من $X»: أقل عروض التطبيق كلها، والترتيب الحالي يبقى عاملاً
         fromPrice: Math.min(...countries.map((c) => c.salePrice)),
@@ -921,6 +1605,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       // أسماء الخدمات في الكتالوج تُصلح أسماء التطبيقات التي حُفظت كرموز
       await this.healCodeAppNames(services).catch(() => undefined);
 
+      // رموز الخدمة المحفوظة على منتجات هذا المزود تُصحَّح لرمز كتالوجه الفعلي
+      await this.healProviderProductCodes(provider, services).catch(
+        () => undefined,
+      );
+
       // رصيد المزود يُحدَّث مع المزامنة كي يظهر في اللوحة ويُتحقق منه قبل الطلب
       await this.refreshProviderBalance(provider).catch(() => undefined);
 
@@ -969,6 +1658,56 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (ops.length > 0) await this.appModel.bulkWrite(ops);
   }
 
+  /**
+   * منتجات هذا المزود التي حمَلت رمز مزوّدٍ آخر (لأنها وُرثت من رمز التطبيق قبل
+   * إصلاح الربط) تُصحَّح إلى رمز الخدمة الفعلي في كتالوج هذا المزود حسب مفتاح
+   * التطبيق الموحّد، فينجح الشراء الذي كان يُخاطب المزود برمز خاطئ.
+   */
+  private async healProviderProductCodes(
+    provider: ProviderDocument,
+    services: VirtualNumberService[],
+  ) {
+    // مفتاح التطبيق الموحّد → رمز الخدمة الفعلي في كتالوج هذا المزود
+    const codeByAppKey = new Map<string, string>();
+    for (const svc of services) {
+      const key = this.appMeta(svc.code, provider.providerType).key;
+      if (key && !codeByAppKey.has(key)) codeByAppKey.set(key, svc.code);
+    }
+    if (codeByAppKey.size === 0) return;
+
+    const products = await this.productModel.find(
+      { providerId: provider._id },
+      'appId serviceCode',
+    );
+    if (products.length === 0) return;
+
+    const appIds = [...new Set(products.map((p) => String(p.appId)))];
+    const apps = await this.appModel.find(
+      { _id: { $in: appIds } },
+      'appKey serviceCode',
+    );
+    const appById = new Map(apps.map((a) => [String(a._id), a]));
+
+    const ops = products
+      .map((p) => {
+        const app = appById.get(String(p.appId));
+        if (!app) return null;
+        const appKey =
+          app.appKey ||
+          this.appMeta(app.serviceCode, provider.providerType).key;
+        const want = appKey ? codeByAppKey.get(appKey) : '';
+        if (!want || want === p.serviceCode) return null;
+        return {
+          updateOne: {
+            filter: { _id: p._id },
+            update: { $set: { serviceCode: want } },
+          },
+        };
+      })
+      .filter(Boolean) as Parameters<typeof this.productModel.bulkWrite>[0];
+    if (ops.length > 0) await this.productModel.bulkWrite(ops);
+  }
+
   private async refreshProviderBalance(provider: ProviderDocument) {
     const client = this.clientFor(provider);
     const profile = await client.getProfile();
@@ -1014,6 +1753,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const user = await this.userModel.findById(params.userId);
     if (!user) throw new NotFoundException('المستخدم غير موجود');
 
+    // المرجع الموحّد للهوية: يحمَّل قبل حلّ اسم الخدمة/الدولة أدناه
+    await this.ensureDictionaryIndex();
     const cleanService = (params.service || '').trim();
     const cleanCountry = (params.country || '').trim();
     const cleanProductId = (params.productId || '').trim();
@@ -1037,6 +1778,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     let product: VirtualNumberProductDocument | null = null;
     let service = cleanService;
     let country = cleanCountry;
+    // اسم التطبيق الممثَّل للاحتياط به حين يغيب القيد من الكتالوج (يُخزَّن على
+    // الطلب فيُقرأ في السجل)؛ يبقى فارغاً في المسار القديم فتُستعمل خدمة المعجم
+    let appDisplayName = '';
 
     if (cleanProductId) {
       // المنتج هو وحدة البيع: مزوده وهامشه ورموزه تُؤخذ منه هو، لا من مزود مُحال
@@ -1060,6 +1804,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         throw unavailable;
       }
       provider = found;
+      appDisplayName = String(app.name || '');
       // الرمز المُرسَل للمزود هو رمز هذا المزود الأصلي، لا رمز التطبيق
       service = product.serviceCode;
       country = product.countryCode;
@@ -1078,8 +1823,18 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       );
     }
 
-    const picked = await this.pickPrice(provider, service, country);
-    const { cost, salePrice, serviceName, countryName } = picked;
+    // السعر من لقطة المنتج المخزّنة وحدها: وقت الشراء لا يقرأ الكتالوج الحيّ،
+    // فيتسق مسار الشراء تماماً مع مسار العرض (buildCuratedServices).
+    const cost = Number(product?.cost) || 0;
+    const salePrice = this.computeSalePrice(
+      cost,
+      provider.profitMarginType ?? ProfitMarginType.PERCENTAGE,
+      provider.profitMarginValue ?? 0,
+    );
+    if (cost <= 0 || salePrice <= 0) throw unavailable;
+    const serviceName =
+      appDisplayName || this.appMeta(service, provider.providerType).name;
+    const countryName = String(product?.countryName || '') || country;
 
     // رصيد المزود يجب أن يغطي التكلفة قبل المساس بمحفظة العميل
     await this.ensureProviderFunded(provider, cost);
@@ -1246,58 +2001,6 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       message: 'تم تجهيز الرقم، أدخله في التطبيق المطلوب وسيصل الرمز تلقائياً',
       request: await this.viewForClient(request),
       newBalance: balanceAfter,
-    };
-  }
-
-  // قراءة السعر من الكتالوج المخزّن (أو من المزود مباشرة إن غاب)
-  private async pickPrice(
-    provider: ProviderDocument,
-    service: string,
-    country: string,
-  ) {
-    let catalog = await this.catalogModel.findOne({ providerId: provider._id });
-    const stale =
-      !catalog ||
-      !catalog.fetchedAt ||
-      Date.now() - new Date(catalog.fetchedAt).getTime() > CATALOG_TTL_MS;
-
-    let entry = this.findCatalogEntry(
-      catalog?.services ?? [],
-      service,
-      country,
-    );
-    if (!entry && stale) {
-      await this.syncCatalog(provider).catch(() => undefined);
-      catalog = await this.catalogModel.findOne({ providerId: provider._id });
-      entry = this.findCatalogEntry(catalog?.services ?? [], service, country);
-    }
-    if (!entry) {
-      throw new BadRequestException('هذه الخدمة أو الدولة غير متاحة حالياً');
-    }
-
-    const marginType = provider.profitMarginType ?? ProfitMarginType.PERCENTAGE;
-    const marginValue = provider.profitMarginValue ?? 0;
-    return {
-      cost: entry.cost,
-      salePrice: this.computeSalePrice(entry.cost, marginType, marginValue),
-      serviceName: entry.serviceName,
-      countryName: entry.countryName,
-    };
-  }
-
-  private findCatalogEntry(
-    services: VirtualNumberService[],
-    service: string,
-    country: string,
-  ) {
-    const svc = services.find((s) => s.code === service);
-    if (!svc) return null;
-    const c = (svc.countries ?? []).find((x) => x.code === country);
-    if (!c) return null;
-    return {
-      cost: Number(c.cost) || 0,
-      serviceName: svc.name,
-      countryName: c.name,
     };
   }
 
@@ -2333,6 +3036,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
   /** تطبيقات الأرقام مع عدّ منتجاتها — لشاشة «إدارة الأرقام» */
   async listAdminApps() {
+    await this.ensureDictionaryIndex();
     const allApps = await this.appModel
       .find()
       .sort({ sortOrder: 1, createdAt: -1 });
@@ -2394,7 +3098,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     return apps.map((app) => {
       const products = productsByApp.get(app._id.toString()) ?? [];
       const activeCount = products.filter((p) => p.isActive !== false).length;
-      const appMeta = resolveAppMeta(
+      const appMeta = this.appMeta(
         app.serviceCode,
         typeByProviderId.get(String(app.providerId ?? '')),
       );
@@ -2518,6 +3222,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
    * رقم قبل اختيار الدول، ولا يُنشئ شيئاً من مئات خدمات الكتالوج المجهولة.
    */
   async bulkCreateApps(providerId?: string) {
+    await this.ensureDictionaryIndex();
     const provider = await this.resolveAdminProvider(providerId);
     const services = await this.ensureFreshCatalog(provider);
     const existing = await this.appModel.distinct('serviceCode');
@@ -2532,7 +3237,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         !this.isOfferedApp({ serviceCode: svc.code }, offered, provider?.providerType)
       )
         continue;
-      const appMeta = resolveAppMeta(svc.code, provider?.providerType);
+      const appMeta = this.appMeta(svc.code, provider?.providerType);
       await this.appModel.create({
         name: svc.name || appMeta.name,
         serviceCode: svc.code,
@@ -2554,6 +3259,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
    * تجديداً من المزود إن بليات اللقطة (مسار بطيء مقصود على طلب المستخدم).
    */
   async getAdminCatalog(providerId?: string) {
+    await this.ensureDictionaryIndex();
     const provider = await this.resolveAdminProvider(providerId);
     const offered = await this.getOfferedSet();
     const services = (await this.ensureFreshCatalog(provider)).filter((svc) =>
@@ -2572,6 +3278,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (!Types.ObjectId.isValid(appId)) {
       throw new BadRequestException('معرّف تطبيق غير صالح');
     }
+    await this.ensureDictionaryIndex();
     const app = await this.appModel.findById(appId);
     if (!app) throw new NotFoundException('التطبيق غير موجود');
 
@@ -2580,12 +3287,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       providerId: provider._id,
     });
     const snapshot = (catalog?.services ?? []) as VirtualNumberService[];
-    const appKey = app.appKey || resolveAppMeta(app.serviceCode).key;
+    const appKey = app.appKey || this.appMeta(app.serviceCode).key;
     const matched = snapshot.filter(
       (svc) =>
         svc.code === app.serviceCode ||
         (!!appKey &&
-          resolveAppMeta(svc.code, provider.providerType).key === appKey),
+          this.appMeta(svc.code, provider.providerType).key === appKey),
     );
 
     const view = await this.buildAdminCatalogView(provider, matched);
@@ -2603,13 +3310,14 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     provider: ProviderDocument,
     services: VirtualNumberService[],
   ) {
+    await this.ensureDictionaryIndex();
     const apps = await this.appModel.find();
     const appByService = new Map(apps.map((a) => [a.serviceCode, a]));
     // مطابقة عابرة للمزودين بمفتاح المعجم: التطبيق يبقى واحداً (واتساب مثلاً)
     // مهما اختلف رمز خدمته لدى كل مزود
     const appByKey = new Map<string, VirtualNumberAppDocument>();
     for (const a of apps) {
-      const key = a.appKey || resolveAppMeta(a.serviceCode).key;
+      const key = a.appKey || this.appMeta(a.serviceCode).key;
       if (key) appByKey.set(key, a);
     }
 
@@ -2643,8 +3351,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         // مفتاح المعجم: واتساب المخزَّن بـ 'wa' يبقى تطبيق 'whatsapp' نفسه
         const app =
           appByService.get(svc.code) ??
-          appByKey.get(resolveAppMeta(svc.code, provider?.providerType).key);
-        const appMeta = resolveAppMeta(svc.code, provider?.providerType);
+          appByKey.get(this.appMeta(svc.code, provider?.providerType).key);
+        const appMeta = this.appMeta(svc.code, provider?.providerType);
         return {
           code: svc.code,
           name: app?.name || svc.name || appMeta.name,
@@ -2662,7 +3370,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
               `${providerKey}|${svc.code}|${c.code}`,
             );
             const cost = Number(c.cost) || 0;
-            const cMeta = resolveCountryMeta(
+            const cMeta = this.countryMeta(
               c.code || c.name,
               provider?.providerType,
             );
@@ -2694,10 +3402,45 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     };
   }
 
+  /**
+   * رمز الخدمة الأصلي الذي يُخاطَب به المزود عند الشراء: رمز الكتالوج المُمرَّر
+   * أولاً (الأوثق إذ هو من مزوّد البيع نفسه)، ثم رمز المعجم لهذا النوع عبر مفتاح
+   * التطبيق الموحّد، ثم رمز التطبيق المخزَّن (احتياط لا يكسر أي استدعاء قديم).
+   * يمنع وراثة رمز مزوّدٍ لمزوّدٍ آخر حين يُباع التطبيق نفسه من أكثر من سيرفر.
+   */
+  private productServiceCode(
+    app: VirtualNumberAppDocument,
+    provider: ProviderDocument | null,
+    override?: string,
+  ): string {
+    const clean = (override || '').trim();
+    if (clean) return clean;
+    const appKey =
+      app.appKey || this.appMeta(app.serviceCode, provider?.providerType).key;
+    const pkey = providerCodeKey(provider?.providerType);
+    const fromDict = appKey
+      ? this.dictIndex?.appEntry(appKey)?.codes?.[pkey]
+      : undefined;
+    if (fromDict) return fromDict;
+    const staticMeta = resolveAppMeta(
+      appKey || app.serviceCode,
+      provider?.providerType,
+    );
+    const fromStatic = pkey === 'fivesim'
+      ? staticMeta.fivesimCode
+      : pkey === 'herosms'
+        ? staticMeta.herosmsCode
+        : '';
+    return fromStatic || app.serviceCode;
+  }
+
   /** إضافة دول المختارة من الكتالوج إلى التطبيق كمنتجات مفعّلة */
   async addCountriesToApp(dto: {
     appId: string;
     providerId?: string;
+    // رمز الخدمة الأصلي لدى المزود الهدف من كتالوجه: يُحفظ على المنتج لأن الشراء
+    // يُخاطب به المزود، وقد يختلف عن رمز التطبيق حين يُباع التطبيق من مزودين
+    serviceCode?: string;
     countries: Array<{
       code: string;
       name?: string;
@@ -2735,6 +3478,18 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       targetProviderId = active[0]._id;
     }
 
+    // رمز الخدمة الذي يُخاطَب به المزود الهدف عند الشراء: من الكتالوج المُمرَّر
+    // أولاً، ثم من المعجم لهذا النوع من المزوّد، فلا وراثة خاطئة من التطبيق
+    const targetProvider = await this.providerModel
+      .findById(targetProviderId)
+      .catch(() => null);
+    await this.ensureDictionaryIndex();
+    const serviceCode = this.productServiceCode(
+      app,
+      targetProvider,
+      dto.serviceCode,
+    );
+
     for (const c of countries) {
       const code = (c.code || '').trim();
       if (!code) continue;
@@ -2748,7 +3503,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       if (exists) continue;
       await this.productModel.create({
         appId: app._id,
-        serviceCode: app.serviceCode,
+        serviceCode,
         countryCode: code,
         countryName: (c.name || '').trim() || code,
         cost: Number(c.cost) || 0,
@@ -2814,6 +3569,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   async getAdminQuality(
     params: { bucket?: string; providerId?: string; search?: string } = {},
   ) {
+    await this.ensureDictionaryIndex();
     const filter: Record<string, any> = {};
     if (params.providerId) {
       if (!Types.ObjectId.isValid(params.providerId)) {
@@ -2858,10 +3614,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       const counted = success + failure;
       const provider = providersById.get(String(product.providerId));
       const app = appsById.get(String(product.appId));
-      const appMeta = resolveAppMeta(
+      const appMeta = this.appMeta(
         product.serviceCode || app?.serviceCode || '',
       );
-      const countryMeta = resolveCountryMeta(product.countryCode);
+      const countryMeta = this.countryMeta(product.countryCode);
       return {
         productId: product._id.toString(),
         bucket: this.qualityBucket(product),
@@ -3561,8 +4317,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     serverLabel = '',
   ) {
     const raw = (request as any).toObject?.() ?? request;
-    const appMeta = resolveAppMeta(request.service);
-    const countryMeta = resolveCountryMeta(request.country);
+    const appMeta = this.appMeta(request.service);
+    const countryMeta = this.countryMeta(request.country);
     return {
       id: request._id.toString(),
       requestNumber: request.requestNumber,

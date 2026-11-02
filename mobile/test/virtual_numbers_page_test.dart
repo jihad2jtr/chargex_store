@@ -520,21 +520,23 @@ void main() {
     _expectNoOverflow(w);
   });
 
-  testWidgets('اختيار مشغّل يبدّل السعر المعروض في زر التفعيل', (
-    WidgetTester w,
-  ) async {
-    await _pumpPage(w, options: _catalog, richWallet: true);
-    await _openSheet(w, 'Telegram');
+  testWidgets(
+    'اختيار دولة أخرى يبدّل السعر في زر التفعيل (بلا عرض عدد الأرقام)',
+    (WidgetTester w) async {
+      await _pumpPage(w, options: _catalog, richWallet: true);
+      await _openSheet(w, 'Telegram');
 
-    expect(find.text('تفعيل الرقم \$0.50'), findsOneWidget);
+      expect(find.text('تفعيل الرقم \$0.50'), findsOneWidget);
 
-    await w.tap(find.text('كندا'));
-    await w.pump();
-    await w.pump(const Duration(milliseconds: 250));
+      await w.tap(find.text('كندا'));
+      await w.pump();
+      await w.pump(const Duration(milliseconds: 250));
 
-    expect(find.text('تفعيل الرقم \$1.00'), findsOneWidget);
-    expect(find.textContaining('متاح 40 رقم'), findsOneWidget);
+      expect(find.text('تفعيل الرقم \$1.00'), findsOneWidget);
+      // وقت التشغيل لا يعرض عدد الأرقام المتاحة للعميل بعد إلغاء الكتالوج الحيّ
+      expect(find.textContaining('متاح 40 رقم'), findsNothing);
 
-    _expectNoOverflow(w);
-  });
+      _expectNoOverflow(w);
+    },
+  );
 }

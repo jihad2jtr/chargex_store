@@ -214,6 +214,68 @@ export class VirtualNumbersController {
     );
   }
 
+  // --- المعجم المركزي: استيراد تلقائي + الدول + قائمة المراجعة ---
+
+  // استيراد هويات التطبيقات/الدول من كتالوج المزودين إلى المعجم (لا يفعّل البيع)
+  @Post('admin/dictionary/import')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async importDictionary(@Body() body: { providerId?: string }) {
+    return this.service.importDictionaryFromProviders(body?.providerId);
+  }
+
+  @Get('admin/dictionary/countries')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async dictionaryCountries() {
+    return this.service.getDictionaryCountries();
+  }
+
+  // تعديل/دمج دولة: { code, nameAr?, nameEn?, flag?, mergeInto? }
+  @Patch('admin/dictionary/countries')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async patchDictionaryCountry(
+    @Body()
+    body: {
+      code?: string;
+      nameAr?: string;
+      nameEn?: string;
+      flag?: string;
+      mergeInto?: string;
+    },
+  ) {
+    return this.service.patchDictionaryCountry({
+      code: String(body?.code ?? ''),
+      nameAr: body?.nameAr,
+      nameEn: body?.nameEn,
+      flag: body?.flag,
+      mergeInto: body?.mergeInto,
+    });
+  }
+
+  @Get('admin/dictionary/review')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async dictionaryReview() {
+    return this.service.getReviewQueue();
+  }
+
+  // حلّ بند مراجعة: { action: 'link'|'create'|'dismiss', targetKey? }
+  @Post('admin/dictionary/review/:id')
+  @UseGuards(RolesGuard)
+  @Roles(Role.ADMIN)
+  async resolveDictionaryReview(
+    @Param('id') id: string,
+    @Body() body: { action?: string; targetKey?: string },
+  ) {
+    const action = String(body?.action ?? '') as 'link' | 'create' | 'dismiss';
+    if (!['link', 'create', 'dismiss'].includes(action)) {
+      throw new Error('إجراء غير صالح: link|create|dismiss');
+    }
+    return this.service.resolveReviewItem(id, action, body?.targetKey);
+  }
+
   // دول تطبيق من اللقطة المخزّنة وحدها: ردّ فوري بلا انتظار مزود (شبكة الانتقاء)
   @Get('admin/apps/:id/countries')
   @UseGuards(RolesGuard)
@@ -241,6 +303,8 @@ export class VirtualNumbersController {
     body: {
       appId: string;
       providerId?: string;
+      // رمز الخدمة الأصلي لدى هذا المزود من كتالوجه (قد يختلف عن رمز التطبيق)
+      serviceCode?: string;
       countries: Array<{
         code: string;
         name?: string;

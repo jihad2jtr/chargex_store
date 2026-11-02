@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
+import '../../widgets/collapsible_ticket.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/status_pill.dart';
 import '../../widgets/virtual_app_ticket_leading.dart';
@@ -498,7 +499,7 @@ class _VirtualNumbersManagementScreenState
     // لون التذكرة من هوية التطبيق، وحالة الطلب نفسها تُقرأ من StatusPill
     final appAccent = virtualAppAccent('${request.service}|${request.title}');
 
-    return _CollapsibleTicket(
+    return CollapsibleTicket(
       builder: (context, open) {
         final customer = [
           if (request.userName.isNotEmpty) request.userName,
@@ -528,10 +529,7 @@ class _VirtualNumbersManagementScreenState
                         : request.operator)),
           amount: Text(
             '\$${request.amount.toStringAsFixed(2)}',
-            style: AppTypography.price(
-              fontSize: 13,
-              color: AppColors.slate900,
-            ),
+            style: AppTypography.price(fontSize: 13, color: AppColors.slate900),
           ),
           status: StatusPill(
             status: request.status,
@@ -549,7 +547,8 @@ class _VirtualNumbersManagementScreenState
                         : IconButton(
                             visualDensity: VisualDensity.compact,
                             tooltip: 'نسخ الرقم',
-                            onPressed: () => _copy(request.phoneNumber!, 'الرقم'),
+                            onPressed: () =>
+                                _copy(request.phoneNumber!, 'الرقم'),
                             icon: const Icon(
                               Icons.copy_rounded,
                               size: 15,
@@ -612,7 +611,9 @@ class _VirtualNumbersManagementScreenState
                             child: const Text('إغلاق'),
                           ),
                         FilledButton(
-                          onPressed: _busy ? null : () => _cancelRequest(request),
+                          onPressed: _busy
+                              ? null
+                              : () => _cancelRequest(request),
                           style: FilledButton.styleFrom(
                             backgroundColor: AppColors.slate700,
                             padding: const EdgeInsets.symmetric(
@@ -725,29 +726,4 @@ class _StatusTab {
   final String? statusCode;
 
   const _StatusTab(this.key, this.label, this.statusCode);
-}
-
-/// غلاف طيّ/فرد لتذاكر الأدمن: يعرض رأس التذكرة دائماً، ويفرد أسطرها
-/// وأزرارها عند النقر. يُستعمل في سجل التفعيلات التلقائية لئلا تطغى
-/// التفاصيل على الشاشة قبل أن يطلبها الأدمن صراحة.
-class _CollapsibleTicket extends StatefulWidget {
-  final Widget Function(BuildContext context, bool expanded) builder;
-
-  const _CollapsibleTicket({required this.builder});
-
-  @override
-  State<_CollapsibleTicket> createState() => _CollapsibleTicketState();
-}
-
-class _CollapsibleTicketState extends State<_CollapsibleTicket> {
-  bool _open = false;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(16),
-      onTap: () => setState(() => _open = !_open),
-      child: widget.builder(context, _open),
-    );
-  }
 }

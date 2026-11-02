@@ -2184,7 +2184,7 @@ class _CountrySheetState extends State<_CountrySheet> {
             ),
             _serverCards(_country!),
           ],
-          if (_country != null) ...[
+          if (_country != null && _country!.hasMultipleServers) ...[
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
               child: Text(
@@ -2372,14 +2372,6 @@ class _CountrySheetState extends State<_CountrySheet> {
                     if (servers > 1)
                       Text(
                         'متاحة من $servers سيرفر',
-                        style: AppTypography.cairo(
-                          fontSize: 9.5,
-                          color: AppColors.slate500,
-                        ),
-                      )
-                    else if (country.effectiveOffers.first.count > 0)
-                      Text(
-                        'متاح ${country.effectiveOffers.first.count} رقم',
                         style: AppTypography.cairo(
                           fontSize: 9.5,
                           color: AppColors.slate500,
@@ -2575,15 +2567,6 @@ class _CountrySheetState extends State<_CountrySheet> {
                 style: AppTypography.price(
                   color: affordable ? AppColors.slate900 : AppColors.rose,
                   fontSize: 13,
-                ),
-              ),
-              Text(
-                offer.count > 0 ? 'متاح ${offer.count} رقم' : 'مخزون غير معروف',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.cairo(
-                  fontSize: 9.5,
-                  color: AppColors.slate500,
                 ),
               ),
             ],

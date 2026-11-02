@@ -32,6 +32,14 @@ import {
   VirtualNumberDictionarySchema,
 } from './schemas/virtual-number-dictionary.schema';
 import {
+  VirtualNumberDictCountry,
+  VirtualNumberDictCountrySchema,
+} from './schemas/virtual-number-dict-country.schema';
+import {
+  VirtualNumberDictReview,
+  VirtualNumberDictReviewSchema,
+} from './schemas/virtual-number-dict-review.schema';
+import {
   VirtualNumberProduct,
   VirtualNumberProductSchema,
 } from './schemas/virtual-number-product.schema';
@@ -62,6 +70,14 @@ const featureModels = [
   {
     name: VirtualNumberDictionary.name,
     schema: VirtualNumberDictionarySchema,
+  },
+  {
+    name: VirtualNumberDictCountry.name,
+    schema: VirtualNumberDictCountrySchema,
+  },
+  {
+    name: VirtualNumberDictReview.name,
+    schema: VirtualNumberDictReviewSchema,
   },
   { name: VirtualNumberProduct.name, schema: VirtualNumberProductSchema },
   {

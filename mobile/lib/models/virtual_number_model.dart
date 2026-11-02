@@ -717,6 +717,12 @@ class VirtualNumberDictionaryEntry {
   final String iconUrl;
   final int productCount;
 
+  /// المعجم المركزي: رموز كل مزود الأصلية، ومرادفات، والمصدر، وحالة المراجعة
+  final Map<String, String> codes;
+  final List<String> aliases;
+  final String origin; // seed | import | manual
+  final String reviewStatus; // ok | review
+
   const VirtualNumberDictionaryEntry({
     required this.key,
     this.nameAr = '',
@@ -730,6 +736,10 @@ class VirtualNumberDictionaryEntry {
     this.serviceCode = '',
     this.iconUrl = '',
     this.productCount = 0,
+    this.codes = const {},
+    this.aliases = const [],
+    this.origin = 'seed',
+    this.reviewStatus = 'ok',
   });
 
   factory VirtualNumberDictionaryEntry.fromJson(Map<String, dynamic> json) =>
@@ -746,6 +756,10 @@ class VirtualNumberDictionaryEntry {
         serviceCode: (json['serviceCode'] ?? '').toString(),
         iconUrl: (json['iconUrl'] ?? '').toString(),
         productCount: _num(json['productCount']).toInt(),
+        codes: _stringMap(json['codes']),
+        aliases: _stringList(json['aliases']),
+        origin: (json['origin'] ?? 'seed').toString(),
+        reviewStatus: (json['reviewStatus'] ?? 'ok').toString(),
       );
 
   /// نسخة معدّلة محلياً بعد نجاح PATCH من دون إعادة جلب المعجم كاملًا
@@ -763,8 +777,13 @@ class VirtualNumberDictionaryEntry {
         serviceCode: serviceCode,
         iconUrl: iconUrl,
         productCount: productCount,
+        codes: codes,
+        aliases: aliases,
+        origin: origin,
+        reviewStatus: reviewStatus,
       );
 }
+
 
 /// دولة داخل بطاقة تطبيق الأرقام (تُعرض مباشرة بدون فتح الكتالوج)
 class VirtualNumberAppCountry {
@@ -1357,3 +1376,130 @@ List<VirtualNumberOperator> _operators(dynamic value) {
       .map((e) => VirtualNumberOperator.fromJson(Map<String, dynamic>.from(e)))
       .toList();
 }
+
+/// قائمة نصوص من قيمة JSON (تتجاهل الفارغ)
+List<String> _stringList(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .map((e) => e?.toString() ?? '')
+      .where((e) => e.isNotEmpty)
+      .toList();
+}
+
+/// خريطة نص→نص من قيمة JSON (تُستعمل لرموز كل مزود في المعجم)
+Map<String, String> _stringMap(dynamic value) {
+  if (value is! Map) return const {};
+  final out = <String, String>{};
+  value.forEach((k, v) {
+    final key = k?.toString() ?? '';
+    final val = v?.toString() ?? '';
+    if (key.isNotEmpty && val.isNotEmpty) out[key] = val;
+  });
+  return out;
+}
+
+/// كيان دولة موحّد في المعجم المركزي (هوية + رموز كل مزود + مصدر)
+class VirtualNumberDictCountry {
+  final String code;
+  final String nameAr;
+  final String nameEn;
+  final String flag;
+  final Map<String, String> codes;
+  final List<String> aliases;
+  final String origin; // seed | import | manual
+  final String reviewStatus; // ok | review
+
+  const VirtualNumberDictCountry({
+    required this.code,
+    this.nameAr = '',
+    this.nameEn = '',
+    this.flag = '',
+    this.codes = const {},
+    this.aliases = const [],
+    this.origin = 'seed',
+    this.reviewStatus = 'ok',
+  });
+
+  factory VirtualNumberDictCountry.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberDictCountry(
+        code: (json['code'] ?? '').toString(),
+        nameAr: (json['nameAr'] ?? '').toString(),
+        nameEn: (json['nameEn'] ?? '').toString(),
+        flag: (json['flag'] ?? '').toString(),
+        codes: _stringMap(json['codes']),
+        aliases: _stringList(json['aliases']),
+        origin: (json['origin'] ?? 'seed').toString(),
+        reviewStatus: (json['reviewStatus'] ?? 'ok').toString(),
+      );
+}
+
+/// بند مراجعة من الاستيراد: هوية غامضة لم تُحسم بعد
+class VirtualNumberDictReview {
+  final String id;
+  final String kind; // app | country
+  final String providerType;
+  final String providerId;
+  final String rawCode;
+  final String rawName;
+  final List<String> candidateKeys;
+  final String status; // open | linked | created | dismissed
+
+  const VirtualNumberDictReview({
+    required this.id,
+    required this.kind,
+    this.providerType = '',
+    this.providerId = '',
+    this.rawCode = '',
+    this.rawName = '',
+    this.candidateKeys = const [],
+    this.status = 'open',
+  });
+
+  factory VirtualNumberDictReview.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberDictReview(
+        id: (json['id'] ?? json['_id'] ?? '').toString(),
+        kind: (json['kind'] ?? 'app').toString(),
+        providerType: (json['providerType'] ?? '').toString(),
+        providerId: (json['providerId'] ?? '').toString(),
+        rawCode: (json['rawCode'] ?? '').toString(),
+        rawName: (json['rawName'] ?? '').toString(),
+        candidateKeys: _stringList(json['candidateKeys']),
+        status: (json['status'] ?? 'open').toString(),
+      );
+}
+
+/// تقرير الاستيراد من المزودين إلى المعجم المركزي
+class VirtualNumberImportReport {
+  final int providers;
+  final int servicesScanned;
+  final int appsLinked;
+  final int appsCreated;
+  final int appsPending;
+  final int countriesLinked;
+  final int countriesCreated;
+  final int countriesPending;
+
+  const VirtualNumberImportReport({
+    this.providers = 0,
+    this.servicesScanned = 0,
+    this.appsLinked = 0,
+    this.appsCreated = 0,
+    this.appsPending = 0,
+    this.countriesLinked = 0,
+    this.countriesCreated = 0,
+    this.countriesPending = 0,
+  });
+
+  factory VirtualNumberImportReport.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberImportReport(
+        providers: _num(json['providers']).toInt(),
+        servicesScanned: _num(json['servicesScanned']).toInt(),
+        appsLinked: _num(json['appsLinked']).toInt(),
+        appsCreated: _num(json['appsCreated']).toInt(),
+        appsPending: _num(json['appsPending']).toInt(),
+        countriesLinked: _num(json['countriesLinked']).toInt(),
+        countriesCreated: _num(json['countriesCreated']).toInt(),
+        countriesPending: _num(json['countriesPending']).toInt(),
+      );
+}
+

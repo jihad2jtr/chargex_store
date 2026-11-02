@@ -257,10 +257,12 @@ class _SeededVn extends VirtualNumbersProvider {
     required String appId,
     required List<VirtualNumberCatalogCountry> countries,
     String? providerId,
+    String? serviceCode,
   }) async {
     lastAddCountries = {
       'appId': appId,
       'codes': countries.map((c) => c.code).toList(),
+      'serviceCode': serviceCode,
     };
     return 'تمت إضافة الدول';
   }
@@ -426,6 +428,9 @@ void main() {
         // الفلترة productCount > 0: الوثاقة الفارغة لا تظهر هنا إطلاقاً
         expect(find.text('PayPal'), findsNothing);
         await _scrollToAppCard(w, 'Discord');
+        // البطاقات مطوية افتراضياً: نفرد بطاقة Discord لتظهر أسطر الإدارة
+        await w.tap(find.text('Discord'));
+        await _settle(w);
         // البطاقات المعروضة كلها لها دول: زر إدارة لا زر انتقاء أول
         expect(
           find.text('إدارة الدول والأسعار من كتالوج المزود'),
@@ -503,7 +508,10 @@ void main() {
       );
       await _pumpApp(w, const VirtualNumberAppsScreen(), vn: vn);
 
-      // البطاقة الأولى ظاهرة كاملة: زر الطاقة داخل فوترها
+      // البطاقة مطوية افتراضياً: نفرد بطاقة Telegram ليظهر فوتر الإجراءات
+      await w.tap(find.text('Telegram'));
+      await _settle(w);
+      // زر الطاقة داخل فوتر البطاقة المفردة
       await w.tap(find.byTooltip('إيقاف التطبيق'));
       await _settle(w);
       expect(vn.toggledApps, ['a1']);

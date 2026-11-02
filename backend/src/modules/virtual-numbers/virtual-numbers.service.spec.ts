@@ -4,7 +4,10 @@ import { basename, join } from 'node:path';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { VirtualNumbersService } from './virtual-numbers.service';
 import { POPULAR_APP_KEYS } from './popular-apps';
-import { VIRTUAL_NUMBER_APPS } from './virtual-numbers-dictionary';
+import {
+  VIRTUAL_NUMBER_APPS,
+  VIRTUAL_NUMBER_COUNTRIES,
+} from './virtual-numbers-dictionary';
 import { VirtualNumberStatus } from '../../database/schemas/virtual-number-request.schema';
 import { VirtualNumberOutcome } from '../../database/schemas/virtual-number-quality-event.schema';
 import {
@@ -213,6 +216,11 @@ const makeCollectionModel = (docs: FakeDoc[]) => ({
     docs.push(...kept);
     return { acknowledged: true };
   },
+  deleteOne: async (filter: any = {}) => {
+    const idx = docs.findIndex((d) => matches(d, filter));
+    if (idx >= 0) docs.splice(idx, 1);
+    return { acknowledged: true, deletedCount: idx >= 0 ? 1 : 0 };
+  },
   // الجودة تكتب عدّادات المنتج عبر findOneAndUpdate، والإيقاف عبر updateOne:
   // بلا هذه كانت الاستدعاءات ترمي TypeError تبتلعه .catch() فيبدو التسجيل ناجحاً
   findOneAndUpdate: async (filter: any, update: any) => {
@@ -261,6 +269,12 @@ const makeDictionaryModel = (offeredKeys?: string[]) =>
   makeCollectionModel(
     (offeredKeys ?? []).map((appKey) => makeDoc({ appKey, offered: true })),
   );
+
+/**
+ * معجم الدول/المراجعة الوهمي: مجموعة عامّة فارغة يبذر فيها الخادم كياناته،
+ * تُستعمل شواغلَ موضع في كل مصنع بلا سلوك خاص مطلوب في هذه الاختبارات.
+ */
+const makeDictEntityModel = () => makeCollectionModel([]);
 
 /**
  * سجل أحداث الجودة الوهمي: `sink` يُمرَّر من الاختبار ليقرأ ما سُجّل، فيثبت أن
@@ -487,6 +501,8 @@ const makeHarness = (
     userModel as any,
     transactionModel as any,
     dictionaryModel as any,
+    makeDictEntityModel() as any,
+    makeDictEntityModel() as any,
     {
       createNotification: async (payload: any) => {
         notifications.push(payload);
@@ -571,6 +587,35 @@ describe('VirtualNumbersService.getOptions', () => {
     expect(result.services).toHaveLength(1);
     expect(result.manualServices).toEqual([]);
   });
+
+  it('وقت التشغيل لا يقرأ الكتالوج: القائمة تُبنى من لقطة المنتجات حتى مع كتالوج فارغ', async () => {
+    const { service } = makeHarness();
+    // تفريغ الكتالوج الحيّ بالكامل: المسار لم يعد يعتمد عليه إطلاقاً
+    (service as any).catalogModel.docs.forEach((c: any) => (c.services = []));
+
+    const result = await service.getOptions();
+
+    expect(result.available).toBe(true);
+    const telegram = result.services[0];
+    // السعر من product.cost (0.4 و0.8) بهامش 25%، لا من الكتالوج
+    expect(telegram.countries.map((c: any) => c.salePrice)).toEqual([0.5, 1]);
+    expect(telegram.countries.map((c: any) => c.count)).toEqual([12, 40]);
+    // لا مصدر كتالوج => لا طابع زمني لمزامنة حيّة
+    expect(result.syncedAt).toBeNull();
+  });
+
+  it('الكتالوج القديم لا يُستدعى للمزامنة في getOptions: لا جلب حيّ وقت العرض', async () => {
+    const { service } = makeHarness();
+    const syncSpy = vi.spyOn(service as any, 'syncCatalog');
+    // كان القدم سابقاً يُجدَّد تلقائياً عند قراءة العميل؛ الآن لا
+    (service as any).catalogModel.docs.forEach((c: any) => {
+      c.fetchedAt = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    });
+
+    await service.getOptions();
+
+    expect(syncSpy).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -630,6 +675,8 @@ const makeManualHarness = (
     makeUserModel(users) as any,
     { create: async () => null } as any,
     makeDictionaryModel() as any,
+    makeDictEntityModel() as any,
+    makeDictEntityModel() as any,
     { createNotification: async () => undefined } as any,
     { get: () => undefined } as any,
   );
@@ -1284,6 +1331,8 @@ const makeResolverService = (
     { create: async () => null } as any,
     // معجم المتاح: resolveProvider لا يقرأه، شاغل موضع فقط في الترتيب
     makeDictionaryModel() as any,
+    makeDictEntityModel() as any,
+    makeDictEntityModel() as any,
     { createNotification: async () => undefined } as any,
     { get: (key: string) => env[key] } as any,
   );
@@ -1533,6 +1582,8 @@ const makeCuratedHarness = (
       },
     } as any,
     dictionaryModel as any,
+    makeDictEntityModel() as any,
+    makeDictEntityModel() as any,
     {
       createNotification: async (payload: any) => {
         notifications.push(payload);
@@ -1676,6 +1727,8 @@ describe('VirtualNumbersService curation (تطبيقات ودول الأرقام
       makeUserModel([]) as any,
       { create: async () => null } as any,
       makeDictionaryModel() as any,
+      makeDictEntityModel() as any,
+      makeDictEntityModel() as any,
       { createNotification: async () => undefined } as any,
       { get: () => undefined } as any,
     );
@@ -2113,6 +2166,30 @@ describe('الشراء بمنتج محدد (productId)', () => {
     expect(clients[String(provider._id)].requestNumber).not.toHaveBeenCalled();
     expect(res.request.serverLabel).toBe('Server 2');
     expect(JSON.stringify(res)).not.toContain('ztoy-real-name');
+    expect(user.balance).toBeCloseTo(4.2, 2);
+  });
+
+  it('غياب الخدمة من كتالوج المزود الحيّ: يُباع بلقطة المنتج كَمَا عُرض، لا «غير متاحة»', async () => {
+    // الانحراف الذي كان يُفشل شراء واتساب عدا بقية التطبيقات: قائمة العميل
+    // تُسعَّر من `live?.cost ?? product.cost` فتُظهر المنتج، بينما الشراء كان
+    // يرمي «غير متاحة» لأن قيده غاب من الكتالوج. الآن كلا المسارين يتّفقان.
+    const { service, user, requests, clients, secondId, serverTwo } =
+      makeTwoServers();
+    // كتالوج السيرفر الثاني يُفرَّغ (مزامنة جزئية/قديمة) مع بقاء المنتَج بتكلفته
+    (service as any).catalogModel.docs
+      .filter((c: any) => String(c.providerId) === String(secondId))
+      .forEach((c: any) => (c.services = []));
+
+    const res: any = await service.requestNumber({
+      userId: user._id.toString(),
+      productId: serverTwo._id.toString(),
+    });
+
+    const req = requests[0];
+    expect(req.cost).toBe(0.5); // من لقطة المنتج لا الكتالوج
+    expect(req.amount).toBe(0.8); // 0.5 + 0.3 (الهامش الثابت للمزود)
+    expect(res.request.serverLabel).toBe('Server 2');
+    expect(clients[String(secondId)].requestNumber).toHaveBeenCalledTimes(1);
     expect(user.balance).toBeCloseTo(4.2, 2);
   });
 
@@ -2677,8 +2754,8 @@ describe('معجم التطبيقات (بوابة المتاح)', () => {
 
     // كل مدخل المعجم الثابت يُعرض، لا المتاح فقط
     expect(result).toHaveLength(VIRTUAL_NUMBER_APPS.length);
-    // المجموعة كانت فارغة: بُذرت قائمة المشهورات الـ200 متاحةً
-    expect(h.dictionaryModel.docs).toHaveLength(POPULAR_APP_KEYS.length);
+    // المجموعة كانت فارغة: بُذرت كل كيانات المعجم، والمتاح منها المشهورات الـ200
+    expect(h.dictionaryModel.docs).toHaveLength(VIRTUAL_NUMBER_APPS.length);
 
     const telegram = result.find((e: any) => e.key === 'telegram');
     expect(telegram.offered).toBe(true);
@@ -2809,3 +2886,181 @@ describe('معجم التطبيقات (بوابة المتاح)', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// المعجم المركزي الموحّد: بذر الدول + استيراد ذكي + قائمة مراجعة
+// ---------------------------------------------------------------------------
+
+describe('Central Dictionary Registry (معجم مركزي موحّد)', () => {
+  /**
+   * خدمة بمعجم كامل بلا شبكة: معجم التطبيقات والدول يبذره الخادم ذاتياً،
+   * ومزود واحد DOGESMS بكتالوجه الطازج. النماذج الوهمية كلها معرّضة للفحص.
+   */
+  const makeDictHarness = (services: any[]) => {
+    const provider = makeDoc({
+      _id: new Types.ObjectId(),
+      name: 'doge',
+      providerType: ProviderType.DOGESMS,
+      status: ProviderStatus.ONLINE,
+      isActive: true,
+      profitMarginType: ProfitMarginType.PERCENTAGE,
+      profitMarginValue: 0,
+    });
+    const dictionaryModel = makeDictionaryModel();
+    const dictCountryModel = makeDictEntityModel();
+    const dictReviewModel = makeDictEntityModel();
+    const catalogModel = makeCatalogModelFor([
+      makeDoc({
+        providerId: provider._id,
+        services,
+        fetchedAt: new Date(),
+        lastError: '',
+      }),
+    ]);
+    const service = new VirtualNumbersService(
+      makeRequestModel([]) as any,
+      catalogModel as any,
+      makeCollectionModel([]) as any, // appModel: لا وثاقات تطبيقات هنا
+      makeCollectionModel([]) as any, // productModel
+      makeQualityEventModel() as any,
+      makeCollectionModel([]) as any, // manualServiceModel
+      { aggregate: async () => [] } as any, // orderModel
+      makeProviderModelFor([provider]) as any,
+      makeUserModel([]) as any,
+      { create: async () => null } as any, // transactionModel
+      dictionaryModel as any,
+      dictCountryModel as any,
+      dictReviewModel as any,
+      { createNotification: async () => undefined } as any,
+      { get: () => undefined } as any,
+    );
+    return { service, dictionaryModel, dictCountryModel, dictReviewModel, provider };
+  };
+
+  it('يبذر الدول مدمجاً تصادم الرموز إلى ISO قياسي مع حفظ القديم alias', async () => {
+    const h = makeDictHarness([]);
+    const countries = await h.service.getDictionaryCountries();
+
+    // لا رموز قديمة متصادمة بقيت مستقلة: DD/CS مطويّان في DE/RS
+    const codes = countries.map((c: any) => c.code);
+    expect(codes).not.toContain('DD');
+    expect(codes).not.toContain('CS');
+    expect(codes.filter((c: string) => c === 'DE')).toHaveLength(1);
+    expect(codes.filter((c: string) => c === 'RS')).toHaveLength(1);
+
+    const de = countries.find((c: any) => c.code === 'DE')!;
+    expect(de.aliases).toContain('DD');
+    // الرمز القديم يُحلّ إلى الدولة الموحّدة عبر الفهرس (alias)
+    expect(h.service && de.nameEn).toBe('Germany');
+
+    const rs = countries.find((c: any) => c.code === 'RS')!;
+    expect(rs.aliases).toContain('CS');
+  });
+
+  it('يربط تطبيقاً قائماً برمز مزود جديد دون قلب offered ودون كيان مكرر', async () => {
+    const h = makeDictHarness([
+      {
+        code: 'Xtg',
+        name: 'Telegram',
+        countries: [{ code: 'XX', name: 'Egypt', cost: 0.1, operators: [] }],
+      },
+    ]);
+    // الحالة الأولى للمتاح قبل الاستيراد
+    const before = (await h.service.getAdminDictionary()).find(
+      (e: any) => e.key === 'telegram',
+    )!;
+
+    const report: any = await h.service.importDictionaryFromProviders();
+    expect(report.appsLinked).toBeGreaterThanOrEqual(1);
+    expect(report.countriesLinked).toBeGreaterThanOrEqual(1);
+
+    const after = (await h.service.getAdminDictionary()).find(
+      (e: any) => e.key === 'telegram',
+    )!;
+    // رمز المزود الجديد أُضيف إلى codes، والهوية موحّدة والثوابت سليمة
+    expect(after.codes.dogesms).toBe('Xtg');
+    // الاستيراد لا يفعّل البيع: بوابة المتاح لم تتغيّر
+    expect(after.offered).toBe(before.offered);
+
+    // الدولة ربطت رمز dogesms الجديد إلى مصر الموحّدة
+    const eg = (await h.service.getDictionaryCountries()).find(
+      (c: any) => c.code === 'EG',
+    )!;
+    expect(eg.codes.dogesms).toBe('XX');
+  });
+
+  it('ينشئ كياناً مستورداً جديداً غير متاح ثم idempotent عند إعادة التشغيل', async () => {
+    const h = makeDictHarness([
+      { code: 'Z1', name: 'Zzqqsvc', countries: [] },
+    ]);
+
+    const r1: any = await h.service.importDictionaryFromProviders();
+    expect(r1.appsCreated).toBe(1);
+    const created = (await h.service.getAdminDictionary()).find(
+      (e: any) => e.key === 'zzqqsvc',
+    );
+    expect(created).toBeTruthy();
+    expect(created!.origin).toBe('import');
+    expect(created!.offered).toBe(false); // مسوّدة غير متاحة
+    const docsAfterFirst = h.dictionaryModel.docs.length;
+
+    // تشغيل ثانٍ: العنصر صار كياناً معروفاً بالاسم ⇒ ربط، بلا تكرار
+    const r2: any = await h.service.importDictionaryFromProviders();
+    expect(r2.appsCreated).toBe(0);
+    expect(r2.appsLinked).toBeGreaterThanOrEqual(1);
+    expect(h.dictionaryModel.docs.length).toBe(docsAfterFirst);
+    expect(
+      h.dictionaryModel.docs.filter((d: any) => d.appKey === 'zzqqsvc'),
+    ).toHaveLength(1);
+  });
+
+  it('يرسل البند الغامض إلى المراجعة ثم يحلّه بالربط دون دمج', async () => {
+    // «whatsapp» يتقاسمه كيانان (واتساب وWhatsApp Business) ⇒ غامض ⇒ مراجعة
+    const h = makeDictHarness([
+      { code: 'whatsapp', name: 'Whatsapp', countries: [] },
+    ]);
+
+    const report: any = await h.service.importDictionaryFromProviders();
+    expect(report.appsPending).toBe(1);
+
+    const queue: any = await h.service.getReviewQueue();
+    expect(queue).toHaveLength(1);
+    expect(queue[0].kind).toBe('app');
+    expect(queue[0].candidateKeys).toHaveLength(2);
+
+    await h.service.resolveReviewItem(queue[0].id, 'link', 'whatsapp');
+    const queueAfter = await h.service.getReviewQueue();
+    expect(queueAfter).toHaveLength(0);
+    const wa = (await h.service.getAdminDictionary()).find(
+      (e: any) => e.key === 'whatsapp',
+    )!;
+    expect(wa.codes.dogesms).toBe('whatsapp');
+  });
+
+  it('دمج الدول ينقل الرموز والمصادر ويحفظ الرمز القديم alias', async () => {
+    const h = makeDictHarness([]);
+    await h.service.getDictionaryCountries(); // يبذر الدول
+
+    // دولة مستوردة برمز مؤقت ثم تُدمج في مصر
+    await h.dictCountryModel.create({
+      code: 'EGX',
+      nameEn: 'Egyptia',
+      nameAr: '',
+      flag: '🌐',
+      codes: { dogesms: '900' },
+      aliases: [],
+      origin: 'import',
+      sources: [{ providerType: 'dogesms', rawCode: '900', rawName: 'Egyptia' }],
+      reviewStatus: 'ok',
+    });
+
+    await h.service.patchDictionaryCountry({ code: 'EGX', mergeInto: 'EG' });
+
+    const countries = await h.service.getDictionaryCountries();
+    expect(countries.map((c: any) => c.code)).not.toContain('EGX');
+    const eg = countries.find((c: any) => c.code === 'EG')!;
+    expect(eg.codes.dogesms).toBe('900');
+    expect(eg.aliases).toContain('EGX');
+  });
+});
+

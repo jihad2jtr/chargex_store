@@ -70,10 +70,17 @@ const List<VirtualNumberDictionaryEntry> _seed = [
 ];
 
 class _DictVn extends VirtualNumbersProvider {
-  _DictVn({List<VirtualNumberDictionaryEntry> dictionary = _seed})
-    : _dictionary = dictionary;
+  _DictVn({
+    List<VirtualNumberDictionaryEntry> dictionary = _seed,
+    List<VirtualNumberDictCountry> countries = const [],
+    List<VirtualNumberDictReview> review = const [],
+  }) : _dictionary = dictionary,
+       _countries = countries,
+       _review = review;
 
   final List<VirtualNumberDictionaryEntry> _dictionary;
+  final List<VirtualNumberDictCountry> _countries;
+  final List<VirtualNumberDictReview> _review;
 
   /// نداءات PATCH المستقبَلة: (مفتاح، قيمة التوفر المطلوبة)
   final List<(String, bool)> toggles = <(String, bool)>[];
@@ -83,8 +90,65 @@ class _DictVn extends VirtualNumbersProvider {
   final List<String> updatedApps = <String>[];
   Map<String, dynamic>? lastCreateApp;
 
+  // المعجم المركزي: الاستيراد + الدول + المراجعة
+  int importCalls = 0;
+  int countriesFetches = 0;
+  int reviewFetches = 0;
+  final List<(String, String, String?)> reviewResolves =
+      <(String, String, String?)>[];
+  final List<Map<String, dynamic>> countryPatches = <Map<String, dynamic>>[];
+
   @override
   List<VirtualNumberDictionaryEntry> get adminDictionary => _dictionary;
+
+  @override
+  List<VirtualNumberDictCountry> get dictionaryCountries => _countries;
+
+  @override
+  List<VirtualNumberDictReview> get reviewQueue => _review;
+
+  @override
+  Future<VirtualNumberImportReport?> importFromProviders({
+    String? providerId,
+  }) async {
+    importCalls++;
+    return const VirtualNumberImportReport(
+      providers: 2,
+      servicesScanned: 40,
+      appsLinked: 10,
+      appsCreated: 3,
+      appsPending: 1,
+      countriesLinked: 5,
+      countriesCreated: 2,
+      countriesPending: 0,
+    );
+  }
+
+  @override
+  Future<void> fetchDictionaryCountries({bool quiet = false}) async {
+    countriesFetches++;
+  }
+
+  @override
+  Future<void> fetchReviewQueue({bool quiet = false}) async {
+    reviewFetches++;
+  }
+
+  @override
+  Future<String?> resolveReviewItem(
+    String id,
+    String action, {
+    String? targetKey,
+  }) async {
+    reviewResolves.add((id, action, targetKey));
+    return 'تمت معالجة بند المراجعة';
+  }
+
+  @override
+  Future<String?> patchDictionaryCountry(Map<String, dynamic> body) async {
+    countryPatches.add(body);
+    return 'تم تحديث الدولة';
+  }
 
   @override
   bool get isDictionaryLoading => false;
@@ -332,6 +396,91 @@ void main() {
       await w.tap(find.widgetWithText(FilledButton, 'إنشاء'));
       await _settle(w);
       expect(vn.lastCreateApp, {'name': 'Whatsapp', 'serviceCode': 'whatsapp'});
+    });
+
+    testWidgets('المعجم المركزي: تبويبات التطبيقات/الدول/المراجعة وزر الاستيراد', (
+      w,
+    ) async {
+      final vn = _DictVn();
+      await _pumpDict(w, vn);
+
+      // التبويبات الثلاثة الرئيسية في أسفل الـ AppBar
+      expect(find.text('التطبيقات'), findsOneWidget);
+      expect(find.text('الدول'), findsOneWidget);
+      expect(find.text('المراجعة'), findsOneWidget);
+      // زر الاستيراد من المزودين يظهر في تبويب التطبيقات
+      expect(find.text('استيراد من المزودين'), findsOneWidget);
+    });
+
+    testWidgets('زر الاستيراد: تأكيد ثم تقرير الاستيراد ونداء الاستيراد مرة', (
+      w,
+    ) async {
+      final vn = _DictVn();
+      await _pumpDict(w, vn);
+
+      await w.tap(find.text('استيراد من المزودين'));
+      await _settle(w);
+      // نافذة التأكيد قبل التنفيذ
+      expect(find.text('استيراد من المزودين'), findsWidgets);
+      await w.tap(find.widgetWithText(FilledButton, 'استيراد'));
+      await _settle(w);
+      expect(vn.importCalls, 1);
+      // نافذة التقرير بعد النجاح
+      expect(find.text('تقرير الاستيراد'), findsOneWidget);
+      expect(find.text('تطبيقات جديدة (غير متاحة): 3'), findsOneWidget);
+      await w.tap(find.widgetWithText(FilledButton, 'تم'));
+      await _settle(w);
+      expect(find.text('تقرير الاستيراد'), findsNothing);
+    });
+
+    testWidgets('تبويب الدول يعرض الكيانات الموحّدة ويجلبها عند الفتح', (
+      w,
+    ) async {
+      final vn = _DictVn(
+        countries: const [
+          VirtualNumberDictCountry(
+            code: 'EG',
+            nameAr: 'مصر',
+            nameEn: 'Egypt',
+            flag: 'EG',
+            origin: 'seed',
+          ),
+        ],
+      );
+      await _pumpDict(w, vn);
+
+      await w.tap(find.text('الدول'));
+      await _settle(w);
+      expect(vn.countriesFetches, greaterThanOrEqualTo(1));
+      expect(find.text('مصر'), findsOneWidget);
+    });
+
+    testWidgets('تبويب المراجعة: عرض البند الغامض وحسمه بالربط بمرشّح', (
+      w,
+    ) async {
+      final vn = _DictVn(
+        review: const [
+          VirtualNumberDictReview(
+            id: 'r1',
+            kind: 'app',
+            providerType: 'dogesms',
+            rawCode: 'Xtg',
+            rawName: 'Telegramm',
+            candidateKeys: ['telegram', 'telegramx'],
+          ),
+        ],
+      );
+      await _pumpDict(w, vn);
+
+      await w.tap(find.text('المراجعة'));
+      await _settle(w);
+      expect(vn.reviewFetches, greaterThanOrEqualTo(1));
+      expect(find.textContaining('Telegramm'), findsWidgets);
+
+      await w.tap(find.widgetWithText(OutlinedButton, 'ربط'));
+      await _settle(w);
+      // الربط يستخدم أول مرشّح كمفتاح الهدف
+      expect(vn.reviewResolves, [('r1', 'link', 'telegram')]);
     });
   });
 }

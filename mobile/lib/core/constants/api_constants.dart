@@ -101,6 +101,18 @@ class ApiConstants {
   static const String adminVirtualNumberDictionary =
       '/virtual-numbers/admin/dictionary';
 
+  // المعجم المركزي الموحّد: استيراد تلقائي من المزودين + الدول + قائمة المراجعة
+  static const String adminVirtualNumberDictionaryImport =
+      '/virtual-numbers/admin/dictionary/import';
+  static const String adminVirtualNumberDictionaryCountries =
+      '/virtual-numbers/admin/dictionary/countries';
+  static const String adminVirtualNumberDictionaryReview =
+      '/virtual-numbers/admin/dictionary/review';
+
+  /// حلّ بند مراجعة: POST …/review/:id
+  static String adminVirtualNumberDictionaryReviewResolve(String id) =>
+      '$adminVirtualNumberDictionaryReview/$id';
+
   // مراقبة جودة الأرقام: عدّادات كل سيرفر وسجل أحداثه وإعادة تفعيله
   static const String adminVirtualNumberQuality =
       '/virtual-numbers/admin/quality';

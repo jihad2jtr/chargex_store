@@ -28,6 +28,12 @@ class VirtualNumbersProvider extends ChangeNotifier {
   VirtualNumberAdminCatalog _adminCatalog = VirtualNumberAdminCatalog.empty();
   List<VirtualNumberManualServiceModel> _adminManualServices = const [];
 
+  // المعجم المركزي: الدول الموحّدة، قائمة المراجعة، وآخر تقرير استيراد
+  List<VirtualNumberDictCountry> _dictionaryCountries = const [];
+  List<VirtualNumberDictReview> _reviewQueue = const [];
+  VirtualNumberImportReport? _lastImportReport;
+
+
   // لوحة مراقبة الجودة: صفوف المنتجات + ورقة تفاصيل المنتج المختار
   VirtualNumberQualityBoard _qualityBoard = VirtualNumberQualityBoard.empty();
   VirtualNumberQualityDetail? _qualityDetail;
@@ -41,6 +47,7 @@ class VirtualNumbersProvider extends ChangeNotifier {
   bool _isDictionaryLoading = false;
   bool _isCatalogLoading = false;
   bool _isManualLoading = false;
+  bool _isImporting = false;
   String? _errorMessage;
   String? _infoMessage;
 
@@ -67,6 +74,11 @@ class VirtualNumbersProvider extends ChangeNotifier {
   bool get isAppsLoading => _isAppsLoading;
   List<VirtualNumberDictionaryEntry> get adminDictionary => _adminDictionary;
   bool get isDictionaryLoading => _isDictionaryLoading;
+  List<VirtualNumberDictCountry> get dictionaryCountries =>
+      _dictionaryCountries;
+  List<VirtualNumberDictReview> get reviewQueue => _reviewQueue;
+  VirtualNumberImportReport? get lastImportReport => _lastImportReport;
+  bool get isImporting => _isImporting;
   bool get isCatalogLoading => _isCatalogLoading;
   bool get isManualLoading => _isManualLoading;
   String? get errorMessage => _errorMessage;
@@ -668,6 +680,142 @@ class VirtualNumbersProvider extends ChangeNotifier {
     return null;
   }
 
+  /// استيراد ذكي من كل المزودين النشطين (أو مزود بعينه) إلى المعجم المركزي.
+  /// لا يفعّل البيع: العناصر الجديدة تصل «مسودة غير متاحة». يُحدّث التقرير
+  /// ويُعيد جلب المعجم ليظهر ما استُورد.
+  Future<VirtualNumberImportReport?> importFromProviders({
+    String? providerId,
+  }) async {
+    _errorMessage = null;
+    _infoMessage = null;
+    _isImporting = true;
+    notifyListeners();
+    try {
+      final res = await _api.post(
+        ApiConstants.adminVirtualNumberDictionaryImport,
+        body: {
+          if (providerId != null && providerId.isNotEmpty)
+            'providerId': providerId,
+        },
+      );
+      _lastImportReport = res is Map
+          ? VirtualNumberImportReport.fromJson(Map<String, dynamic>.from(res))
+          : const VirtualNumberImportReport();
+      _infoMessage =
+          'تم الاستيراد: ${_lastImportReport!.appsCreated} تطبيق جديد، '
+          '${_lastImportReport!.appsLinked} مربوط، '
+          '${_lastImportReport!.appsPending + _lastImportReport!.countriesPending} قيد المراجعة';
+      await fetchAdminDictionary(quiet: true);
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = _clientError(e);
+    }
+    _isImporting = false;
+    notifyListeners();
+    return _lastImportReport;
+  }
+
+  /// دول المعجم الموحّدة (هوية + رموز كل مزود + مصدر)
+  Future<void> fetchDictionaryCountries({bool quiet = false}) async {
+    if (!quiet) {
+      _errorMessage = null;
+      notifyListeners();
+    }
+    try {
+      final res = await _api.get(
+        ApiConstants.adminVirtualNumberDictionaryCountries,
+      );
+      _dictionaryCountries = (res is List)
+          ? res
+                .whereType<Map>()
+                .map(
+                  (e) => VirtualNumberDictCountry.fromJson(
+                    Map<String, dynamic>.from(e),
+                  ),
+                )
+                .toList()
+          : const [];
+    } catch (e) {
+      if (!quiet) _errorMessage = _clientError(e);
+    }
+    notifyListeners();
+  }
+
+  /// تعديل/دمج دولة: تُحدَّث القائمة بعد النجاح
+  Future<String?> patchDictionaryCountry(Map<String, dynamic> body) async {
+    _errorMessage = null;
+    try {
+      await _api.patch(
+        ApiConstants.adminVirtualNumberDictionaryCountries,
+        body: body,
+      );
+      _infoMessage = 'تم تحديث الدولة';
+      await fetchDictionaryCountries(quiet: true);
+      notifyListeners();
+      return _infoMessage;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = _clientError(e);
+    }
+    notifyListeners();
+    return null;
+  }
+
+  /// قائمة مراجعة المعجم: بنود غامضة من الاستيراد لم تُحسم هويتها
+  Future<void> fetchReviewQueue({bool quiet = false}) async {
+    if (!quiet) {
+      _errorMessage = null;
+      notifyListeners();
+    }
+    try {
+      final res = await _api.get(ApiConstants.adminVirtualNumberDictionaryReview);
+      _reviewQueue = (res is List)
+          ? res
+                .whereType<Map>()
+                .map(
+                  (e) => VirtualNumberDictReview.fromJson(
+                    Map<String, dynamic>.from(e),
+                  ),
+                )
+                .toList()
+          : const [];
+    } catch (e) {
+      if (!quiet) _errorMessage = _clientError(e);
+    }
+    notifyListeners();
+  }
+
+  /// حلّ بند مراجعة: link|create|dismiss، ثم تُعاد القائمة والمعرّف
+  Future<String?> resolveReviewItem(
+    String id,
+    String action, {
+    String? targetKey,
+  }) async {
+    _errorMessage = null;
+    try {
+      await _api.post(
+        ApiConstants.adminVirtualNumberDictionaryReviewResolve(id),
+        body: {
+          'action': action,
+          if (targetKey != null && targetKey.isNotEmpty) 'targetKey': targetKey,
+        },
+      );
+      _infoMessage = 'تمت معالجة بند المراجعة';
+      await fetchReviewQueue(quiet: true);
+      await fetchAdminDictionary(quiet: true);
+      notifyListeners();
+      return _infoMessage;
+    } on ApiException catch (e) {
+      _errorMessage = e.message;
+    } catch (e) {
+      _errorMessage = _clientError(e);
+    }
+    notifyListeners();
+    return null;
+  }
+
   /// كتالوج المزود مُثري بالمُنتقَى: كل دولة مُعلَّم عليها added/productId
   Future<void> fetchAdminCatalog({String? providerId}) async {
     _isCatalogLoading = true;
@@ -718,17 +866,22 @@ class VirtualNumbersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// إضافة دول مختارة من الكتالوج إلى تطبيق (تُتجاهل الدول الموجودة مسبقاً)
+  /// إضافة دول مختارة من الكتالوج إلى تطبيق (تُتجاهل الدول الموجودة مسبقاً).
+  /// [serviceCode] رمز الخدمة الأصلي لدى هذا المزود من كتالوجه — يُحفظ على المنتج
+  /// فيُخاطَب به المزود عند الشراء، وقد يختلف عن رمز التطبيق بين مزودين.
   Future<String?> addCountriesToApp({
     required String appId,
     required List<VirtualNumberCatalogCountry> countries,
     String? providerId,
+    String? serviceCode,
   }) => _curationAction(
     ApiConstants.adminVirtualNumberAddCountries,
     method: 'POST',
     body: {
       'appId': appId,
       if (providerId != null && providerId.isNotEmpty) 'providerId': providerId,
+      if (serviceCode != null && serviceCode.isNotEmpty)
+        'serviceCode': serviceCode,
       'countries': countries
           .map(
             (c) => {

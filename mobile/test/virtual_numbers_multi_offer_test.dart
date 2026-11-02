@@ -181,41 +181,43 @@ void main() {
   setUp(RecordingHttp.reset);
   tearDownAll(RecordingHttp.uninstall);
 
-  testWidgets('الدولة ذات السيرفرين تُعرض بطاقتين بسعرين ومخزونين مستقلين', (
-    w,
-  ) async {
-    await _pumpPage(
-      w,
-      options: <Map<String, dynamic>>[
-        _service(
-          countries: <Map<String, dynamic>>[_twoServerCountry()],
-          fromPrice: 0.8,
-        ),
-      ],
-    );
+  testWidgets(
+    'الدولة ذات السيرفرين تُعرض بطاقتين بسعرين مستقلين (بلا عدد أرقام)',
+    (w) async {
+      await _pumpPage(
+        w,
+        options: <Map<String, dynamic>>[
+          _service(
+            countries: <Map<String, dynamic>>[_twoServerCountry()],
+            fromPrice: 0.8,
+          ),
+        ],
+      );
 
-    // بطاقة الخدمة تُذكر بأرخص ما يُباع، لا بسعر سيرفر بعينه
-    expect(find.textContaining('من \$0.80'), findsOneWidget);
+      // بطاقة الخدمة تُذكر بأرخص ما يُباع، لا بسعر سيرفر بعينه
+      expect(find.textContaining('من \$0.80'), findsOneWidget);
 
-    await _openSheet(w);
+      await _openSheet(w);
 
-    // صف الدولة: «متاحة من 2 سيرفر» و«من $0.80» بدل سعر واحد
-    expect(find.text('متاحة من 2 سيرفر'), findsOneWidget);
-    expect(find.text('من \$0.80'), findsOneWidget);
-    expect(find.text('السيرفر'), findsOneWidget);
+      // صف الدولة: «متاحة من 2 سيرفر» و«من $0.80» بدل سعر واحد
+      expect(find.text('متاحة من 2 سيرفر'), findsOneWidget);
+      expect(find.text('من \$0.80'), findsOneWidget);
+      expect(find.text('السيرفر'), findsOneWidget);
 
-    // بطاقتان مستقلتان: لكل سيرفر اسمه الوهمي وسعره ومخزونه
-    expect(find.text('Server 1'), findsOneWidget);
-    expect(find.text('Server 2'), findsOneWidget);
-    expect(find.text('\$1.00'), findsOneWidget);
-    expect(find.text('\$0.80'), findsWidgets);
-    expect(find.text('متاح 40 رقم'), findsOneWidget);
-    expect(find.text('متاح 7 رقم'), findsOneWidget);
-    // اسم المزود الحقيقي لا يظهر في أي موضع من شاشة العميل
-    expect(find.textContaining('srv2'), findsNothing);
+      // بطاقتان مستقلتان: لكل سيرفر اسمه الوهمي وسعره
+      expect(find.text('Server 1'), findsOneWidget);
+      expect(find.text('Server 2'), findsOneWidget);
+      expect(find.text('\$1.00'), findsOneWidget);
+      expect(find.text('\$0.80'), findsWidgets);
+      // وقت التشغيل لا يعرض عدد الأرقام المتاحة بعد إلغاء اعتماد الكتالوج الحيّ
+      expect(find.text('متاح 40 رقم'), findsNothing);
+      expect(find.text('متاح 7 رقم'), findsNothing);
+      // اسم المزود الحقيقي لا يظهر في أي موضع من شاشة العميل
+      expect(find.textContaining('srv2'), findsNothing);
 
-    _expectNoOverflow(w);
-  });
+      _expectNoOverflow(w);
+    },
+  );
 
   testWidgets(
     'المختار أولاً هو أول السيرفرات لا أرخصها، والتبديل يبدّل السعر',
@@ -354,7 +356,9 @@ void main() {
     await _teardown(w);
   });
 
-  testWidgets('سيرفر بلا مخزون يبقى معروضاً باسمه ومخزونه المجهول', (w) async {
+  testWidgets('سيرفر بلا مخزون يبقى معروضاً باسمه (بلا عرض عدد الأرقام)', (
+    w,
+  ) async {
     await _pumpPage(
       w,
       options: <Map<String, dynamic>>[
@@ -394,10 +398,12 @@ void main() {
     );
     await _openSheet(w);
 
-    // العرض الثالث ظاهر باسمه ومخزونه المجهول، والشراء عليه يبقى ممكناً:
-    // نفاد المخزون يُعرف عند الخادم وحده فيسجَّل OUT_OF_STOCK لا فشل
-    expect(find.text('مخزون غير معروف'), findsOneWidget);
+    // العرض الثالث ظاهر باسمه، والشراء عليه يبقى ممكناً: نفاد المخزون يُعرف عند
+    // الخادم وحده فيسجَّل OUT_OF_STOCK لا فشل. وقت التشغيل لم يعد يعرض عدد الأرقام
     expect(find.text('Server 3'), findsOneWidget);
+    // لا نصّ عدد أرقام ولا «مخزون غير معروف» على بطاقة السيرفر
+    expect(find.text('مخزون غير معروف'), findsNothing);
+    expect(find.text('متاح 40 رقم'), findsNothing);
 
     _expectNoOverflow(w);
   });

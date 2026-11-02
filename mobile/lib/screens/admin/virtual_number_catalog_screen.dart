@@ -1148,6 +1148,7 @@ class _VirtualNumberCatalogScreenState
         appId: appId,
         countries: chosen,
         providerId: catalog.providerId,
+        serviceCode: service.code,
       ),
     );
   }

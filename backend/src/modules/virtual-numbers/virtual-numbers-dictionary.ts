@@ -1215,3 +1215,338 @@ export function resolveCountryMeta(
     fivesimCode: fallback,
   };
 }
+
+
+// =============================================================================
+// 4. فهرس المعجم المرتكز على قاعدة البيانات (DB-backed identity index)
+// =============================================================================
+//
+// المعجم الموحّد صار كيانات في القاعدة (تطبيقات + دول، كلٌّ بـ codes لكل مزود).
+// هذا الفهرس يبني خرائط بحث مُطبّعة من تلك الكيانات، فتمرّ كل نقاط الحلّ في
+// الخدمة به بدل المصفوفة الثابتة. الدوال أدناه نقية بلا حالة ليسهل اختبارها.
+
+export type DictProviderCodes = Record<string, string>;
+
+export interface DictAppEntry {
+  appKey: string;
+  nameAr: string;
+  nameEn: string;
+  icon: string;
+  codes: DictProviderCodes;
+  aliases: string[];
+}
+
+export interface DictCountryEntry {
+  code: string;
+  nameAr: string;
+  nameEn: string;
+  flag: string;
+  codes: DictProviderCodes;
+  aliases: string[];
+}
+
+/**
+ * توحيد اسم نوع المزود إلى مفتاح stable يُستخدم مفاتيح في خرائط `codes`
+ * (herosms/fivesim/dogesms/smspool...)، فيبقى الرمز الأصلي محفوظاً لكل مزود.
+ */
+export function providerCodeKey(providerType?: string): string {
+  const t = (providerType || '').toLowerCase();
+  if (t.includes('hero') || t.includes('sms-activate') || t.includes('smsactivate'))
+    return 'herosms';
+  if (t.includes('5sim') || t.includes('fivesim')) return 'fivesim';
+  if (t.includes('doge')) return 'dogesms';
+  if (t.includes('smspool') || t.includes('sms-pool') || t.includes('sms pool'))
+    return 'smspool';
+  return t;
+}
+
+const norm = normalizeKey;
+const pk = (ptype: string, code: string) => `${ptype}::${norm(code)}`;
+
+/** نتيجة حلّ التطبيق — نفس شكل resolveAppMeta ليعمل المستدعون دون تغيير */
+export interface AppMetaResult {
+  key: string;
+  name: string;
+  nameAr: string;
+  nameEn: string;
+  icon: string;
+  herosmsCode: string;
+  fivesimCode: string;
+  codes: DictProviderCodes;
+}
+
+/** نتيجة قرار مطابقة الاستيراد: ربط لكيان، أو مراجعة (مرشّحون)، أو جديد */
+export type DictMatch =
+  | { status: 'link'; key: string }
+  | { status: 'review'; candidates: string[] }
+  | { status: 'new' };
+
+/** نتيجة حلّ الدولة — نفس شكل resolveCountryMeta */
+export interface CountryMetaResult {
+  code: string;
+  name: string;
+  nameAr: string;
+  nameEn: string;
+  flag: string;
+  iso: string;
+  herosmsCode: string;
+  fivesimCode: string;
+  codes: DictProviderCodes;
+}
+
+function tokensFor(id: string, e: { nameAr: string; nameEn: string; codes: DictProviderCodes; aliases: string[] }): string[] {
+  const set = new Set<string>([norm(id), norm(e.nameEn), norm(e.nameAr), ...e.aliases.map(norm)]);
+  for (const c of Object.values(e.codes || {})) if (c) set.add(norm(c));
+  set.delete('');
+  return [...set];
+}
+
+/**
+ * فهرس بحث مُطبّع فوق كيانات المعجم في القاعدة. يبني:
+ *  - خريطة بالمعرّف الموحّد مباشرة،
+ *  - خريطة رمز كل مزود ضمن نطاق نوعه (مطابقة مستقلة لكل مزود)،
+ *  - خريطة رمز/اسم/مرادف عام → المرشّحون (لكشف الغموض في الاستيراد).
+ */
+export class DictionaryIndex {
+  readonly apps: DictAppEntry[];
+  readonly countries: DictCountryEntry[];
+  private appById = new Map<string, DictAppEntry>();
+  private countryById = new Map<string, DictCountryEntry>();
+  private appByToken = new Map<string, Set<string>>();
+  private countryByToken = new Map<string, Set<string>>();
+  private appByProviderCode = new Map<string, string>();
+  private countryByProviderCode = new Map<string, string>();
+
+  constructor(apps: DictAppEntry[], countries: DictCountryEntry[]) {
+    this.apps = apps;
+    this.countries = countries;
+    for (const a of apps) {
+      const id = norm(a.appKey);
+      this.appById.set(id, a);
+      for (const t of tokensFor(a.appKey, a)) {
+        if (!this.appByToken.has(t)) this.appByToken.set(t, new Set());
+        this.appByToken.get(t)!.add(a.appKey);
+      }
+      for (const [ctype, code] of Object.entries(a.codes || {})) {
+        if (code) this.appByProviderCode.set(pk(providerCodeKey(ctype), code), a.appKey);
+      }
+    }
+    for (const c of countries) {
+      const id = norm(c.code);
+      this.countryById.set(id, c);
+      for (const t of tokensFor(c.code, c)) {
+        if (!this.countryByToken.has(t)) this.countryByToken.set(t, new Set());
+        this.countryByToken.get(t)!.add(c.code);
+      }
+      for (const [ctype, code] of Object.entries(c.codes || {})) {
+        if (code) this.countryByProviderCode.set(pk(providerCodeKey(ctype), code), c.code);
+      }
+    }
+  }
+
+  appEntry(codeOrName: string): DictAppEntry | null {
+    return this.appById.get(norm(codeOrName)) ?? null;
+  }
+
+  countryEntry(codeOrName: string): DictCountryEntry | null {
+    return this.countryById.get(norm(codeOrName)) ?? null;
+  }
+
+  /** مرشّحو تطبيق لرمز/اسم معيّن (بلا رمز مزود محدد) — >1 يعني غموضاً */
+  appCandidates(codeOrName: string): string[] {
+    return [...(this.appByToken.get(norm(codeOrName)) ?? [])];
+  }
+
+  countryCandidates(codeOrName: string): string[] {
+    return [...(this.countryByToken.get(norm(codeOrName)) ?? [])];
+  }
+
+  /**
+   * حلّ هوية التطبيق: المعرّف الموحّد أولاً (إن كان المُمرَّر مفتاحاً قائماً
+   * بذاته، وهو المرجع الأوثق)، ثم رمز المزود ضمن نطاق نوعه، ثم المرادفات.
+   * تقديم المفتاح الموحّد يمنع تصادم الرموز (واتساب وWhatsApp Business يتقاسمان
+   * رمز 5sim «whatsapp»)، فتُحلّ هوية المنتج الصحيح لا آخر من استعمل الرمز.
+   */
+  appMeta(codeOrName: string, providerType?: string): AppMetaResult | null {
+    const token = norm(codeOrName);
+    if (!token) return null;
+    let id: string | undefined = this.appById.get(token)?.appKey;
+    if (!id) {
+      const pkey = providerCodeKey(providerType);
+      if (pkey) id = this.appByProviderCode.get(pk(pkey, codeOrName));
+    }
+    if (!id) {
+      const cands = this.appCandidates(codeOrName);
+      // غموض في العرض النادر: نثبّت الأول الأبجدي كي يبقى الردّ حتمياً
+      if (cands.length) id = [...cands].sort()[0];
+    }
+    const entry = id ? this.appById.get(norm(id)) : null;
+    if (!entry) return null;
+    return {
+      key: entry.appKey,
+      name: `${entry.nameEn} (${entry.nameAr})`,
+      nameAr: entry.nameAr,
+      nameEn: entry.nameEn,
+      icon: entry.icon,
+      herosmsCode: entry.codes?.herosms ?? '',
+      fivesimCode: entry.codes?.fivesim ?? '',
+      codes: entry.codes ?? {},
+    };
+  }
+
+  /** حلّ هوية الدولة بنفس منهجية التطبيق (المعرّف الموحّد أولاً ثم رمز المزود) */
+  countryMeta(codeOrName: string, providerType?: string): CountryMetaResult | null {
+    const token = norm(codeOrName);
+    if (!token) return null;
+    let id: string | undefined = this.countryById.get(token)?.code;
+    if (!id) {
+      const pkey = providerCodeKey(providerType);
+      if (pkey) id = this.countryByProviderCode.get(pk(pkey, codeOrName));
+    }
+    if (!id) {
+      const cands = this.countryCandidates(codeOrName);
+      if (cands.length) id = [...cands].sort()[0];
+    }
+    const entry = id ? this.countryById.get(norm(id)) : null;
+    if (!entry) return null;
+    return {
+      code: entry.code,
+      name: `${entry.flag} ${entry.nameAr} (${entry.nameEn})`,
+      nameAr: entry.nameAr,
+      nameEn: entry.nameEn,
+      flag: entry.flag,
+      iso: entry.code,
+      herosmsCode: entry.codes?.herosms ?? '',
+      fivesimCode: entry.codes?.fivesim ?? '',
+      codes: entry.codes ?? {},
+    };
+  }
+
+  // --- مطابقة الاستيراد (ثلاث حالات: ربط / مراجعة / جديد) --------------------
+
+  /**
+   * مرشّحون بتقارب اسم (احتواء مُطبّع متبادل، طول ≥4): يُلقط الاسم الأقرب حين
+   * لا توجد مطابقة تامة، فيُرسل البند للمراجعة بدل دمج خاطئ أو إنشاء مكرر.
+   */
+  private similarKeys(
+    query: string,
+    entries: Array<{ id: string; nameEn: string; nameAr: string }>,
+    idOf: (e: any) => string,
+  ): string[] {
+    const q = norm(query);
+    if (!q || q.length < 4) return [];
+    const out = new Set<string>();
+    for (const e of entries) {
+      const en = norm(e.nameEn);
+      const ar = norm(e.nameAr);
+      const hit =
+        (en.length >= 4 && (en.includes(q) || q.includes(en))) ||
+        (ar.length >= 4 && (ar.includes(q) || q.includes(ar)));
+      if (hit) out.add(idOf(e));
+    }
+    return [...out];
+  }
+
+  /** قرار بثلاث حالات لتطبيق مستورد: link|review|new (المطابقة مستقلة عن المزود) */
+  matchApp(rawCode: string, rawName: string): DictMatch {
+    return this.resolveMatch(
+      rawCode,
+      rawName,
+      (t) => this.appCandidates(t),
+      (t) =>
+        this.similarKeys(
+          t,
+          this.apps.map((a) => ({ id: a.appKey, nameEn: a.nameEn, nameAr: a.nameAr })),
+          (e) => e.id,
+        ),
+    );
+  }
+
+  /** قرار بثلاث حالات لدولة مستوردة: link|review|new (المطابقة مستقلة عن المزود) */
+  matchCountry(rawCode: string, rawName: string): DictMatch {
+    return this.resolveMatch(
+      rawCode,
+      rawName,
+      (t) => this.countryCandidates(t),
+      (t) =>
+        this.similarKeys(
+          t,
+          this.countries.map((c) => ({
+            id: c.code,
+            nameEn: c.nameEn,
+            nameAr: c.nameAr,
+          })),
+          (e) => e.id,
+        ),
+    );
+  }
+
+  /**
+   * منطق القرار المشترك: مطابقة تامة (معرّف/رمز مزود/اسم/مرادف عبر خريطة
+   * الرموز المُطبّعة) لكيان واحد ⇒ link؛ لأكثر من كيان ⇒ review؛ غياب التامة
+   * مع تقارب اسمي ⇒ review؛ وإلا new نظيف. رمز المزود نوعٌ-مستقل للاسم العام.
+   */
+  private resolveMatch(
+    rawCode: string,
+    rawName: string,
+    exact: (token: string) => string[],
+    similar: (token: string) => string[],
+  ): DictMatch {
+    const set = new Set<string>();
+    for (const t of [rawCode, rawName]) {
+      if (t && t.trim()) for (const k of exact(t)) set.add(k);
+    }
+    if (set.size === 1) return { status: 'link', key: [...set][0] };
+    if (set.size > 1) return { status: 'review', candidates: [...set] };
+    const sim = new Set<string>();
+    for (const t of [rawName, rawCode]) {
+      if (t && t.trim()) for (const k of similar(t)) sim.add(k);
+    }
+    if (sim.size > 0) return { status: 'review', candidates: [...sim] };
+    return { status: 'new' };
+  }
+}
+
+/** يحوّل وثائق التطبيقات من القاعدة إلى مدخلات الفهرس (تجاهل المفاتيح الفارغة) */
+export function toDictAppEntry(doc: {
+  appKey: string;
+  nameAr?: string;
+  nameEn?: string;
+  icon?: string;
+  codes?: DictProviderCodes;
+  aliases?: string[];
+}): DictAppEntry {
+  return {
+    appKey: String(doc.appKey || '').toLowerCase(),
+    nameAr: doc.nameAr ?? '',
+    nameEn: doc.nameEn ?? '',
+    icon: doc.icon ?? '',
+    codes: doc.codes ?? {},
+    aliases: doc.aliases ?? [],
+  };
+}
+
+/** يحوّل وثائق الدول من القاعدة إلى مدخلات الفهرس */
+export function toDictCountryEntry(doc: {
+  code: string;
+  nameAr?: string;
+  nameEn?: string;
+  flag?: string;
+  codes?: DictProviderCodes;
+  aliases?: string[];
+}): DictCountryEntry {
+  return {
+    code: String(doc.code || '').toUpperCase(),
+    nameAr: doc.nameAr ?? '',
+    nameEn: doc.nameEn ?? '',
+    flag: doc.flag ?? '🌐',
+    codes: doc.codes ?? {},
+    aliases: doc.aliases ?? [],
+  };
+}
+
+/** slug ثابت لمعرّف موحّد جديد من اسم إنجليزي (يُستخدم في الاستيراد) */
+export function slugifyDictKey(name: string): string {
+  const base = normalizeKey(name);
+  return base || 'unknown';
+}
