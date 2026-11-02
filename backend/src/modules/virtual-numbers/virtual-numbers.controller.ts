@@ -242,6 +242,8 @@ export class VirtualNumbersController {
       nameAr?: string;
       nameEn?: string;
       flag?: string;
+      codes?: Record<string, string>;
+      aliases?: string[];
       mergeInto?: string;
     },
   ) {
@@ -250,6 +252,8 @@ export class VirtualNumbersController {
       nameAr: body?.nameAr,
       nameEn: body?.nameEn,
       flag: body?.flag,
+      codes: body?.codes,
+      aliases: body?.aliases,
       mergeInto: body?.mergeInto,
     });
   }

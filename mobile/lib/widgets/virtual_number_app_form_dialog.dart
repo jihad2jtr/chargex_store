@@ -70,6 +70,8 @@ class _VirtualNumberAppFormDialogState
   late final TextEditingController _nameCtrl;
   late final TextEditingController _codeCtrl;
   late final TextEditingController _iconCtrl;
+  late final TextEditingController _sortCtrl;
+  late bool _isActive;
   bool _saving = false;
 
   bool get _isEdit => widget.app != null;
@@ -84,6 +86,8 @@ class _VirtualNumberAppFormDialogState
       text: widget.app?.serviceCode ?? widget.initialServiceCode,
     );
     _iconCtrl = TextEditingController(text: widget.app?.iconUrl ?? '');
+    _sortCtrl = TextEditingController(text: '${widget.app?.sortOrder ?? 0}');
+    _isActive = widget.app?.isActive ?? true;
   }
 
   @override
@@ -91,13 +95,14 @@ class _VirtualNumberAppFormDialogState
     _nameCtrl.dispose();
     _codeCtrl.dispose();
     _iconCtrl.dispose();
+    _sortCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     final code = _codeCtrl.text.trim().toLowerCase();
-    if (name.isEmpty || (!_isEdit && code.isEmpty)) {
+    if (name.isEmpty || code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('الاسم ورمز الخدمة مطلوبان')),
       );
@@ -105,16 +110,22 @@ class _VirtualNumberAppFormDialogState
     }
     setState(() => _saving = true);
     final provider = context.read<VirtualNumbersProvider>();
+    final sortOrder = int.tryParse(_sortCtrl.text.trim()) ?? 0;
     final message = _isEdit
         ? await provider.updateAdminApp(
             widget.app!.id,
             name: name,
+            serviceCode: code,
             iconUrl: _iconCtrl.text.trim(),
+            sortOrder: sortOrder,
+            isActive: _isActive,
           )
         : await provider.createAdminApp(
             name: name,
             serviceCode: code,
             iconUrl: _iconCtrl.text.trim(),
+            sortOrder: sortOrder,
+            isActive: _isActive,
           );
     if (!mounted) return;
     if (message != null) Navigator.pop(context, true);
@@ -157,18 +168,14 @@ class _VirtualNumberAppFormDialogState
                     ),
                   ),
                   const SizedBox(height: 14),
-                  _fieldLabel(
-                    _isEdit ? 'رمز الخدمة لدى المزود (ثابت)' : 'رمز الخدمة',
-                  ),
+                  _fieldLabel('رمز الخدمة لدى المزود'),
                   const SizedBox(height: 5),
                   TextField(
                     controller: _codeCtrl,
-                    enabled: !_isEdit, // الرمز ثابت: المطابقة مع كتالوج المزود
-                    decoration: InputDecoration(
-                      hintText: _isEdit ? null : 'telegram',
-                      helperText: _isEdit
-                          ? null
-                          : 'طابِقه من كتالوج المزود — به تُطابَق الأسعار والدول',
+                    decoration: const InputDecoration(
+                      hintText: 'telegram',
+                      helperText:
+                          'طابِقه من كتالوج المزود — به تُطابَق الأسعار والدول',
                       helperMaxLines: 2,
                       isDense: true,
                     ),
@@ -202,6 +209,8 @@ class _VirtualNumberAppFormDialogState
                   ],
                   const SizedBox(height: 16),
                   _iconSection(),
+                  const SizedBox(height: 16),
+                  _statusOrderSection(),
                 ],
               ),
             ),
@@ -331,6 +340,48 @@ class _VirtualNumberAppFormDialogState
                 if (_nameCtrl.text.trim().isEmpty) _nameCtrl.text = label;
               });
             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// قسم الحالة والترتيب: يحرّر بقية بيانات الوثاقة (تفعيل التطبيق وترتيبه)
+  Widget _statusOrderSection() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceContainerHigh.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.slate300),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SwitchListTile(
+            value: _isActive,
+            onChanged: (v) => setState(() => _isActive = v),
+            contentPadding: EdgeInsets.zero,
+            title: _fieldLabel('تطبيق مفعّل'),
+            subtitle: Text(
+              'إيقافه يُخفي التطبيق عن العملاء دون حذف دوله وأسعاره',
+              style: AppTypography.cairo(
+                fontSize: 10,
+                color: AppColors.slate500,
+              ),
+            ),
+            activeThumbColor: AppColors.secondary,
+          ),
+          const SizedBox(height: 8),
+          _fieldLabel('ترتيب الظهور (الرقم الأصغر يظهر أولاً)'),
+          const SizedBox(height: 5),
+          TextField(
+            controller: _sortCtrl,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              hintText: '0',
+              isDense: true,
+            ),
           ),
         ],
       ),

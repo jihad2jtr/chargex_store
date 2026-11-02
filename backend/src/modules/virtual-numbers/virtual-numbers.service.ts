@@ -824,6 +824,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           // رمز الخدمة وأيقونة الوثاقة: شاشة المعجم تُعدّل التطبيق المخزّن بها
           serviceCode: app ? String(app.serviceCode || '') : '',
           iconUrl: app ? String(app.iconUrl || '') : '',
+          // حالة التفعيل والترتيب: تُعرض في محرّر التطبيق ليُعدّل كل بيانات الوثاقة
+          isActive: app ? app.isActive !== false : true,
+          sortOrder: app ? Number(app.sortOrder ?? 0) : 0,
           productCount: productCountByKey.get(key) ?? 0,
         };
       })
@@ -1231,6 +1234,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     nameAr?: string;
     nameEn?: string;
     flag?: string;
+    codes?: Record<string, string>;
+    aliases?: string[];
     mergeInto?: string;
   }) {
     const code = String(body.code ?? '').trim().toUpperCase();
@@ -1264,6 +1269,22 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (body.nameAr !== undefined) doc.nameAr = String(body.nameAr).trim();
     if (body.nameEn !== undefined) doc.nameEn = String(body.nameEn).trim();
     if (body.flag !== undefined) doc.flag = String(body.flag).trim();
+    // الرموز الأصلية لكل مزود والمرادفات: تُستبدل كاملة بما أرسله المحرّر
+    // (تنظيف: مفاتيح صغيرة وقيم غير فارغة) كي تُحرَّر كل بيانات الدولة
+    if (body.codes !== undefined) {
+      const cleanCodes: Record<string, string> = {};
+      for (const [k, v] of Object.entries(body.codes ?? {})) {
+        const key = String(k).trim().toLowerCase();
+        const val = String(v ?? '').trim();
+        if (key && val) cleanCodes[key] = val;
+      }
+      doc.codes = cleanCodes;
+    }
+    if (body.aliases !== undefined) {
+      doc.aliases = (body.aliases ?? [])
+        .map((a) => String(a).trim())
+        .filter((a) => a.length > 0);
+    }
     doc.reviewStatus = 'ok';
     await doc.save();
     this.invalidateDictionaryCache();
@@ -3169,20 +3190,44 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     id: string,
     dto: {
       name?: string;
+      serviceCode?: string;
       iconUrl?: string;
       sortOrder?: number;
       isActive?: boolean;
+      providerId?: string;
     },
   ) {
     const app = await this.appModel.findById(id);
     if (!app) throw new NotFoundException('التطبيق غير موجود');
     if (dto.name !== undefined) app.name = (dto.name || '').trim() || app.name;
+    // رمز الخدمة قابل للتعديل الآن: يُعاد التحقق من عدم التكرار (الفهرس فريد)
+    // لأن المطابقة بالرمز مع كتالوج المزود، والتصادم يكسر الأسعار والدول
+    if (dto.serviceCode !== undefined) {
+      const code = (dto.serviceCode || '').trim();
+      if (!code) throw new BadRequestException('رمز الخدمة مطلوب');
+      if (code !== app.serviceCode) {
+        const clash = await this.appModel.findOne({
+          serviceCode: code,
+          _id: { $ne: app._id },
+        });
+        if (clash) {
+          throw new BadRequestException('يوجد تطبيق لهذا الخدمة بالفعل');
+        }
+        app.serviceCode = code;
+      }
+    }
     if (dto.iconUrl !== undefined) {
       const icon = (dto.iconUrl || '').trim();
       app.iconUrl = icon.length > 0 ? icon : undefined;
     }
     if (dto.sortOrder !== undefined) app.sortOrder = dto.sortOrder;
     if (dto.isActive !== undefined) app.isActive = dto.isActive;
+    if (dto.providerId !== undefined) {
+      app.providerId =
+        dto.providerId && Types.ObjectId.isValid(dto.providerId)
+          ? new Types.ObjectId(dto.providerId)
+          : undefined;
+    }
     await app.save();
     return { message: 'تم تحديث التطبيق' };
   }

@@ -26,6 +26,8 @@ class VirtualNumberAppsScreen extends StatefulWidget {
 class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   final _searchCtrl = TextEditingController();
   bool _busy = false;
+  // فلتر حالة المنتجات: 0 الكل، 1 جاهزة، 2 بلا دول مفعّلة، 3 متوقفة
+  int _filter = 0;
 
   @override
   void initState() {
@@ -139,15 +141,23 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     final query = _searchCtrl.text.trim().toLowerCase();
     // شاشة المنتجات: الوثاقات المضافة من المزود التي لها دولة واحدة على الأقل؛
     // الفارغة تُدار من «معجم التطبيقات» وشبكة الانتقاء
-    final apps = provider.adminApps
-        .where((app) => app.productCount > 0)
+    final products = provider.adminApps.where((app) => app.productCount > 0);
+    final apps = products
         .where(
           (app) =>
               query.isEmpty ||
               app.name.toLowerCase().contains(query) ||
               app.serviceCode.toLowerCase().contains(query),
         )
+        .where(_matchesFilter)
         .toList();
+    // عدّات الحالة تُحسب على كل المنتجات قبل فلتر البحث والفلتر نفسه
+    final nVisible = products.where((a) => a.visibleToClients).length;
+    final totalCountries = products.fold(0, (sum, a) => sum + a.productCount);
+    final activeCountries = products.fold(
+      0,
+      (sum, a) => sum + a.activeProductCount,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -168,9 +178,10 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
       ),
       body: Column(
         children: [
-          _hintBar(),
+          _heroCard(products.length, totalCountries, activeCountries, nVisible),
+
           Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (_) => setState(() {}),
@@ -189,16 +200,24 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
                 filled: true,
                 fillColor: Colors.white,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.slate300),
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.slate300),
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(color: AppColors.slate200),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  borderSide: const BorderSide(
+                    color: AppColors.primary,
+                    width: 1.4,
+                  ),
                 ),
               ),
             ),
           ),
+
           if (provider.errorMessage != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14),
@@ -252,37 +271,124 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     if (mounted) await _reload();
   }
 
-  Widget _hintBar() {
+  /// هل يطابق المنتج فلتر الحالة الحالي؟ (0 الكل، 1 جاهزة، 2 بلا دول
+  /// مفعّلة، 3 متوقفة) — مسمّيات الفلاتر تُعمد مختلفة عن أوسمة التذاكر
+  /// كي لا تتداخل قراءات الاختبارات النصية بين الرأس والبطاقات
+  bool _matchesFilter(VirtualNumberAppModel app) {
+    return switch (_filter) {
+      1 => app.visibleToClients,
+      2 => app.isActive && !app.visibleToClients,
+      3 => !app.isActive,
+      _ => true,
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // بطاقة الهوية: تدرّج العلامة (سيان→سماوي) فوق Bento أرقامًا حيّة للوحة —
+  // عدّاد المنتجات والدول المفعّلة والجاهزة للبيع بنظرة واحدة قبل قائمة
+  // التذاكر، فتعرف الإدارة فورًا حجم الكتالوج المبني ومدى ظهوره للعميل
+  // ---------------------------------------------------------------------------
+
+  Widget _heroCard(
+    int total,
+    int countries,
+    int activeCountries,
+    int nVisible,
+  ) {
     return Container(
       margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: AppColors.slate900.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: AppColors.slate300),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.lightbulb_outline_rounded,
-            size: 16,
-            color: AppColors.slate700,
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              'هذه منتجات التطبيقات المُضافة من المزود؛ لإتاحة تطبيق جديد '
-              'للمزودين أو إضافته ادخل إلى «معجم التطبيقات»، ثم انتقِ دوله من '
-              'صفحة مزودي الأرقام. الخدمة لا تظهر للعميل إلا بدولة مفعّلة.',
-              style: AppTypography.cairo(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.slate700,
-                height: 1.5,
-              ),
-            ),
+        gradient: AppColors.brandGradient,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.28),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.inventory_2_rounded,
+                size: 17,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'كتالوج الأرقام الجاهز للبيع',
+                  style: AppTypography.cairo(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              Text(
+                'مُنتقًى من مزودين متعددين',
+                style: AppTypography.cairo(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              _heroStat('$total', 'منتج تطبيق'),
+              _heroStat('$activeCountries/$countries', 'دولة مفعّلة'),
+              _heroStat('$nVisible', 'جاهزة للبيع', highlight: true),
+            ].withSeparator(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _heroStat(String value, String label, {bool highlight = false}) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          color: highlight
+              ? AppColors.ticketAmber.withValues(alpha: 0.22)
+              : Colors.white.withValues(alpha: 0.14),
+          borderRadius: BorderRadius.circular(11),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: highlight ? 0.45 : 0.22),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              value,
+              style: AppTypography.balance(
+                fontSize: 15,
+                color: highlight ? AppColors.ticketAmberLight : Colors.white,
+              ),
+            ),
+            const SizedBox(height: 1),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withValues(alpha: 0.85),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -301,10 +407,13 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
         ),
         const SizedBox(height: 10),
         Text(
-          query.isEmpty
-              ? 'لم تُضف أي دولة من المزود بعد — افتح المعجم وأتق التطبيقات '
-                    'ثم انتقِ دولها من صفحة المزود'
-              : 'لا نتيجة مطابقة للبحث',
+          switch ((query.isNotEmpty, _filter != 0)) {
+            (true, _) => 'لا نتيجة مطابقة للبحث',
+            (false, true) => 'لا منتج بهذه الحالة الآن',
+            (false, false) =>
+              'لم تُضف أي دولة من المزود بعد — افتح المعجم وأتق التطبيقات '
+                  'ثم انتقِ دولها من صفحة المزود',
+          },
           textAlign: TextAlign.center,
           style: AppTypography.cairo(
             fontSize: 13,
@@ -361,6 +470,7 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
           amount: _countBadge(
             '${app.activeProductCount}/${app.productCount}',
             'دولة مفعّلة',
+            tone: _countriesTone(app),
           ),
           status: _visibilityChip(app),
           // الانتقاء والإدارة يفتحان كتالوج المزود — لا يظهر إلا عند الفرد
@@ -671,21 +781,37 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
 
   Widget _visibilityChip(VirtualNumberAppModel app) {
     final tone = visibleColor(app);
+    final IconData glyph;
+    if (!app.isActive) {
+      glyph = Icons.power_off_rounded;
+    } else if (app.visibleToClients) {
+      glyph = Icons.check_circle_rounded;
+    } else {
+      glyph = Icons.visibility_off_rounded;
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: tone.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: tone.withValues(alpha: 0.25)),
       ),
-      child: Text(
-        app.visibleToClients
-            ? 'ظاهرة للعميل'
-            : (app.isActive ? 'بلا دول مفعّلة' : 'موقوفة'),
-        style: AppTypography.cairo(
-          fontSize: 9.5,
-          fontWeight: FontWeight.w800,
-          color: tone,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(glyph, size: 11, color: tone),
+          const SizedBox(width: 4),
+          Text(
+            app.visibleToClients
+                ? 'ظاهرة للعميل'
+                : (app.isActive ? 'بلا دول مفعّلة' : 'موقوفة'),
+            style: AppTypography.cairo(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w800,
+              color: tone,
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -695,13 +821,18 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     return app.visibleToClients ? AppColors.emerald : AppColors.ticketAmber;
   }
 
-  Widget _countBadge(String value, String label) {
+  /// لون عدّاد الدول: زمرد إذا كلها مفعّلة، كهرماني إذا بعضُها مخفي،
+  /// رمادي إذا لم تُفعّل منها دولة — درج لوني يكمّل وسم الحالة الجانبي
+  Color _countriesTone(VirtualNumberAppModel app) {
+    if (app.activeProductCount == 0) return AppColors.slate400;
+    if (app.activeProductCount < app.productCount) return AppColors.ticketAmber;
+    return AppColors.emerald;
+  }
+
+  Widget _countBadge(String value, String label, {required Color tone}) {
     return Row(
       children: [
-        Text(
-          value,
-          style: AppTypography.balance(fontSize: 13, color: AppColors.slate900),
-        ),
+        Text(value, style: AppTypography.balance(fontSize: 13, color: tone)),
         const SizedBox(width: 5),
         Text(
           label,
@@ -709,5 +840,17 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
         ),
       ],
     );
+  }
+}
+
+/// فاصل رفيع شفاف بين مربّعات إحصاء بطاقة الهوية (تنسيق Bento)
+extension on List<Widget> {
+  List<Widget> withSeparator() {
+    final out = <Widget>[];
+    for (var i = 0; i < length; i++) {
+      if (i > 0) out.add(const SizedBox(width: 8));
+      out.add(this[i]);
+    }
+    return out;
   }
 }

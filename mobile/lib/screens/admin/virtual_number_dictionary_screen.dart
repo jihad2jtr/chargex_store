@@ -76,7 +76,6 @@ class _VirtualNumberDictionaryScreenState
     if (_tabs.index == 2) await provider.fetchReviewQueue();
   }
 
-
   /// تنفيذ إجراء مع رسالة نتيجة موحّدة (نفس نمط شاشة المنتجات)
   Future<void> _run(Future<String?> Function() action) async {
     setState(() => _busy = true);
@@ -257,64 +256,21 @@ class _VirtualNumberDictionaryScreenState
     );
   }
 
-  /// تعديل/دمج دولة من تبويب الدول
+  /// تعديل/دمج دولة من تبويب الدول: يحرّر كل بيانات الدولة المخزّنة
   Future<void> _editCountry(VirtualNumberDictCountry country) async {
-    final nameCtrl = TextEditingController(text: country.nameAr);
-    final mergeCtrl = TextEditingController();
-    final countries = context.read<VirtualNumbersProvider>().dictionaryCountries;
+    final countries = context
+        .read<VirtualNumbersProvider>()
+        .dictionaryCountries;
     final provider = context.read<VirtualNumbersProvider>();
     final messenger = ScaffoldMessenger.of(context);
 
-    final save = await showDialog<bool>(
+    final body = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('دولة ${country.flag} ${country.nameEn} (${country.code})'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: 'الاسم العربي'),
-            ),
-            const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              hint: const Text('دمج في دولة أخرى (اختياري)'),
-              items: [
-                for (final c in countries.where((c) => c.code != country.code))
-                  DropdownMenuItem(
-                    value: c.code,
-                    child: Text('${c.nameEn} (${c.code})'),
-                  ),
-              ],
-              onChanged: (v) => mergeCtrl.text = v ?? '',
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('تراجع'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('حفظ'),
-          ),
-        ],
-      ),
+      builder: (ctx) =>
+          _CountryEditDialog(country: country, allCountries: countries),
     );
-    final merge = mergeCtrl.text.trim();
-    if (save != true) {
-      nameCtrl.dispose();
-      mergeCtrl.dispose();
-      return;
-    }
-    await provider.patchDictionaryCountry({
-      'code': country.code,
-      if (merge.isNotEmpty) 'mergeInto': merge else 'nameAr': nameCtrl.text.trim(),
-    });
-    nameCtrl.dispose();
-    mergeCtrl.dispose();
+    if (body == null) return;
+    await provider.patchDictionaryCountry(body);
     if (!mounted) return;
     final err = provider.errorMessage;
     messenger.showSnackBar(
@@ -330,7 +286,10 @@ class _VirtualNumberDictionaryScreenState
   }
 
   /// حلّ بند مراجعة: ربط بأول مرشّح، أو إنشاء جديد، أو تجاهل
-  Future<void> _resolveReview(VirtualNumberDictReview item, String action) async {
+  Future<void> _resolveReview(
+    VirtualNumberDictReview item,
+    String action,
+  ) async {
     await _run(
       () => context.read<VirtualNumbersProvider>().resolveReviewItem(
         item.id,
@@ -383,6 +342,8 @@ class _VirtualNumberDictionaryScreenState
             appKey: entry.key,
             serviceCode: entry.serviceCode,
             iconUrl: entry.iconUrl,
+            isActive: entry.isActive,
+            sortOrder: entry.sortOrder,
           );
     await VirtualNumberAppFormDialog.open(
       context,
@@ -496,7 +457,7 @@ class _VirtualNumberDictionaryScreenState
             ),
           ),
         ),
-        _hintBar(),
+
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
           child: TextField(
@@ -572,6 +533,9 @@ class _VirtualNumberDictionaryScreenState
       ],
     );
   }
+
+  /// شريط إرشادي: يوضّح أن هذه البوابة وحدها تتحكم بإتاحة التطبيق، وأن
+  /// الإيقاف إخفاءٌ عرضي غير اتلافي (لا يحذف الوثاقة ولا الدول)
 
   /// تبويب الدول: كيانات المعجم الموحّدة برموز كل مزود؛ السطر يفتح تعديل/دمج
   Widget _countriesBody(VirtualNumbersProvider provider) {
@@ -712,7 +676,10 @@ class _VirtualNumberDictionaryScreenState
           const SizedBox(height: 4),
           Text(
             'رمز مزوّد: ${item.rawCode} · $candidates',
-            style: AppTypography.cairo(fontSize: 10.5, color: AppColors.slate500),
+            style: AppTypography.cairo(
+              fontSize: 10.5,
+              color: AppColors.slate500,
+            ),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -721,60 +688,18 @@ class _VirtualNumberDictionaryScreenState
             children: [
               if (item.candidateKeys.isNotEmpty)
                 OutlinedButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _resolveReview(item, 'link'),
+                  onPressed: _busy ? null : () => _resolveReview(item, 'link'),
                   child: const Text('ربط'),
                 ),
               OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () => _resolveReview(item, 'create'),
+                onPressed: _busy ? null : () => _resolveReview(item, 'create'),
                 child: const Text('إنشاء جديد'),
               ),
               TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => _resolveReview(item, 'dismiss'),
+                onPressed: _busy ? null : () => _resolveReview(item, 'dismiss'),
                 child: const Text('تجاهل'),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _hintBar() {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 9),
-      decoration: BoxDecoration(
-        color: AppColors.slate900.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(11),
-        border: Border.all(color: AppColors.slate300),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.lightbulb_outline_rounded,
-            size: 16,
-            color: AppColors.slate700,
-          ),
-          const SizedBox(width: 7),
-          Expanded(
-            child: Text(
-              'التطبيقات المتاحة هنا هي وحدها التي تظهر في انتقاء الدول لدى '
-              'المزودين وشاشة العميل. الإيقاف يُخفي بلا حذف، وزر التعديل في '
-              'كل سطر يُعدّل اسم التطبيق وأيقونته أو يوثّقه إن لم يُضَف بعد.',
-              style: AppTypography.cairo(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.slate700,
-                height: 1.5,
-              ),
-            ),
           ),
         ],
       ),
@@ -992,5 +917,227 @@ class _VirtualNumberDictionaryScreenState
         ),
       ],
     );
+  }
+}
+
+/// محرّر كامل بيانات الدولة في المعجم: الاسم العربي/الإنجليزي، العلم،
+/// الرموز الأصلية لكل مزود (خِانات قابلة للإضافة/الحذف)، المرادفات،
+/// أو الدمج في دولة أخرى. يُرجع جسم PATCH أو null عند الإلغاء.
+class _CountryEditDialog extends StatefulWidget {
+  final VirtualNumberDictCountry country;
+  final List<VirtualNumberDictCountry> allCountries;
+
+  const _CountryEditDialog({required this.country, required this.allCountries});
+
+  @override
+  State<_CountryEditDialog> createState() => _CountryEditDialogState();
+}
+
+class _CountryEditDialogState extends State<_CountryEditDialog> {
+  late final TextEditingController _nameArCtrl;
+  late final TextEditingController _nameEnCtrl;
+  late final TextEditingController _flagCtrl;
+  late final TextEditingController _aliasesCtrl;
+  final List<_CodeRow> _rows = <_CodeRow>[];
+  String? _merge;
+
+  @override
+  void initState() {
+    super.initState();
+    final c = widget.country;
+    _nameArCtrl = TextEditingController(text: c.nameAr);
+    _nameEnCtrl = TextEditingController(text: c.nameEn);
+    _flagCtrl = TextEditingController(text: c.flag);
+    _aliasesCtrl = TextEditingController(text: c.aliases.join('، '));
+    for (final e in c.codes.entries) {
+      _rows.add(_CodeRow(key: e.key, value: e.value));
+    }
+  }
+
+  @override
+  void dispose() {
+    _nameArCtrl.dispose();
+    _nameEnCtrl.dispose();
+    _flagCtrl.dispose();
+    _aliasesCtrl.dispose();
+    for (final r in _rows) {
+      r.dispose();
+    }
+    super.dispose();
+  }
+
+  Map<String, dynamic> _buildBody() {
+    final body = <String, dynamic>{'code': widget.country.code};
+    if (_merge != null && _merge!.isNotEmpty) {
+      body['mergeInto'] = _merge;
+      return body;
+    }
+    final codes = <String, String>{};
+    for (final r in _rows) {
+      final k = r.keyCtrl.text.trim().toLowerCase();
+      final v = r.valueCtrl.text.trim();
+      if (k.isNotEmpty && v.isNotEmpty) codes[k] = v;
+    }
+    final aliases = _aliasesCtrl.text
+        .split(RegExp(r'[،,]'))
+        .map((a) => a.trim())
+        .where((a) => a.isNotEmpty)
+        .toList();
+    body['nameAr'] = _nameArCtrl.text.trim();
+    body['nameEn'] = _nameEnCtrl.text.trim();
+    body['flag'] = _flagCtrl.text.trim();
+    body['codes'] = codes;
+    body['aliases'] = aliases;
+    return body;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final others = widget.allCountries
+        .where((c) => c.code != widget.country.code)
+        .toList();
+    final width = MediaQuery.sizeOf(context).width;
+    return AlertDialog(
+      title: Text(
+        'تعديل الدولة ${widget.country.code}',
+        style: AppTypography.cairo(fontWeight: FontWeight.bold, fontSize: 15),
+      ),
+      content: SizedBox(
+        width: width < 480 ? width - 64 : 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _label('الاسم العربي'),
+              TextField(
+                controller: _nameArCtrl,
+                decoration: const InputDecoration(isDense: true),
+              ),
+              _label('الاسم الإنجليزي'),
+              TextField(
+                controller: _nameEnCtrl,
+                decoration: const InputDecoration(isDense: true),
+              ),
+              _label('العلم (إيموجي أو رمز)'),
+              TextField(
+                controller: _flagCtrl,
+                decoration: const InputDecoration(isDense: true),
+              ),
+              _label('المرادفات (مفصولة بفواصل)'),
+              TextField(
+                controller: _aliasesCtrl,
+                decoration: const InputDecoration(isDense: true),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(child: _label('رموز الدولة لدى المزودين')),
+                  TextButton.icon(
+                    onPressed: () => setState(() => _rows.add(_CodeRow())),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('إضافة'),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                    ),
+                  ),
+                ],
+              ),
+              for (final r in _rows)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 2),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        flex: 2,
+                        child: TextField(
+                          controller: r.keyCtrl,
+                          decoration: const InputDecoration(
+                            hintText: 'المزود (herosms)',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: r.valueCtrl,
+                          decoration: const InputDecoration(
+                            hintText: 'الرمز الأصلي (21)',
+                            isDense: true,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        tooltip: 'إزالة',
+                        visualDensity: VisualDensity.compact,
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: () => setState(() {
+                          _rows.remove(r);
+                          r.dispose();
+                        }),
+                      ),
+                    ],
+                  ),
+                ),
+              _label('أو الدمج في دولة أخرى'),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _merge,
+                hint: const Text('بدون دمج'),
+                items: [
+                  for (final c in others)
+                    DropdownMenuItem(
+                      value: c.code,
+                      child: Text(
+                        '${c.nameEn.isNotEmpty ? c.nameEn : c.nameAr} (${c.code})',
+                      ),
+                    ),
+                ],
+                onChanged: (v) => setState(() => _merge = v),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('تراجع'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, _buildBody()),
+          child: const Text('حفظ'),
+        ),
+      ],
+    );
+  }
+
+  Widget _label(String text) => Padding(
+    padding: const EdgeInsets.only(top: 8, bottom: 3),
+    child: Text(
+      text,
+      style: AppTypography.cairo(
+        fontSize: 11,
+        fontWeight: FontWeight.w800,
+        color: AppColors.slate700,
+      ),
+    ),
+  );
+}
+
+/// صف تعديل رمز مزوّد واحد (المفتاح + القيمة) داخل محرّر الدولة
+class _CodeRow {
+  final TextEditingController keyCtrl;
+  final TextEditingController valueCtrl;
+
+  _CodeRow({String key = '', String value = ''})
+    : keyCtrl = TextEditingController(text: key),
+      valueCtrl = TextEditingController(text: value);
+
+  void dispose() {
+    keyCtrl.dispose();
+    valueCtrl.dispose();
   }
 }

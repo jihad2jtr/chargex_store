@@ -8,10 +8,17 @@ import '../../models/provider_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/virtual_app_ticket_leading.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import 'provider_form_dialog.dart';
 import 'provider_products_screen.dart';
 import 'virtual_number_catalog_screen.dart';
+
+/// هوية صفحة المزودين: ثيم التطبيق الأساسي — أسود + برتقالي + أبيض. الحبر
+/// داكن (أسود) والعنصر المميّز برتقالي التذاكر، مع لون accent ثابت لكل مزود
+/// يميّز تذاكره عن غيره.
+const Color _ink = AppColors.slate900;
+const Color _brand = AppColors.secondary;
 
 class ProvidersManagementScreen extends StatefulWidget {
   const ProvidersManagementScreen({super.key, this.virtualNumbersOnly = false});
@@ -36,7 +43,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   // مقاسات التذكرة الموحّدة في هذه الشاشة (نفس هوية بقية صفحات الأدمن)
   static const double _radius = 16;
   static const double _notch = 8;
-  static const double _stubWidth = 72;
+  static const double _stubWidth = 56;
 
   @override
   void initState() {
@@ -151,13 +158,10 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     height: 18,
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
-                      color: AppColors.primaryBlue,
+                      color: _ink,
                     ),
                   )
-                : const Icon(
-                    Icons.refresh_rounded,
-                    color: AppColors.primaryBlue,
-                  ),
+                : const Icon(Icons.refresh_rounded, color: _ink),
             onPressed: _isCheckingAll ? null : _checkAllProviders,
           ),
           IconButton(
@@ -165,14 +169,10 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             icon: Container(
               padding: const EdgeInsets.all(5),
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue.withValues(alpha: 0.12),
+                color: _brand.withValues(alpha: 0.22),
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: const Icon(
-                Icons.add_rounded,
-                color: AppColors.primaryBlue,
-                size: 20,
-              ),
+              child: const Icon(Icons.add_rounded, color: _ink, size: 20),
             ),
             onPressed: () => _openAddEditDialog(),
           ),
@@ -180,18 +180,13 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
         ],
       ),
       body: admin.isLoading && admin.providers.isEmpty
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.primaryBlue),
-            )
+          ? const Center(child: CircularProgressIndicator(color: _ink))
           : RefreshIndicator(
-              color: AppColors.primaryBlue,
+              color: _ink,
               onRefresh: () => admin.fetchProviders(forceRefresh: true),
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -203,7 +198,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                       totalBalance: totalBalance,
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
 
                     if (_virtualOnly) _buildWebhookInfoCard(),
 
@@ -224,7 +219,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         (provider) => _buildProviderCard(provider, admin),
                       ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
@@ -243,6 +238,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     double notch = _notch,
     double elevation = 3,
     Color borderColor = AppColors.outline,
+    Color bgColor = AppColors.surfaceCard,
   }) {
     return CustomPaint(
       painter: TicketPassShadowPainter(
@@ -266,7 +262,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             notchRadius: notch,
             notchPositionFraction: 0.5,
           ),
-          child: Material(color: AppColors.surfaceCard, child: child),
+          child: Material(color: bgColor, child: child),
         ),
       ),
     );
@@ -300,7 +296,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   }
 
   /// شارة أيقونة متدرّجة بهوية التذكرة
-  Widget _iconChip(Color color, IconData icon, {double size = 30}) {
+  Widget _iconChip(Color color, IconData icon, {double size = 26}) {
     return Container(
       width: size,
       height: size,
@@ -329,24 +325,25 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     String value,
     IconData icon,
     Color color, {
-    double valueSize = 15.5,
+    double valueSize = 14,
+    Color labelColor = AppColors.slate500,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 2),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 26,
-            height: 26,
+            width: 22,
+            height: 22,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: color.withValues(alpha: 0.26)),
             ),
-            child: Icon(icon, size: 14, color: color),
+            child: Icon(icon, size: 13, color: color),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
           FittedBox(
             fit: BoxFit.scaleDown,
             child: Text(
@@ -368,7 +365,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
               style: AppTypography.cairo(
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
-                color: AppColors.slate500,
+                color: labelColor,
               ),
             ),
           ),
@@ -387,7 +384,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
               width: 3,
               height: 13,
               decoration: BoxDecoration(
-                color: AppColors.primaryBlue,
+                color: _brand,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -432,13 +429,15 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     required double totalBalance,
   }) {
     return _ticketShell(
+      bgColor: AppColors.slate900,
+      borderColor: AppColors.slate700,
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 9),
+            padding: const EdgeInsets.fromLTRB(10, 7, 10, 6),
             child: Row(
               children: [
-                _iconChip(AppColors.primaryBlue, Icons.hub_rounded),
+                _iconChip(_brand, Icons.hub_rounded),
                 const SizedBox(width: 9),
                 Expanded(
                   child: Column(
@@ -453,7 +452,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         style: AppTypography.cairo(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w900,
-                          color: AppColors.slate900,
+                          color: Colors.white,
                         ),
                       ),
                       Text(
@@ -465,7 +464,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         style: AppTypography.technicalCode(
                           fontSize: 8.5,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textMuted,
+                          color: AppColors.slate300,
                           letterSpacing: 0.5,
                         ),
                       ),
@@ -483,7 +482,8 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   'المزودون',
                   '$total',
                   Icons.hub_outlined,
-                  AppColors.primaryBlue,
+                  Colors.white,
+                  labelColor: AppColors.slate300,
                 ),
               ),
               _stripDivider(),
@@ -493,6 +493,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   '$online',
                   Icons.cloud_done_rounded,
                   AppColors.emerald,
+                  labelColor: AppColors.slate300,
                 ),
               ),
               _stripDivider(),
@@ -502,6 +503,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   '$suspended',
                   Icons.power_settings_new_rounded,
                   AppColors.rose,
+                  labelColor: AppColors.slate300,
                 ),
               ),
               _stripDivider(),
@@ -512,28 +514,25 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   Icons.account_balance_wallet_rounded,
                   AppColors.tertiary,
                   valueSize: 13,
+                  labelColor: AppColors.slate300,
                 ),
               ),
             ],
           ),
           _dashedRule(color: AppColors.outline),
           Padding(
-            padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
+            padding: const EdgeInsets.fromLTRB(10, 5, 10, 6),
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryBlue.withValues(
-                    alpha: 0.08,
-                  ),
-                  foregroundColor: AppColors.primaryBlue,
+                  backgroundColor: _brand,
+                  foregroundColor: _ink,
                   elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 10),
+                  padding: const EdgeInsets.symmetric(vertical: 8),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(11),
-                    side: BorderSide(
-                      color: AppColors.primaryBlue.withValues(alpha: 0.28),
-                    ),
+                    side: const BorderSide(color: _brand),
                   ),
                 ),
                 icon: _isCheckingAll
@@ -542,7 +541,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         height: 15,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          color: AppColors.primaryBlue,
+                          color: _ink,
                         ),
                       )
                     : const Icon(Icons.sync_rounded, size: 16),
@@ -567,23 +566,21 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   Widget _buildWebhookInfoCard() {
     final webhookUrl = ApiConstants.virtualNumbersWebhookUrl;
     return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(bottom: 10),
       child: Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              AppColors.primaryBlue.withValues(alpha: 0.08),
+              _brand.withValues(alpha: 0.16),
               AppColors.tertiary.withValues(alpha: 0.04),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: AppColors.primaryBlue.withValues(alpha: 0.25),
-          ),
+          border: Border.all(color: _ink.withValues(alpha: 0.12)),
         ),
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(11),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -593,14 +590,10 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.15),
+                    color: _brand.withValues(alpha: 0.24),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.bolt_rounded,
-                    size: 18,
-                    color: AppColors.primaryBlue,
-                  ),
+                  child: const Icon(Icons.bolt_rounded, size: 18, color: _ink),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -629,7 +622,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   tooltip: 'طريقة الربط',
                   icon: const Icon(
                     Icons.help_outline_rounded,
-                    color: AppColors.primaryBlue,
+                    color: _ink,
                     size: 20,
                   ),
                   onPressed: _showWebhookHelpDialog,
@@ -681,7 +674,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         vertical: 6,
                       ),
                       decoration: BoxDecoration(
-                        color: AppColors.primaryBlue,
+                        color: _ink,
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Row(
@@ -720,7 +713,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            const Icon(Icons.bolt_rounded, color: AppColors.primaryBlue),
+            const Icon(Icons.bolt_rounded, color: _ink),
             const SizedBox(width: 8),
             Text(
               'دليل تفعيل الويب هوك',
@@ -745,7 +738,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
               style: AppTypography.cairo(
                 fontWeight: FontWeight.bold,
                 fontSize: 13,
-                color: AppColors.primaryBlue,
+                color: _ink,
               ),
             ),
             Text(
@@ -789,6 +782,11 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   // ---------------------------------------------------------------------------
   // 2. تذكرة المزود: جسم بالهوية والبيانات وكعب بالرصيد على الحافة
   // ---------------------------------------------------------------------------
+  /// لون هوية ثابت لكل مزود — هاش على معرّفه فيبقى مستقراً عبر التشغيلات
+  /// وترتيب القائمة، ويُطبَّق على تذاكره (الأفاتار/الزر/الهامش/الحافة).
+  Color _accentFor(ProviderModel provider) =>
+      virtualAppAccent(provider.id.isNotEmpty ? provider.id : provider.name);
+
   Widget _buildProviderCard(ProviderModel provider, AdminProvider admin) {
     final bool isOnline = provider.status == 'online';
     final bool isActive = provider.isActive;
@@ -800,14 +798,16 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     final String marginValue = provider.profitMarginType == 'fixed'
         ? '\$${provider.profitMarginValue.toStringAsFixed(2)}'
         : '${provider.profitMarginValue.toStringAsFixed(1)}%';
+    // هوية المزود البصرية: accent ثابت يلوّن الأفاتار والهامش والزر والحافة
+    final Color accent = _accentFor(provider);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 4),
       child: _ticketShell(
         borderColor: !isActive
             ? AppColors.rose.withValues(alpha: 0.45)
             : isOnline
-            ? AppColors.primaryBlue.withValues(alpha: 0.30)
+            ? accent.withValues(alpha: 0.35)
             : AppColors.outline,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -819,7 +819,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   // جسم التذكرة: الهوية + الرابط + بيانات المزود
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
+                      padding: const EdgeInsets.fromLTRB(8, 5, 6, 5),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -827,7 +827,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               _providerAvatar(provider, isOnline),
-                              const SizedBox(width: 11),
+                              const SizedBox(width: 6),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -835,27 +835,21 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                                     Text(
                                       provider.name,
                                       style: AppTypography.cairo(
-                                        fontSize: 14.5,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w800,
                                         color: AppColors.slate900,
                                       ),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                     ),
-                                    const SizedBox(height: 5),
+                                    const SizedBox(height: 3),
                                     // Wrap بدل Row: الشارات تنزل سطرًا عند ضيق المساحة
                                     Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
+                                      spacing: 5,
+                                      runSpacing: 3,
                                       children: [
                                         StatusPill(status: provider.status),
                                         if (!isActive) _buildSuspendedPill(),
-                                        if (provider.lastCheckAt != null)
-                                          _chip(
-                                            Icons.schedule_rounded,
-                                            'آخر فحص ${_clockOf(provider.lastCheckAt!)}',
-                                            AppColors.slate500,
-                                          ),
                                       ],
                                     ),
                                   ],
@@ -863,11 +857,11 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                               ),
                             ],
                           ),
-                          const SizedBox(height: 9),
+                          const SizedBox(height: 4),
                           _urlPill(provider),
-                          const SizedBox(height: 10),
+                          const SizedBox(height: 4),
                           _dashedRule(),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 3),
                           IntrinsicHeight(
                             child: Row(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -880,7 +874,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                                     note: _virtualOnly
                                         ? 'تُطبَّق على أسعار الأرقام'
                                         : 'تُطبَّق على كل المنتجات',
-                                    color: AppColors.primaryBlue,
+                                    color: accent,
                                   ),
                                 ),
                                 SizedBox(
@@ -912,7 +906,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
                           if (provider.lastError != null &&
                               provider.lastError!.isNotEmpty) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             _note(
                               icon: Icons.error_outline_rounded,
                               text: 'تنبيه: ${provider.lastError}',
@@ -922,7 +916,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
                           // تنبيه الإيقاف: كل ما يرتبط بهذا المزود مخفي عن العملاء
                           if (!isActive) ...[
-                            const SizedBox(height: 8),
+                            const SizedBox(height: 6),
                             _note(
                               icon: Icons.visibility_off_rounded,
                               text: _virtualOnly
@@ -957,7 +951,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     color: statusColor.withValues(alpha: 0.07),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 5,
-                      vertical: 10,
+                      vertical: 5,
                     ),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -966,10 +960,10 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                           isOnline
                               ? Icons.link_rounded
                               : Icons.link_off_rounded,
-                          size: 15,
+                          size: 14,
                           color: statusColor,
                         ),
-                        const SizedBox(height: 4),
+                        const SizedBox(height: 3),
                         Text(
                           'الرصيد',
                           maxLines: 1,
@@ -985,7 +979,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                             '\$${provider.balance.toStringAsFixed(2)}',
                             maxLines: 1,
                             style: AppTypography.plusJakartaSans(
-                              fontSize: 13,
+                              fontSize: 12,
                               fontWeight: FontWeight.w900,
                               color: provider.balance <= 0
                                   ? AppColors.rose
@@ -1004,7 +998,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
             // Actions Footer — صفّان: الإجراء الرئيسي + زر التفعيل، ثم أدوات الإدارة
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -1015,12 +1009,12 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryBlue,
+                              backgroundColor: accent,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
-                                vertical: 12,
+                                vertical: 5,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(11),
@@ -1032,7 +1026,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.cairo(
-                                fontSize: 12,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1046,7 +1040,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                             side: const BorderSide(color: AppColors.slate300),
                             padding: const EdgeInsets.symmetric(
                               horizontal: 10,
-                              vertical: 12,
+                              vertical: 5,
                             ),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(11),
@@ -1071,12 +1065,12 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         Expanded(
                           child: ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: AppColors.primaryBlue,
+                              backgroundColor: accent,
                               foregroundColor: Colors.white,
                               elevation: 0,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
-                                vertical: 12,
+                                vertical: 5,
                               ),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(11),
@@ -1091,7 +1085,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: AppTypography.cairo(
-                                fontSize: 12,
+                                fontSize: 11.5,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
@@ -1114,7 +1108,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                         _buildCardIconButton(
                           tooltip: 'مزامنة المنتجات والأسعار',
                           icon: Icons.sync_rounded,
-                          color: AppColors.primaryBlue,
+                          color: accent,
                           onPressed: () async {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
@@ -1182,15 +1176,16 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
 
   /// أفاتار المزود: الحرف الأول داخل شارة متدرّجة بحدّ حالة الاتصال
   Widget _providerAvatar(ProviderModel provider, bool isOnline) {
+    final accent = _accentFor(provider);
     return Container(
-      width: 42,
-      height: 42,
+      width: 28,
+      height: 28,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.primaryBlue.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(12),
+        color: accent.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(9),
         border: Border.all(
-          color: isOnline ? AppColors.emerald : AppColors.outlineVariant,
+          color: isOnline ? accent : AppColors.outlineVariant,
           width: 1.5,
         ),
       ),
@@ -1199,9 +1194,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             ? provider.name.substring(0, 1).toUpperCase()
             : 'P',
         style: AppTypography.cairo(
-          fontSize: 17,
+          fontSize: 13,
           fontWeight: FontWeight.w900,
-          color: AppColors.primaryBlue,
+          color: accent,
         ),
       ),
     );
@@ -1218,7 +1213,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
               'تم نسخ رابط المزود: ${provider.baseUrl}',
               style: AppTypography.cairo(),
             ),
-            backgroundColor: AppColors.primaryBlue,
+            backgroundColor: _ink,
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 2),
           ),
@@ -1226,7 +1221,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
       },
       borderRadius: BorderRadius.circular(8),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
         decoration: BoxDecoration(
           color: AppColors.surfaceDim,
           borderRadius: BorderRadius.circular(8),
@@ -1241,7 +1236,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
               child: Text(
                 provider.baseUrl,
                 style: AppTypography.technicalCode(
-                  fontSize: 10.5,
+                  fontSize: 10,
                   color: AppColors.slate500,
                 ),
                 maxLines: 1,
@@ -1256,37 +1251,6 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     );
   }
 
-  /// شارة بيانات مصغّرة (آخر فحص / حالة) داخل صف الشارات
-  Widget _chip(IconData icon, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: color),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              text,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: AppTypography.cairo(
-                fontSize: 9.5,
-                fontWeight: FontWeight.w700,
-                color: color,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   /// خانة بيانات داخل التذكرة: عنوان صغير + قيمة + ملاحظة
   Widget _metaCell({
     required IconData icon,
@@ -1296,7 +1260,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     required Color color,
   }) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1310,7 +1274,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: AppTypography.cairo(
-                    fontSize: 9.5,
+                    fontSize: 9,
                     fontWeight: FontWeight.w700,
                     color: AppColors.slate500,
                   ),
@@ -1325,7 +1289,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
               value,
               maxLines: 1,
               style: AppTypography.technicalCode(
-                fontSize: 12.5,
+                fontSize: 10,
                 fontWeight: FontWeight.w900,
                 color: color,
               ),
@@ -1356,7 +1320,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     int maxLines = 1,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
         color: background ?? color.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(9),
@@ -1365,13 +1329,13 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 6),
+          Icon(icon, size: 12, color: color),
+          const SizedBox(width: 5),
           Expanded(
             child: Text(
               text,
               style: AppTypography.cairo(
-                fontSize: 10.5,
+                fontSize: 10,
                 height: 1.4,
                 color: color,
               ),
@@ -1383,10 +1347,6 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
       ),
     );
   }
-
-  /// ساعة آخر فحص بصيغة HH:mm
-  String _clockOf(DateTime time) =>
-      '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
 
   /// إظهار آخر أربع خانات من المفتاح فقط — السر لا يُعرض كاملاً
   String _maskKey(String key) {
@@ -1411,8 +1371,8 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
         onTap: () => _confirmToggleProvider(provider, admin),
         borderRadius: BorderRadius.circular(10),
         child: Container(
-          width: 44,
-          height: 44,
+          width: 30,
+          height: 30,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(10),
@@ -1422,7 +1382,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
             isActive
                 ? Icons.power_settings_new_rounded
                 : Icons.play_circle_fill_rounded,
-            size: 20,
+            size: 16,
             color: color,
           ),
         ),
@@ -1439,17 +1399,17 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   }) {
     return IconButton(
       tooltip: tooltip,
-      icon: Icon(icon, size: 19, color: color),
+      icon: Icon(icon, size: 16, color: color),
       onPressed: onPressed,
       padding: EdgeInsets.zero,
       visualDensity: VisualDensity.compact,
-      constraints: const BoxConstraints.tightFor(width: 38, height: 38),
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
     );
   }
 
   Widget _buildSuspendedPill() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
       decoration: BoxDecoration(
         color: AppColors.errorContainer,
         borderRadius: BorderRadius.circular(8),
@@ -1650,7 +1610,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _iconChip(
-              _virtualOnly ? AppColors.tertiary : AppColors.primaryBlue,
+              _virtualOnly ? AppColors.tertiary : _ink,
               _virtualOnly ? Icons.sim_card_rounded : Icons.hub_outlined,
               size: 52,
             ),
@@ -1688,7 +1648,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                 style: AppTypography.cairo(fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryBlue,
+                backgroundColor: _ink,
                 foregroundColor: Colors.white,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(

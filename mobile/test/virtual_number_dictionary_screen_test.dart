@@ -180,8 +180,11 @@ class _DictVn extends VirtualNumbersProvider {
   Future<String?> updateAdminApp(
     String id, {
     String? name,
+    String? serviceCode,
     String? iconUrl,
     int? sortOrder,
+    bool? isActive,
+    String? providerId,
   }) async {
     updatedApps.add(id);
     return 'تم تحديث التطبيق';
@@ -193,6 +196,8 @@ class _DictVn extends VirtualNumbersProvider {
     required String serviceCode,
     String? providerId,
     String? iconUrl,
+    bool? isActive,
+    int? sortOrder,
   }) async {
     lastCreateApp = {'name': name, 'serviceCode': serviceCode};
     return 'تم إنشاء التطبيق';

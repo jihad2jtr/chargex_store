@@ -580,6 +580,8 @@ class VirtualNumbersProvider extends ChangeNotifier {
     required String serviceCode,
     String? providerId,
     String? iconUrl,
+    bool? isActive,
+    int? sortOrder,
   }) => _curationAction(
     ApiConstants.adminVirtualNumberApps,
     method: 'POST',
@@ -588,6 +590,8 @@ class VirtualNumbersProvider extends ChangeNotifier {
       'serviceCode': serviceCode,
       if (providerId != null && providerId.isNotEmpty) 'providerId': providerId,
       if (iconUrl != null && iconUrl.isNotEmpty) 'iconUrl': iconUrl,
+      'isActive': ?isActive,
+      'sortOrder': ?sortOrder,
     },
     fallback: 'تم إنشاء التطبيق',
   );
@@ -595,12 +599,22 @@ class VirtualNumbersProvider extends ChangeNotifier {
   Future<String?> updateAdminApp(
     String id, {
     String? name,
+    String? serviceCode,
     String? iconUrl,
     int? sortOrder,
+    bool? isActive,
+    String? providerId,
   }) => _curationAction(
     '${ApiConstants.adminVirtualNumberApps}/$id',
     method: 'PATCH',
-    body: {'name': ?name, 'iconUrl': ?iconUrl, 'sortOrder': ?sortOrder},
+    body: {
+      'name': ?name,
+      'serviceCode': ?serviceCode,
+      'iconUrl': ?iconUrl,
+      'sortOrder': ?sortOrder,
+      'isActive': ?isActive,
+      'providerId': ?providerId,
+    },
     fallback: 'تم تحديث التطبيق',
   );
 

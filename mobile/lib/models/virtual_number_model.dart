@@ -715,6 +715,10 @@ class VirtualNumberDictionaryEntry {
   /// رمز الخدمة وأيقونة الوثاقة المخزّنة: شاشة المعجم تُعدّل التطبيق بها
   final String serviceCode;
   final String iconUrl;
+
+  /// حالة تفعيل الوثاقة وترتيبها: تُبذر محرّر التطبيق ليعدّل كل بياناتها
+  final bool isActive;
+  final int sortOrder;
   final int productCount;
 
   /// المعجم المركزي: رموز كل مزود الأصلية، ومرادفات، والمصدر، وحالة المراجعة
@@ -735,6 +739,8 @@ class VirtualNumberDictionaryEntry {
     this.appName = '',
     this.serviceCode = '',
     this.iconUrl = '',
+    this.isActive = true,
+    this.sortOrder = 0,
     this.productCount = 0,
     this.codes = const {},
     this.aliases = const [],
@@ -755,6 +761,8 @@ class VirtualNumberDictionaryEntry {
         appName: (json['appName'] ?? '').toString(),
         serviceCode: (json['serviceCode'] ?? '').toString(),
         iconUrl: (json['iconUrl'] ?? '').toString(),
+        isActive: json['isActive'] != false,
+        sortOrder: _num(json['sortOrder']).toInt(),
         productCount: _num(json['productCount']).toInt(),
         codes: _stringMap(json['codes']),
         aliases: _stringList(json['aliases']),
@@ -776,6 +784,8 @@ class VirtualNumberDictionaryEntry {
         appName: appName,
         serviceCode: serviceCode,
         iconUrl: iconUrl,
+        isActive: isActive,
+        sortOrder: sortOrder,
         productCount: productCount,
         codes: codes,
         aliases: aliases,

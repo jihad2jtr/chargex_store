@@ -243,6 +243,8 @@ class _SeededVn extends VirtualNumbersProvider {
     required String serviceCode,
     String? providerId,
     String? iconUrl,
+    bool? isActive,
+    int? sortOrder,
   }) async {
     lastCreateApp = {
       'name': name,
