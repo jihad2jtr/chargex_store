@@ -1528,7 +1528,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                             children: [
                                               Text(
                                                 order.isDelivered
-                                                    ? 'تم تسليم النتيجة! اضغط للمراجعة والتأكيد'
+                                                    ? 'تم تسليم النتيجة! اضغط للمراجعة'
                                                     : (order.isDisputed
                                                           ? 'اعتراض قيد المعالجة من الإدارة'
                                                           : 'خدمة يدوية بإشراف مشرف مختص'),

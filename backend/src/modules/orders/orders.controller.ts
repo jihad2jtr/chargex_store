@@ -34,10 +34,8 @@ export class OrdersController {
     return this.ordersService.getMyOrders(user._id.toString());
   }
 
-  @Post(':id/customer-confirm')
-  async confirmOrder(@Param('id') id: string, @CurrentUser() user: UserDocument) {
-    return this.ordersService.customerConfirmOrder(id, user);
-  }
+  // تأكيد الإتمام وإغلاق الطلب لم يعد عميلاً: نقل إلى supervisor-complete
+  // لأن مقدّم الخدمة هو من يؤكد إنجاز العملية (طلب المستخدم)
 
   @Post(':id/customer-revision')
   async requestRevision(
@@ -86,11 +84,12 @@ export class OrdersController {
     return this.ordersService.supervisorRejectOrder(id, user, reason || 'اعتذار عن التنفيذ');
   }
 
-  @Post(':id/supervisor-start')
+  // القبول يبدأ التنفيذ مباشرة — لا خطوة «بدء تنفيذ» منفصلة
+  @Post(':id/supervisor-complete')
   @UseGuards(RolesGuard)
   @Roles(Role.SUPERVISOR, Role.ADMIN)
-  async supervisorStartOrder(@Param('id') id: string, @CurrentUser() user: UserDocument) {
-    return this.ordersService.supervisorStartOrder(id, user);
+  async supervisorCompleteOrder(@Param('id') id: string, @CurrentUser() user: UserDocument) {
+    return this.ordersService.supervisorCompleteOrder(id, user);
   }
 
   @Post(':id/supervisor-request-info')

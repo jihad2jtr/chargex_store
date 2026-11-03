@@ -192,6 +192,8 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
   }
 
   void _sendMessage() async {
+    // الدردشة مقفلة على العميل بعد إغلاق الطلب (حارس مزدوج مع الواجهة)
+    if (_chatClosedForOwner) return;
     final text = _messageCtrl.text.trim();
     if (text.isEmpty) return;
 
@@ -237,95 +239,30 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
     }
   }
 
-  // التثبيت لمقدّم الخدمة فقط: الأدمن أو المشرف المسند له تنفيذ الطلب
+  // التثبيت لمقدّم الخدمة فقط: الأدمن أو المشرف المسند له تنفيذ الطلب،
+  // ولا يظهر مطلقاً لصاحب الطلب (العميل) حتى لو حمل حسابه رتبة وظيفية
   bool get _canPin {
+    if (_isOrderOwner) return false;
     final auth = Provider.of<AuthProvider>(context, listen: false);
     if (auth.isAdmin) return true;
     return auth.isSupervisor &&
         _currentOrder.assignedSupervisorId == auth.currentUser?.id;
   }
 
-  // --- Customer Confirm Receipt ---
-  void _confirmReceipt() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            const Icon(
-              Icons.check_circle_rounded,
-              color: AppColors.emerald,
-              size: 24,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'تأكيد استلام الخدمة',
-              style: AppTypography.cairo(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-          ],
-        ),
-        content: Text(
-          'هل أنت متأكد من استلام الخدمة ورضاك عنها بالكامل؟\n\nعند التأكيد سيتم إغلاق الطلب بنجاح، ولأسباب الأمان سيتم حذف البيانات السرية تلقائياً من خوادمنا لحماية خصوصيتك.',
-          style: AppTypography.cairo(
-            fontSize: 13,
-            height: 1.5,
-            color: AppColors.slate600,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'إلغاء',
-              style: AppTypography.cairo(color: AppColors.slate500),
-            ),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.emerald,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
-            ),
-            onPressed: () async {
-              Navigator.pop(ctx);
-              final provider = Provider.of<ManualServicesProvider>(
-                context,
-                listen: false,
-              );
-              final ok = await provider.customerConfirmOrder(_currentOrder.id);
-              if (ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text(
-                      'تم تأكيد استلام الخدمة وإغلاق الطلب بنجاح ✅',
-                    ),
-                    backgroundColor: AppColors.emerald,
-                  ),
-                );
-                Provider.of<AppCatalogProvider>(
-                  context,
-                  listen: false,
-                ).fetchMyOrders();
-                Navigator.pop(context);
-              }
-            },
-            child: Text(
-              'نعم، تأكيد الاستلام',
-              style: AppTypography.cairo(fontWeight: FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
+  // صاحب الطلب: العميل الذي أنشأه — إجراءات العميل لا تُبنى لغيره،
+  // وخيارات الموظف (التثبيت) لا تُبنى له حتى لو كان موظفاً يتفقد طلبه
+  bool get _isOrderOwner {
+    final myId = Provider.of<AuthProvider>(
+      context,
+      listen: false,
+    ).currentUser?.id;
+    return myId != null && myId.isNotEmpty && _currentOrder.userId == myId;
   }
+
+  // انتهى الطلب وأُغلق من مقدّم الخدمة: تُقفل الدردشة في وجه العميل
+  // (الموظفان يبقى لهما حق التوثيق في الأرشيف)
+  bool get _chatClosedForOwner =>
+      _isOrderOwner && (_currentOrder.isCompleted || _currentOrder.isRefunded);
 
   // --- Customer Request Revision ---
   void _openRevisionDialog() {
@@ -1031,7 +968,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'تم حذف البيانات السرية تلقائياً من النظام بعد تأكيدك للاستلام لحماية أمانك.',
+                      'تم حذف البيانات السرية تلقائياً من النظام بعد إغلاق الطلب لحماية أمانك.',
                       style: AppTypography.cairo(
                         fontSize: 12,
                         color: AppColors.slate500,
@@ -1548,12 +1485,18 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                       ),
                     ),
                     const SizedBox(width: 5),
-                    Text(
-                      subtitle,
-                      style: AppTypography.cairo(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.slate500,
+                    // Flexible لا Text عارياً: العنوان الفرعي يطول على
+                    // الشاشات الضيقة فيفيض صفُّ النقطة ويُصرخ RenderFlex
+                    Flexible(
+                      child: Text(
+                        subtitle,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.slate500,
+                        ),
                       ),
                     ),
                   ],
@@ -1965,8 +1908,12 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
           ),
         ),
 
-        // Chat Input Bar (بنمط واتساب)
-        Container(
+        // Chat Input Bar (بنمط واتساب): يُستبدل بإشعار إغلاق في وجه العميل
+        // بعد انتهاء الطلب؛ المشرف والأدمن يبقيان للتوثيق في الأرشيف
+        if (_chatClosedForOwner)
+          _buildClosedChatBar()
+        else
+          Container(
           padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -2139,7 +2086,10 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
   }
 
   // --- Bottom Action Buttons for Customer ---
+  // لصاحب الطلب فقط وبما بقي له: مراجعة النتيجة بتعديل أو اعتراض —
+  // زر «تأكيد الاستلام» أُزيل، فإغلاق الطلب صار من تأكيد مقدّم الخدمة
   Widget? _buildBottomActions() {
+    if (!_isOrderOwner) return null;
     if (_currentOrder.status == 'delivered') {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -2147,93 +2097,95 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
           color: Colors.white,
           border: Border(top: BorderSide(color: AppColors.outline)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+        child: Row(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.emerald,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    icon: const Icon(Icons.check_circle_rounded, size: 20),
-                    label: Text(
-                      'تأكيد الاستلام وإغلاق الطلب ✅',
-                      style: AppTypography.cairo(fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: _confirmReceipt,
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.ticketAmber,
+                  side: const BorderSide(color: AppColors.ticketAmber),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                icon: const Icon(
+                  Icons.refresh,
+                  size: 18,
+                  color: AppColors.ticketAmber,
+                ),
+                label: Text(
+                  'طلب تعديل',
+                  style: AppTypography.cairo(
+                    color: AppColors.ticketAmber,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-              ],
+                onPressed: _openRevisionDialog,
+              ),
             ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.ticketAmber,
-                      side: const BorderSide(color: AppColors.ticketAmber),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                    icon: const Icon(
-                      Icons.refresh,
-                      size: 18,
-                      color: AppColors.ticketAmber,
-                    ),
-                    label: Text(
-                      'طلب تعديل',
-                      style: AppTypography.cairo(
-                        color: AppColors.ticketAmber,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onPressed: _openRevisionDialog,
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.rose,
+                  side: const BorderSide(color: AppColors.rose),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 10),
+                ),
+                icon: const Icon(
+                  Icons.report_problem,
+                  size: 18,
+                  color: AppColors.rose,
+                ),
+                label: Text(
+                  'فتح اعتراض',
+                  style: AppTypography.cairo(
+                    color: AppColors.rose,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.rose,
-                      side: const BorderSide(color: AppColors.rose),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                    ),
-                    icon: const Icon(
-                      Icons.report_problem,
-                      size: 18,
-                      color: AppColors.rose,
-                    ),
-                    label: Text(
-                      'فتح اعتراض',
-                      style: AppTypography.cairo(
-                        color: AppColors.rose,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    onPressed: _openDisputeDialog,
-                  ),
-                ),
-              ],
+                onPressed: _openDisputeDialog,
+              ),
             ),
           ],
         ),
       );
     }
     return null;
+  }
+
+  /// شريط يستبدل حقل الكتابة في وجه العميل بعد إغلاق الطلب
+  Widget _buildClosedChatBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: AppColors.outline)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.lock_outline_rounded,
+            size: 16,
+            color: AppColors.slate500,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'انتهى الطلب وأغلقه مقدّم الخدمة — الدردشة مغلقة.',
+              style: AppTypography.cairo(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: AppColors.slate500,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

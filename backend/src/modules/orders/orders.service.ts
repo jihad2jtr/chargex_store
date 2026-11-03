@@ -1218,13 +1218,16 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('لا يمكن قبول الطلب في حالته الحالية');
     }
 
-    order.status = OrderStatus.ACCEPTED;
+    // القبول يبدأ التنفيذ مباشرة: لا خطوة «بدء تنفيذ» منفصلة عند المشرف —
+    // زر «قبول الخدمة» وحده يكفل الانتقال إلى قيد التنفيذ
+    order.status = OrderStatus.IN_PROGRESS;
     order.acceptedAt = new Date();
+    order.startedAt = new Date();
 
     order.timeline.push({
       action: 'accepted',
-      title: 'قبل المشرف الطلب',
-      description: `قام المشرف ${supervisor.name} بقبول الطلب والاستعداد للبدء في تنفيذه`,
+      title: 'قبل مقدّم الخدمة الطلب وشرع في التنفيذ',
+      description: `قام ${supervisor.name} بقبول الطلب والبدء في تنفيذه مباشرة`,
       performerId: supervisor._id,
       performerName: supervisor.name,
       performerRole: 'supervisor',
@@ -1236,13 +1239,13 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     // Notify customer
     await this.notificationsService.createNotification({
       userId: order.userId.toString(),
-      title: 'تم قبول طلبك من قبل المشرف 👨‍💻',
-      body: `قبل المشرف طلبك #${order.orderNumber} لخدمة ${(order.productId as any)?.name || 'الخدمة'} وجاري البدء.`,
+      title: 'تم قبول طلبك وشرع المشرف في التنفيذ 👨‍💻',
+      body: `قبل مقدّم الخدمة طلبك #${order.orderNumber} لخدمة ${(order.productId as any)?.name || 'الخدمة'} وجاري التنفيذ.`,
       type: 'order_status',
-      data: { orderId: order._id.toString(), status: 'accepted' },
+      data: { orderId: order._id.toString(), status: 'in_progress' },
     });
 
-    return { message: 'تم قبول الطلب بنجاح', order };
+    return { message: 'تم قبول الطلب والبدء في تنفيذه', order };
   }
 
   // Supervisor rejects order (with reason)
@@ -1289,45 +1292,6 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     });
 
     return { message: 'تم تسجيل اعتذار المشرف وسيتم إشعار الإدارة لإعادة الإسناد', order };
-  }
-
-  // Supervisor starts execution
-  async supervisorStartOrder(orderId: string, supervisor: UserDocument) {
-    const order = await this.orderModel.findById(orderId).populate('productId', 'name');
-    if (!order) throw new NotFoundException('الطلب غير موجود');
-
-    if (
-      order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
-      supervisor.role !== 'admin'
-    ) {
-      throw new ForbiddenException('هذا الطلب غير مسند إليك');
-    }
-
-    order.status = OrderStatus.IN_PROGRESS;
-    order.startedAt = new Date();
-
-    order.timeline.push({
-      action: 'started',
-      title: 'بدأ المشرف في تنفيذ الخدمة',
-      description: `بدأ المشرف ${supervisor.name} العمل على الطلب`,
-      performerId: supervisor._id,
-      performerName: supervisor.name,
-      performerRole: 'supervisor',
-      timestamp: new Date(),
-    });
-
-    await order.save();
-
-    // Notify customer
-    await this.notificationsService.createNotification({
-      userId: order.userId.toString(),
-      title: 'طلبك قيد التنفيذ الآن ⚙️',
-      body: `بدأ المشرف في تنفيذ وتجهيز طلبك #${order.orderNumber}.`,
-      type: 'order_status',
-      data: { orderId: order._id.toString(), status: 'in_progress' },
-    });
-
-    return { message: 'تم بدء تنفيذ الطلب بنجاح', order };
   }
 
   // Supervisor requests additional info/files from customer
@@ -1405,7 +1369,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
     order.status = OrderStatus.DELIVERED;
     order.deliveredAt = new Date();
-    order.resultNotes = data.resultNotes || 'تم تنفيذ الخدمة بنجاح، يرجى مراجعة التفاصيل وتأكيد الاستلام';
+    order.resultNotes = data.resultNotes || 'تم تنفيذ الخدمة بنجاح، يرجى مراجعة النتيجة؛ تأكيد الإنهاء وإغلاق الطلب يتمان من مقدّم الخدمة';
     order.resultAttachments = data.attachments || [];
 
     // Encrypt sensitive credentials securely using AES-256
@@ -1416,7 +1380,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     order.timeline.push({
       action: 'delivered',
       title: 'تم تسليم نتيجة الخدمة إلى العميل',
-      description: 'أنهى المشرف العمل وسلّم تفاصيل النتيجة وبانتظار تأكيد العميل وإغلاق الطلب',
+      description: 'أنهى المشرف العمل وسلّم تفاصيل النتيجة، وبانتظار تأكيد الإنهاء من مقدّم الخدمة لإغلاق الطلب',
       performerId: supervisor._id,
       performerName: supervisor.name,
       performerRole: 'supervisor',
@@ -1428,30 +1392,34 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     // Notify customer (ensure no raw credentials leaked in notification text!)
     await this.notificationsService.createNotification({
       userId: order.userId.toString(),
-      title: 'تم تسليم طلبك بنجاح! يرجى المراجعة والتأكيد 🎉',
-      body: `انتهى المشرف من تنفيذ طلبك #${order.orderNumber}. يرجى الدخول لمراجعة تفاصيل النتيجة وتأكيد الاستلام.`,
+      title: 'تم تسليم نتيجة طلبك! يرجى المراجعة 🎉',
+      body: `انتهى المشرف من تنفيذ طلبك #${order.orderNumber}. راجع النتيجة، وإن يلزمك طلب تعديل أو اعتراض؛ أما إغلاق الطلب فيتم بعد تأكيد مقدّم الخدمة.`,
       type: 'order_delivered',
       data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
     });
 
-    return { message: 'تم تسليم النتيجة للعميل بنجاح وبانتظار تأكيده', order };
+    return { message: 'تم تسليم النتيجة للعميل', order };
   }
 
   // --- 4. Customer Workflows ---
-  // Customer confirms receipt & closes order (auto purges sensitive credentials)
-  async customerConfirmOrder(orderId: string, user: UserDocument) {
+  // مقدّم الخدمة وحده من يؤكد إتمام العملية ويغلق الطلب (بعد التسليم) —
+  // العميل لم يعد يملك زر تأكيد؛ الإغلاق للموظف المنفّذ أو الإدارة
+  async supervisorCompleteOrder(orderId: string, supervisor: UserDocument) {
     const order = await this.orderModel
       .findById(orderId)
       .populate('productId', 'name')
       .populate('assignedSupervisorId', 'name');
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
-    if (order.userId.toString() !== user._id.toString()) {
-      throw new ForbiddenException('لا تملك صلاحية تأكيد هذا الطلب');
+    if (
+      order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+      supervisor.role !== 'admin'
+    ) {
+      throw new ForbiddenException('هذا الطلب غير مسند إليك');
     }
 
     if (order.status !== OrderStatus.DELIVERED) {
-      throw new BadRequestException('لا يمكن تأكيد الطلب قبل تسليمه من المشرف');
+      throw new BadRequestException('لا يمكن تأكيد إتمام الطلب قبل تسليم النتيجة');
     }
 
     order.status = OrderStatus.COMPLETED;
@@ -1466,29 +1434,29 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
     order.timeline.push({
       action: 'confirmed',
-      title: 'أكد العميل استلام الخدمة ورضاه عنها',
-      description: 'تم إغلاق الطلب بنجاح بعد موافقة العميل وتأكيد استلامه',
-      performerId: user._id,
-      performerName: user.name,
-      performerRole: 'customer',
+      title: 'أكد مقدّم الخدمة إتمام الطلب وأغلقه',
+      description: 'تم إغلاق الطلب بنجاح بعد تأكيد مقدّم الخدمة على إنجاز العملية',
+      performerId: supervisor._id,
+      performerName: supervisor.name,
+      performerRole: 'supervisor',
       timestamp: new Date(),
     });
 
     await order.save();
 
-    // Notify Supervisor
-    if (order.assignedSupervisorId) {
-      await this.notificationsService.createNotification({
-        userId: (order.assignedSupervisorId as any)._id?.toString() || order.assignedSupervisorId.toString(),
-        forRole: 'supervisor',
-        title: 'تم تأكيد استلام الطلب من العميل ✅',
-        body: `قام العميل بتأكيد استلام الطلب #${order.orderNumber} لخدمة ${(order.productId as any)?.name} وتم إغلاق الطلب بنجاح.`,
-        type: 'order_confirmed',
-        data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
-      });
-    }
+    // Notify customer that their order was finalized and closed
+    await this.notificationsService.createNotification({
+      userId: order.userId.toString(),
+      title: 'تم إغلاق طلبك بعد تأكيد الإنهاء ✅',
+      body: `أكد مقدّم الخدمة إتمام الطلب #${order.orderNumber} لخدمة ${(order.productId as any)?.name} وتم إغلاقه بنجاح.`,
+      type: 'order_confirmed',
+      data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
+    });
 
-    return { message: 'شكراً لك! تم تأكيد استلام الخدمة وإغلاق الطلب بنجاح', order };
+    // الطلب انتهى: أخرج المشرف من قائمة الإسناد إن لم يبقَ لديه ما يُنفَّذ
+    await this.usersService.reconcileSupervisorRole(supervisor._id);
+
+    return { message: 'تم تأكيد إتمام الطلب وإغلاقه بنجاح', order };
   }
 
   // Customer requests revision
@@ -1793,6 +1761,14 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException('لا تملك صلاحية إرسال رسائل في هذا الطلب');
     }
 
+    // الدردشة تنتهي بانتهاء الطلب: العميل لا يراسل بعد الإغلاق،
+    // بينما يبقى لمقدّم الخدمة والإدارة حق التوثيق في الأرشيف
+    const orderEnded =
+      order.status === OrderStatus.COMPLETED || order.status === OrderStatus.REFUNDED;
+    if (isBuyer && orderEnded) {
+      throw new ForbiddenException('انتهى الطلب — الدردشة مغلقة بعد إغلاقه');
+    }
+
     const senderRole = isAdmin ? 'admin' : isSupervisor ? 'supervisor' : 'user';
 
     // التثبيت حق لمقدّم الخدمة (مشرف مسند أو أدمن) لا للعميل: الرسالة المثبتة
@@ -1873,7 +1849,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       return {
         isPurged: true,
         purgedAt: order.purgedAt,
-        message: 'تم حذف البيانات السرية تلقائياً بعد تأكيد الاستلام لحماية أمان حسابك',
+        message: 'تم حذف البيانات السرية تلقائياً بعد إغلاق الطلب لحماية أمان حسابك',
         credentials: null,
       };
     }

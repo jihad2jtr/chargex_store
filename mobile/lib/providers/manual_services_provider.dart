@@ -119,10 +119,11 @@ class ManualServicesProvider extends ChangeNotifier {
     }
   }
 
-  // Supervisor: Start execution
-  Future<bool> supervisorStartOrder(String orderId) async {
+  // Supervisor: Confirm completion and close the delivered order —
+  // مقدّم الخدمة وحده من يغلق الطلب بعد التسليم (لم يعد للعميل زر تأكيد)
+  Future<bool> supervisorCompleteOrder(String orderId) async {
     try {
-      await _api.post('${ApiConstants.orders}/$orderId/supervisor-start');
+      await _api.post('${ApiConstants.orders}/$orderId/supervisor-complete');
       await fetchSupervisorOrders();
       return true;
     } catch (e) {
@@ -178,17 +179,8 @@ class ManualServicesProvider extends ChangeNotifier {
   }
 
   // --- Customer Actions ---
-  // Customer confirms receipt & closes order (triggers auto-purge of secret data)
-  Future<bool> customerConfirmOrder(String orderId) async {
-    try {
-      await _api.post('${ApiConstants.orders}/$orderId/customer-confirm');
-      return true;
-    } catch (e) {
-      _errorMessage = e.toString();
-      notifyListeners();
-      return false;
-    }
-  }
+  // ملاحظة: تأكيد الاستلام أُزيل من جانب العميل — الإغلاق يتم من
+  // مقدّم الخدمة عبر supervisorCompleteOrder بعد تسليم النتيجة
 
   // Customer requests revision
   Future<bool> customerRequestRevision(

@@ -20,7 +20,6 @@ import 'supervisor_services_screen.dart';
 /// هوية الخدمات الحساسة (مشفّرة) — لا يوجد رمز لوني بنفسجي في AppColors،
 /// ويُعرَّف هنا على مستوى الملف حتى تستخدمه كتلة بيانات العميل أيضاً.
 const Color _violet = Color(0xFF7C3AED);
-const Color _violetSoft = Color(0xFFEDE9FE);
 
 class SupervisorDashboardScreen extends StatefulWidget {
   const SupervisorDashboardScreen({super.key});
@@ -1153,7 +1152,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     if (order.isCompleted) {
       return _note(
         icon: Icons.check_circle_rounded,
-        text: 'تم استلام وتأكيد الطلب من العميل وإغلاقه بنجاح.',
+        text: 'تم تأكيد الإنهاء من مقدّم الخدمة وإغلاق الطلب بنجاح.',
         color: AppColors.tertiaryLight,
         background: AppColors.tertiaryContainer,
         border: AppColors.tertiary.withValues(alpha: 0.3),
@@ -1286,24 +1285,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           child: const Text('قبول الطلب'),
         ),
       );
-    } else if (status == 'accepted') {
-      actions.add(
-        ElevatedButton.icon(
-          onPressed: () => _startOrder(order),
-          icon: const Icon(Icons.play_arrow_rounded, size: 18),
-          label: const Text('بدء التنفيذ'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.secondaryBright,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-        ),
-      );
-    } else if (status == 'in_progress' || status == 'revision_requested') {
+    } else if (
+      status == 'in_progress' ||
+      status == 'revision_requested' ||
+      // القبول الآن يبدأ التنفيذ مباشرة؛ يبقى «accepted» لطلبات قديمة في القاعدة
+      status == 'accepted'
+    ) {
       actions.add(
         OutlinedButton(
           onPressed: () => _showRequestInfoDialog(order),
@@ -1343,11 +1330,22 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         ),
       );
     } else if (status == 'delivered') {
+      // الإغلاق من مقدّم الخدمة لا من العميل: زر تأكيد الإنهاء يستبدل
+      // ملاحظة «بانتظار تأكيد العميل» التي كانت تُعلّق الطلب على ردّ العميل
       actions.add(
-        _inlineStatusNote(
-          'تم التسليم - بانتظار تأكيد العميل',
-          _violet,
-          _violetSoft,
+        ElevatedButton.icon(
+          onPressed: () => _completeOrder(order),
+          icon: const Icon(Icons.verified_rounded, size: 16),
+          label: const Text('تأكيد الإنهاء وإغلاق الطلب'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.tertiaryLight,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
         ),
       );
     }
@@ -1392,7 +1390,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('تم قبول الطلب بنجاح! يمكنك الآن بدء التنفيذ'),
+          content: Text('تم قبول الطلب والبدء في تنفيذه'),
         ),
       );
     } else {
@@ -1402,20 +1400,22 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     }
   }
 
-  void _startOrder(OrderModel order) async {
+  /// تأكيد الإنهاء بعد التسليم: مقدّم الخدمة هو من يغلق الطلب (نيابة عن
+  /// زر «تأكيد الاستلام» الذي أُزيل من جانب العميل)
+  void _completeOrder(OrderModel order) async {
     final provider = Provider.of<ManualServicesProvider>(
       context,
       listen: false,
     );
-    final ok = await provider.supervisorStartOrder(order.id);
+    final ok = await provider.supervisorCompleteOrder(order.id);
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('تم بدء تنفيذ الطلب بنجاح')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تم تأكيد الإنهاء وإغلاق الطلب ✅')),
+      );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(provider.errorMessage ?? 'تعذر بدء التنفيذ')),
+        SnackBar(content: Text(provider.errorMessage ?? 'تعذر إغلاق الطلب')),
       );
     }
   }
@@ -1807,7 +1807,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           SnackBar(
             content: Text(
               ok
-                  ? 'تم تسليم الخدمة بنجاح إلى العميل وبانتظار تأكيده'
+                  ? 'تم تسليم الخدمة بنجاح إلى العميل وبانتظار تأكيد الإنهاء من مقدّم الخدمة'
                   : (provider.errorMessage ?? 'تعذر تسليم الخدمة'),
               style: AppTypography.cairo(),
             ),

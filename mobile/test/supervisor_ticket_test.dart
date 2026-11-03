@@ -574,11 +574,13 @@ void main() {
       // عناصر التذييل ما زالت تُقرأ وتلمَس على أضيق عرض بعد فرد التذاكر
       await _expandTickets(w, 2);
       expect(find.text('خدماتي المسندة'), findsOneWidget, reason: '$width dp');
+      // الإغلاق صار من مقدّم الخدمة: زر تأكيد الإنهاء حلّ محل ملاحظة الانتظار
       expect(
-        find.text('تم التسليم - بانتظار تأكيد العميل'),
+        find.text('تأكيد الإنهاء وإغلاق الطلب'),
         findsOneWidget,
         reason: '$width dp',
       );
+      expect(find.text('تم التسليم - بانتظار تأكيد العميل'), findsNothing);
       expect(find.text('تسليم النتيجة'), findsOneWidget, reason: '$width dp');
       expect(
         find.text('long.customer.email@example-domain.com'),
