@@ -33,7 +33,6 @@ class VirtualNumbersProvider extends ChangeNotifier {
   List<VirtualNumberDictReview> _reviewQueue = const [];
   VirtualNumberImportReport? _lastImportReport;
 
-
   // لوحة مراقبة الجودة: صفوف المنتجات + ورقة تفاصيل المنتج المختار
   VirtualNumberQualityBoard _qualityBoard = VirtualNumberQualityBoard.empty();
   VirtualNumberQualityDetail? _qualityDetail;
@@ -789,7 +788,9 @@ class VirtualNumbersProvider extends ChangeNotifier {
       notifyListeners();
     }
     try {
-      final res = await _api.get(ApiConstants.adminVirtualNumberDictionaryReview);
+      final res = await _api.get(
+        ApiConstants.adminVirtualNumberDictionaryReview,
+      );
       _reviewQueue = (res is List)
           ? res
                 .whereType<Map>()

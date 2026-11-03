@@ -108,7 +108,9 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
         SnackBar(
           backgroundColor: AppColors.emerald,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           content: Row(
             children: [
               const Icon(Icons.done_all_rounded, color: Colors.white, size: 18),
@@ -254,7 +256,10 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
         actions: [
           Padding(
             padding: const EdgeInsets.only(left: 8),
-            child: StatusPill(status: request.status, label: request.statusLabel),
+            child: StatusPill(
+              status: request.status,
+              label: request.statusLabel,
+            ),
           ),
           const SizedBox(width: 6),
         ],
@@ -345,10 +350,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
         children: [
           Row(
             children: [
-              Text(
-                request.flag,
-                style: const TextStyle(fontSize: 20),
-              ),
+              Text(request.flag, style: const TextStyle(fontSize: 20)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -560,7 +562,8 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
   // ===========================================================================
   Widget _smsTextCard(VirtualNumberRequestModel request) {
     final smsText = request.smsText;
-    if (smsText == null || smsText.trim().isEmpty) return const SizedBox.shrink();
+    if (smsText == null || smsText.trim().isEmpty)
+      return const SizedBox.shrink();
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -572,11 +575,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.sms_rounded,
-            size: 16,
-            color: AppColors.emerald,
-          ),
+          const Icon(Icons.sms_rounded, size: 16, color: AppColors.emerald),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -592,7 +591,11 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
             onTap: () => _copy(smsText, 'نص الرسالة'),
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(Icons.copy_rounded, size: 15, color: AppColors.slate500),
+              child: Icon(
+                Icons.copy_rounded,
+                size: 15,
+                color: AppColors.slate500,
+              ),
             ),
           ),
         ],
@@ -638,7 +641,11 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
     final numberReady = request.phoneNumber != null;
     final steps = <(String, String, bool)>[
       ('الخصم', '\$${request.amount.toStringAsFixed(2)} من رصيدك', true),
-      ('تجهيز الرقم', numberReady ? 'الرقم جاهز لديك' : 'لحظات عند المزود', numberReady),
+      (
+        'تجهيز الرقم',
+        numberReady ? 'الرقم جاهز لديك' : 'لحظات عند المزود',
+        numberReady,
+      ),
       ('وصول الرمز', 'يُرصد ويُعرض هنا تلقائياً', request.hasCode),
     ];
 
@@ -654,7 +661,11 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
         children: [
           Row(
             children: [
-              const Icon(Icons.timeline_rounded, size: 16, color: AppColors.slate600),
+              const Icon(
+                Icons.timeline_rounded,
+                size: 16,
+                color: AppColors.slate600,
+              ),
               const SizedBox(width: 6),
               Text(
                 'كيف يعمل؟',
@@ -682,9 +693,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
                   height: 12,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: step.$3
-                        ? AppColors.emerald
-                        : AppColors.slate100,
+                    color: step.$3 ? AppColors.emerald : AppColors.slate100,
                     border: Border.all(
                       color: step.$3 ? AppColors.emerald : AppColors.slate600,
                       width: 1.5,
@@ -704,9 +713,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
                   style: AppTypography.cairo(
                     fontSize: 11.5,
                     fontWeight: FontWeight.w800,
-                    color: step.$3
-                        ? AppColors.slate900
-                        : AppColors.slate600,
+                    color: step.$3 ? AppColors.slate900 : AppColors.slate600,
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -795,9 +802,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
       child: OutlinedButton.icon(
         style: OutlinedButton.styleFrom(
           foregroundColor: AppColors.rose,
-          side: BorderSide(
-            color: AppColors.rose.withValues(alpha: 0.4),
-          ),
+          side: BorderSide(color: AppColors.rose.withValues(alpha: 0.4)),
           padding: const EdgeInsets.symmetric(vertical: 13),
         ),
         onPressed: _cancelling ? null : () => _cancelNumber(request),
@@ -900,8 +905,8 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
   }
 
   void _goTopup() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const TopupScreen()),
-    );
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute(builder: (_) => const TopupScreen()));
   }
 }

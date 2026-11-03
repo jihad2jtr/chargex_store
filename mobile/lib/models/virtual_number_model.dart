@@ -426,6 +426,7 @@ class VirtualNumberRequestModel {
   /// سبب الإدارة الداخلي: يُقرأ في اللوحة وحدها، فلا يظهر في سجل العميل
   final String adminNote;
   final DateTime? expiresAt;
+
   /// موعد إباحة إلغاء العميل: قبله يبقى الرقم محجوزاً لدى المزود ولا يُرجَع
   final DateTime? cancelAfterAt;
   final DateTime? codeReceivedAt;

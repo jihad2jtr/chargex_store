@@ -207,11 +207,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
           // عدّات الخدمات والدول والمهلة ليست قراراً يتخذه العميل
           // القسم الأول: خدمة يدوية يُنفّذها مشرف مقابل تفعيل مضمون
           ..._buildGuaranteedSection(provider),
-          _buildSectionHeader(
-            'اختر الخدمة',
-            'ACTIVATE',
-            AppColors.ticketAmber,
-          ),
+          _buildSectionHeader('اختر الخدمة', 'ACTIVATE', AppColors.ticketAmber),
           const SizedBox(height: 10),
           _buildServicesArea(provider),
           const SizedBox(height: 18),
@@ -826,7 +822,6 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     );
     return message != null;
   }
-
 }
 
 /// شريط رقم جارٍ مختصر: يُلمح بحالة الرقم ووقته، والضغط يفتح صفحة الانتظار
@@ -890,9 +885,7 @@ class _ActiveNumberStrip extends StatelessWidget {
                       style: AppTypography.technicalCode(
                         fontSize: 11,
                         fontWeight: FontWeight.w800,
-                        color: hasCode
-                            ? AppColors.emerald
-                            : AppColors.slate600,
+                        color: hasCode ? AppColors.emerald : AppColors.slate600,
                       ),
                     ),
                   ],
