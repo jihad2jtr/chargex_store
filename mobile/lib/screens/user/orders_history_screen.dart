@@ -14,6 +14,7 @@ import '../../widgets/app_thumb.dart';
 import '../../widgets/status_pill.dart';
 import 'app_products_screen.dart';
 import 'manual_order_details_screen.dart';
+import 'virtual_number_wait_screen.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
   final bool showAppBar;
@@ -145,9 +146,9 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     final numbers = Provider.of<VirtualNumbersProvider>(context);
     final allOrders = catalog.myOrders;
 
-    // سجل الأرقام الوهمية مدمج في «طلباتي»: الرقم الحيّ يُدار من صفحة
-    // الأرقام، وهنا تُعرض الأرقام المنتهية كتذاكر مثل بقية الطلبات.
-    final numberHistory = numbers.myRequests.where((r) => !r.isLive).toList()
+    // سجل الأرقام الوهمية مدمج في «طلباتي»: الرقم الحيّ يظهر هنا أيضاً،
+    // والضغط عليه يفتح صفحة انتظاره الخاصة بدل الطيّ كالمُنتهية.
+    final numberHistory = numbers.myRequests.toList()
       ..sort(
         (a, b) =>
             (b.createdAt ?? DateTime(0)).compareTo(a.createdAt ?? DateTime(0)),
@@ -300,10 +301,15 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         } else if (_selectedFilter == 'rejected') {
           if (!order.isRejected && !order.isDisputed) return false;
         }
-      } else {
-        // الأرقام: الرقم المنتهي لا يُعدّ قيد الانتظار/مرفوضاً في الفلترة اليدوية
-        if (_selectedFilter == 'pending' || _selectedFilter == 'manual') {
+      } else if (row case _NumberHistoryRow(:final request)) {
+        // الأرقام: الحيّ منها هو «قيد الانتظار»، والمنتهي لا يدخل فلاتر
+        // القائمة اليدوية، ولا يُعدّ مكتملاً ولا مرفوضاً
+        if (_selectedFilter == 'pending') {
+          if (!request.isLive) return false;
+        } else if (_selectedFilter == 'manual') {
           return false;
+        } else {
+          if (request.isLive) return false;
         }
       }
     }
@@ -1831,6 +1837,19 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     });
   }
 
+  /// الرقم الحيّ ملكه صفحة الانتظار: تفتح من «طلباتي» أيضاً، والعودة منها
+  /// لا تُسقط الطلب ولا توقف رصد الرموز
+  void _openNumberWait(VirtualNumberRequestModel request) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VirtualNumberWaitScreen(
+          requestId: request.id,
+          initialRequest: request,
+        ),
+      ),
+    );
+  }
+
   /// أيقونة الخدمة: من سجل الأيقونات المربعة باسم الخدمة، وإلا سلسلة فارغة
   /// فيستعمل AppThumb رمزه الافتراضي
   AppItemModel _numberAppItem(VirtualNumberRequestModel r) {
@@ -1940,6 +1959,11 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
 
   Widget _buildNumberTicket(VirtualNumberRequestModel request, String dateStr) {
     final bool open = _isNumberOpen(request);
+    // الحيّ لا يُطوى ولا يُفرَد هنا: الضغط ينقل إلى صفحة انتظاره
+    final bool live = request.isLive;
+    final VoidCallback halfTap = live
+        ? () => _openNumberWait(request)
+        : () => _toggleNumberTicket(request);
     final pill = _numberPill(request);
     final Color borderColor = pill.fg.withValues(alpha: 0.25);
     final String phone = request.phoneNumber ?? '';
@@ -1953,7 +1977,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           _ticketSection(
             top: true,
             borderColor: borderColor,
-            onTap: () => _toggleNumberTicket(request),
+            onTap: halfTap,
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(11, 9, 8, 4),
@@ -2060,15 +2084,22 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                       ),
                     ),
                     const SizedBox(width: 2),
-                    AnimatedRotation(
-                      turns: open ? 0.5 : 0,
-                      duration: const Duration(milliseconds: 180),
-                      child: const Icon(
-                        Icons.expand_more_rounded,
-                        size: 17,
+                    if (live)
+                      const Icon(
+                        Icons.chevron_left_rounded,
+                        size: 18,
                         color: Color(0xFF94A3B8),
+                      )
+                    else
+                      AnimatedRotation(
+                        turns: open ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 180),
+                        child: const Icon(
+                          Icons.expand_more_rounded,
+                          size: 17,
+                          color: Color(0xFF94A3B8),
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -2077,7 +2108,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           _ticketSection(
             top: false,
             borderColor: borderColor,
-            onTap: () => _toggleNumberTicket(request),
+            onTap: halfTap,
             children: [
               Padding(
                 padding: EdgeInsets.fromLTRB(11, 6, 11, open ? 10 : 9),

@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/constants/app_icon_assets.dart';
@@ -13,8 +12,8 @@ import '../../providers/auth_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/digital_pass_card.dart';
-import '../../widgets/status_pill.dart';
 import 'topup_screen.dart';
+import 'virtual_number_wait_screen.dart';
 
 /// صفحة الأرقام الوهمية: بدل صفحة «شحن الاشتراكات».
 /// الاختلاف الجوهري عن بقية المشتريات أن الرمز يصل بعد ثوانٍ أو دقائق، فالصفحة
@@ -142,7 +141,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
 
   /// عدّاد الثواني يعمل فقط أثناء وجود مهلة جارية (لا مؤقّت بلا حاجة)
   void _syncTicker() {
-    final needsTicker = _provider?.activeRequest != null;
+    final needsTicker = _provider?.activeRequests.isNotEmpty == true;
     if (needsTicker && !_tickerRunning) {
       _tickerRunning = true;
       _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
@@ -165,7 +164,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<VirtualNumbersProvider>();
-    final active = provider.activeRequest;
+    final actives = provider.activeRequests;
 
     final body = RefreshIndicator(
       onRefresh: _refreshAll,
@@ -180,34 +179,42 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
         children: [
           if (provider.errorMessage != null &&
               provider.options.services.isEmpty &&
-              active == null) ...[
+              actives.isEmpty) ...[
             _buildAlert(provider.errorMessage!),
             const SizedBox(height: 14),
           ],
-          if (active != null) ...[
-            _buildSectionHeader('رقمك النشط', 'LIVE NUMBER', _headerAccent),
-            const SizedBox(height: 10),
-            _LiveNumberPass(
-              request: active,
-              waitMinutes: provider.options.waitMinutes,
-              onCopy: _copy,
-              onClose: () => _closeActive(active),
-            ),
-            const SizedBox(height: 18),
-          ] else ...[
-            // بلا شريط علوي: الصفحة تبدأ مباشرة بـ«تفعيل مضمون» ثم التطبيقات —
-            // عدّات الخدمات والدول والمهلة ليست قراراً يتخذه العميل
-            // القسم الأول: خدمة يدوية يُنفّذها مشرف مقابل تفعيل مضمون
-            ..._buildGuaranteedSection(provider),
+          // شريط الأرقام الجارية — صغير ولا يحجب الكتالوج: العميل يتابع
+          // شراءه وهو ينتظر رمزه، ولكل رقم صفحة انتظاره الخاصة
+          if (actives.isNotEmpty) ...[
             _buildSectionHeader(
-              'اختر الخدمة',
-              'ACTIVATE',
-              AppColors.ticketAmber,
+              'أرقامك الجارية',
+              '${actives.length} LIVE',
+              _headerAccent,
             ),
             const SizedBox(height: 10),
-            _buildServicesArea(provider),
-            const SizedBox(height: 18),
+            ...actives.map(
+              (request) => Padding(
+                padding: const EdgeInsets.only(bottom: 9),
+                child: _ActiveNumberStrip(
+                  request: request,
+                  onTap: () => _openWaitScreen(request),
+                ),
+              ),
+            ),
+            const SizedBox(height: 14),
           ],
+          // بلا شريط علوي: الصفحة تبدأ مباشرة بـ«تفعيل مضمون» ثم التطبيقات —
+          // عدّات الخدمات والدول والمهلة ليست قراراً يتخذه العميل
+          // القسم الأول: خدمة يدوية يُنفّذها مشرف مقابل تفعيل مضمون
+          ..._buildGuaranteedSection(provider),
+          _buildSectionHeader(
+            'اختر الخدمة',
+            'ACTIVATE',
+            AppColors.ticketAmber,
+          ),
+          const SizedBox(height: 10),
+          _buildServicesArea(provider),
+          const SizedBox(height: 18),
           // سجل الأرقام الوهمية لم يعد منعزلاً هنا: هو مدمج في «طلباتي»
         ],
       ),
@@ -238,10 +245,10 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   // بطاقات الصفحة
   // ---------------------------------------------------------------------------
 
-  /// لون شريط عنوان «رقمك النشط»: أخضر عند وصول الرمز وإلا ذهبي
+  /// لون شريط عنوان «أرقامك الجارية»: أخضر عند وصول الرمز وإلا ذهبي
   Color get _headerAccent {
-    final active = _provider?.activeRequest;
-    return active != null && active.hasCode
+    final actives = _provider?.activeRequests ?? const [];
+    return actives.any((a) => a.hasCode)
         ? AppColors.emerald
         : AppColors.ticketAmber;
   }
@@ -565,23 +572,13 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   // الإجراءات
   // ---------------------------------------------------------------------------
 
-  void _copy(String value, String label) {
-    if (value.isEmpty) return;
-    Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        duration: const Duration(seconds: 2),
-        backgroundColor: AppColors.slate800,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-          'تم نسخ $label',
-          style: AppTypography.cairo(fontSize: 12.5, color: Colors.white),
-        ),
-      ),
-    );
-  }
-
   Future<void> _openCountrySheet(VirtualNumberServiceOption service) async {
+    // معرّفات الأرقام الجارية قبل الشراء: الجديد وحده يملك صفحة الانتظار
+    final beforeIds = context
+        .read<VirtualNumbersProvider>()
+        .myRequests
+        .map((r) => r.id)
+        .toSet();
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -596,7 +593,31 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
         onSubmit: (country, offer) => _submit(service, country, offer),
       ),
     );
-    if (mounted) context.read<VirtualNumbersProvider>().startAutoPolling();
+    if (!mounted) return;
+    final provider = context.read<VirtualNumbersProvider>();
+    provider.startAutoPolling();
+    // الشراء ينجح من داخل النافذة التي تُغلق نفسها: التنقل هنا يكون
+    // والصفحة هي أقرب Scaffold، وإلا قفزت الصفحة القديمة أمام الانتظار
+    VirtualNumberRequestModel? created;
+    for (final r in provider.myRequests) {
+      if (r.isLive && !beforeIds.contains(r.id)) {
+        created = r;
+        break;
+      }
+    }
+    if (created != null) _openWaitScreen(created);
+  }
+
+  /// صفحة انتظار الرمز: مستقلة، والعودة منها لا تلغي الرقم ولا توقف رصد الرموز
+  void _openWaitScreen(VirtualNumberRequestModel request) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => VirtualNumberWaitScreen(
+          requestId: request.id,
+          initialRequest: request,
+        ),
+      ),
+    );
   }
 
   /// نافذة طلب خدمة يدوية (تفعيل مضمون): تُجمع الحقول المطلوبة ثم يُرسل
@@ -806,499 +827,111 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     return message != null;
   }
 
-  Future<void> _closeActive(VirtualNumberRequestModel request) async {
-    final provider = context.read<VirtualNumbersProvider>();
-    final gotCode = request.hasCode;
-
-    final go = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(gotCode ? 'إغلاق الرقم' : 'إلغاء الرقم'),
-        content: Text(
-          gotCode
-              ? 'سيُغلق الرقم بعد استلام الرمز. لا يُرجع المبلغ لأن الخدمة سُلّمت.'
-              : 'لم يصل رمز بعد — يُلغى الرقم حالياً ويُرجع المبلغ \$${request.amount.toStringAsFixed(2)} إلى رصيدك.',
-          style: AppTypography.cairo(fontSize: 12.5, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('تراجع'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: Text(gotCode ? 'إغلاق' : 'إلغاء واسترجاع'),
-          ),
-        ],
-      ),
-    );
-    if (go != true) return;
-
-    final message = await provider.closeRequest(request.id);
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-          message ?? provider.errorMessage ?? 'تعذّر إغلاق الرقم',
-          style: AppTypography.cairo(fontSize: 12.5, color: Colors.white),
-        ),
-      ),
-    );
-    await context.read<WalletProvider>().fetchBalance();
-  }
 }
 
-// =============================================================================
-// بطاقة الرقم الحيّ: الرقم للنسخ، العدّاد، ثم الرمز عندما يصل
-// =============================================================================
-
-class _LiveNumberPass extends StatelessWidget {
+/// شريط رقم جارٍ مختصر: يُلمح بحالة الرقم ووقته، والضغط يفتح صفحة الانتظار
+class _ActiveNumberStrip extends StatelessWidget {
   final VirtualNumberRequestModel request;
-  final int waitMinutes;
-  final void Function(String value, String label) onCopy;
-  final VoidCallback onClose;
+  final VoidCallback onTap;
 
-  const _LiveNumberPass({
-    required this.request,
-    required this.waitMinutes,
-    required this.onCopy,
-    required this.onClose,
-  });
+  const _ActiveNumberStrip({required this.request, required this.onTap});
 
-  String _countdown() {
+  String _clock() {
     final left = request.remainingSeconds();
     if (left == null) return '—';
-    final minutes = (left / 60).floor();
-    final seconds = left % 60;
-    return '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+    final m = (left / 60).floor();
+    final s = left % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   @override
   Widget build(BuildContext context) {
     final hasCode = request.hasCode;
-    final accent = hasCode ? AppColors.emerald : AppColors.ticketAmber;
+    final tone = hasCode ? AppColors.emerald : AppColors.ticketAmber;
+    final detail = hasCode
+        ? (request.smsCode ?? '')
+        : (request.phoneNumber ?? 'جارٍ تجهيز الرقم…');
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: accent.withValues(alpha: 0.5), width: 1.4),
-        boxShadow: [
-          BoxShadow(
-            color: accent.withValues(alpha: 0.12),
-            blurRadius: 16,
-            offset: const Offset(0, 5),
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: tone.withValues(alpha: 0.45), width: 1.3),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // شريط الحالة العلوي
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppColors.slate900, AppColors.slate800],
-                begin: Alignment.centerRight,
-                end: Alignment.centerLeft,
-              ),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(17)),
-            ),
-            child: Row(
-              children: [
-                if (request.flag.isNotEmpty) ...[
-                  Text(request.flag, style: const TextStyle(fontSize: 16)),
-                  const SizedBox(width: 7),
-                ],
-                Expanded(
-                  child: Text(
-                    // الاسم الوهمي للسيرفر الذي باع الرقم: يبقى العميل يعرف من
-                    // أين جاءه الرقم دون أي إشارة إلى المزود الحقيقي
-                    '${request.title} • ${request.countryName}'
-                    '${request.serverLabel.isNotEmpty ? ' • ${request.serverLabel}' : ''}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.cairo(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                StatusPill(status: request.status, label: request.statusLabel),
-              ],
-            ),
-          ),
-
-          _perforation(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 4, 12, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _numberRow(),
-                const SizedBox(height: 10),
-                if (hasCode) ...[
-                  _codePanel(request.smsCode!, request.smsText),
-                ] else
-                  _waitingPanel(),
-                if (request.note.isNotEmpty) ...[
-                  const SizedBox(height: 9),
-                  Text(
-                    request.note,
-                    style: AppTypography.cairo(
-                      fontSize: 10.5,
-                      color: AppColors.slate500,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 11),
-                Row(
+          child: Row(
+            children: [
+              Text(request.flag, style: const TextStyle(fontSize: 18)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () =>
-                            onCopy(request.phoneNumber ?? '', 'الرقم'),
-                        icon: const Icon(Icons.copy_rounded, size: 16),
-                        label: const Text('نسخ الرقم'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: AppColors.slate900,
-                          side: const BorderSide(color: AppColors.slate300),
-                        ),
+                    Text(
+                      '${request.title} • ${request.countryName}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.slate900,
                       ),
                     ),
-                    const SizedBox(width: 9),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: onClose,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: hasCode
-                              ? AppColors.emerald
-                              : AppColors.slate700,
-                        ),
-                        icon: Icon(
-                          hasCode
-                              ? Icons.check_circle_rounded
-                              : Icons.close_rounded,
-                          size: 16,
-                        ),
-                        label: Text(hasCode ? 'تم — إغلاق' : 'إلغاء واسترجاع'),
+                    const SizedBox(height: 2),
+                    Text(
+                      hasCode ? 'الرمز: $detail' : detail,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.technicalCode(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: hasCode
+                            ? AppColors.emerald
+                            : AppColors.slate600,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _numberRow() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 11),
-      decoration: BoxDecoration(
-        color: AppColors.slate100,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.slate300),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  request.phoneNumber == null
-                      ? 'جارٍ تجهيز الرقم…'
-                      : 'أدخل هذا الرقم في التطبيق',
-                  style: AppTypography.cairo(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.slate500,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  request.phoneNumber ?? '— — —',
-                  style: AppTypography.technicalCode(
-                    color: AppColors.slate900,
-                    fontSize: 17,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          _countdownGauge(),
-        ],
-      ),
-    );
-  }
-
-  /// مدّة النافذة الكاملة بالثواني لحساب نسبة المقياس الدائري
-  int _totalSeconds() {
-    final end = request.expiresAt;
-    if (end == null) return waitMinutes * 60;
-    final start = request.hasCode ? request.codeReceivedAt : request.createdAt;
-    final span = start == null ? 0 : end.difference(start).inSeconds;
-    return span > 0 ? span : waitMinutes * 60;
-  }
-
-  /// مقياس دائري للمهلة: الطوق يتقلّص مع الوقت والرقم في المركز
-  Widget _countdownGauge() {
-    final left = request.remainingSeconds() ?? 0;
-    final total = _totalSeconds();
-    final progress = total > 0 ? (left / total).clamp(0.0, 1.0) : 0.0;
-    final urgent = left <= 120 && !request.hasCode;
-    final tone = request.hasCode
-        ? AppColors.emerald
-        : (urgent ? AppColors.rose : AppColors.ticketAmber);
-
-    return SizedBox(
-      width: 62,
-      height: 62,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          SizedBox(
-            width: 62,
-            height: 62,
-            child: CircularProgressIndicator(
-              value: progress,
-              strokeWidth: 5,
-              strokeCap: StrokeCap.round,
-              backgroundColor: tone.withValues(alpha: 0.16),
-              valueColor: AlwaysStoppedAnimation<Color>(tone),
-            ),
-          ),
-          Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _countdown(),
-                style: AppTypography.technicalCode(
-                  color: AppColors.slate900,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: 0.4,
-                ),
               ),
-              Text(
-                request.hasCode ? 'نافذة العرض' : 'متبقٍ',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.cairo(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.slate500,
-                ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    _clock(),
+                    style: AppTypography.technicalCode(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                      color: tone,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    hasCode ? 'اضغط للرمز' : 'بانتظار الرمز',
+                    style: AppTypography.cairo(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.slate500,
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _waitingPanel() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFFFFBEB),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.ticketAmberLight),
-      ),
-      child: Row(
-        children: [
-          const SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.4,
-              color: AppColors.ticketAmber,
-            ),
-          ),
-          const SizedBox(width: 11),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'بانتظار وصول رسالة التحقق…',
-                  style: AppTypography.cairo(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.onSecondaryContainer,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'يظهر الرمز هنا تلقائياً خلال دقائق، وإن مرّت $waitMinutes دقيقة بلا رمز يُرجع المبلغ لرصيدك.',
-                  style: AppTypography.cairo(
-                    fontSize: 10.5,
-                    height: 1.5,
-                    color: AppColors.slate600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _codePanel(String code, String? smsText) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFFECFDF5), Color(0xFFD1FAE5)],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.emerald.withValues(alpha: 0.45)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
               const Icon(
-                Icons.mark_email_read_rounded,
-                size: 17,
-                color: AppColors.tertiaryLight,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'رمز التحقق وصل',
-                style: AppTypography.cairo(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.onTertiaryContainer,
-                ),
-              ),
-              const Spacer(),
-              IconButton(
-                visualDensity: VisualDensity.compact,
-                tooltip: 'نسخ الرمز',
-                onPressed: () => onCopy(code, 'الرمز'),
-                icon: const Icon(
-                  Icons.copy_all_rounded,
-                  size: 18,
-                  color: AppColors.tertiaryLight,
-                ),
+                Icons.chevron_left_rounded,
+                size: 18,
+                color: AppColors.slate400,
               ),
             ],
           ),
-          const SizedBox(height: 2),
-          SelectableText(
-            code,
-            textAlign: TextAlign.center,
-            style: AppTypography.technicalCode(
-              color: AppColors.slate900,
-              fontSize: 30,
-              fontWeight: FontWeight.w900,
-              letterSpacing: 7,
-            ),
-          ),
-          const SizedBox(height: 2),
-          // رمز يبقى معروضاً ما بقيت نافذة الرقم الحيّ: التنبيه في المقياس الدائري
-          Text(
-            'انسخ الرمز قبل انتهاء المهلة',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: AppTypography.cairo(
-              fontSize: 10,
-              fontWeight: FontWeight.w700,
-              color: AppColors.slate500,
-            ),
-          ),
-          if (smsText != null && smsText.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              smsText,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              style: AppTypography.cairo(
-                fontSize: 10,
-                height: 1.45,
-                color: AppColors.slate600,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  /// خط تمزّق التذكرة: حزّتان على الجانبين يصل بينهما خط متقطّع
-  Widget _perforation() {
-    const hole = 12.0;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: SizedBox(
-        height: hole,
-        child: Row(
-          children: [
-            _hole(hole),
-            Expanded(
-              child: CustomPaint(
-                painter: _DashedLinePainter(),
-                child: const SizedBox(height: hole),
-              ),
-            ),
-            _hole(hole),
-          ],
         ),
       ),
     );
   }
-
-  Widget _hole(double size) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        shape: BoxShape.circle,
-      ),
-    );
-  }
-}
-
-/// خط أفقي متقطّع رفيع يفصل رأس التذكرة عن متنها
-class _DashedLinePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.slate200
-      ..strokeWidth = 1.4
-      ..strokeCap = StrokeCap.round;
-    const dash = 4.0;
-    const gap = 4.0;
-    var x = 0.0;
-    while (x < size.width) {
-      canvas.drawLine(
-        Offset(x, size.height / 2),
-        Offset(x + dash, size.height / 2),
-        paint,
-      );
-      x += dash + gap;
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 // =============================================================================

@@ -84,7 +84,12 @@ class VirtualNumbersProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
   String? get infoMessage => _infoMessage;
 
-  /// الرقم الحيّ المعروض في أعلى الصفحة (طلب واحد فقط لكل عميل)
+  /// الأرقام الحيّة بكل طلباتها: الشراء المتعدد مسموح بسقف الخادم،
+  /// وكل واحد منها له صفحة انتظار تُفتح من هنا أو من «طلباتي»
+  List<VirtualNumberRequestModel> get activeRequests =>
+      _myRequests.where((r) => r.isLive).toList();
+
+  /// الرقم الحيّ المعروض في أعلى الصفحة (أحدثها إن تعددت)
   VirtualNumberRequestModel? get activeRequest {
     for (final request in _myRequests) {
       if (request.isLive) return request;

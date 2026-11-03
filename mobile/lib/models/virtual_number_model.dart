@@ -426,6 +426,8 @@ class VirtualNumberRequestModel {
   /// سبب الإدارة الداخلي: يُقرأ في اللوحة وحدها، فلا يظهر في سجل العميل
   final String adminNote;
   final DateTime? expiresAt;
+  /// موعد إباحة إلغاء العميل: قبله يبقى الرقم محجوزاً لدى المزود ولا يُرجَع
+  final DateTime? cancelAfterAt;
   final DateTime? codeReceivedAt;
   final DateTime? refundedAt;
   final DateTime? createdAt;
@@ -462,6 +464,7 @@ class VirtualNumberRequestModel {
     this.note = '',
     this.adminNote = '',
     this.expiresAt,
+    this.cancelAfterAt,
     this.codeReceivedAt,
     this.refundedAt,
     this.createdAt,
@@ -498,6 +501,7 @@ class VirtualNumberRequestModel {
       note: (json['note'] ?? '').toString(),
       adminNote: (json['adminNote'] ?? '').toString(),
       expiresAt: _date(json['expiresAt']),
+      cancelAfterAt: _date(json['cancelAfterAt']),
       codeReceivedAt: _date(json['codeReceivedAt']),
       refundedAt: _date(json['refundedAt']),
       createdAt: _date(json['createdAt']),
@@ -569,6 +573,26 @@ class VirtualNumberRequestModel {
     final reference = now ?? DateTime.now();
     final left = end.difference(reference).inSeconds;
     return left > 0 ? left : 0;
+  }
+
+  /// هل بلغ العميل حق الإلغاء؟ مع وصول الرمز لا إلغاء أصلاً (يُنهى الطلب)
+  bool get canCancelNow => !hasCode && _cancelCutoffPassed(DateTime.now());
+
+  bool _cancelCutoffPassed(DateTime now) {
+    final cancelAt = cancelAfterAt;
+    // خادم بلا الحقل (إصدار أقدم): لا منع — الإلغاء متاح كما كان
+    if (cancelAt == null) return true;
+    return !cancelAt.isAfter(now);
+  }
+
+  /// ثوانٍ حتى إباحة الإلغاء، أو null إن أُبِيح الآن
+  int? cancelWaitRemaining([DateTime? now]) {
+    if (hasCode) return null;
+    final cancelAt = cancelAfterAt;
+    if (cancelAt == null) return null;
+    final reference = now ?? DateTime.now();
+    final left = cancelAt.difference(reference).inSeconds;
+    return left > 0 ? left : null;
   }
 }
 

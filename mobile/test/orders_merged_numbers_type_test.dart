@@ -12,7 +12,9 @@ import 'package:layan_chargex/models/order_model.dart';
 import 'package:layan_chargex/models/virtual_number_model.dart';
 import 'package:layan_chargex/providers/app_catalog_provider.dart';
 import 'package:layan_chargex/providers/virtual_numbers_provider.dart';
+import 'package:layan_chargex/providers/wallet_provider.dart';
 import 'package:layan_chargex/screens/user/orders_history_screen.dart';
+import 'package:layan_chargex/screens/user/virtual_number_wait_screen.dart';
 
 class _BlockedHttpOverrides extends HttpOverrides {
   @override
@@ -117,6 +119,8 @@ Future<void> _pump(
         ChangeNotifierProvider<VirtualNumbersProvider>(
           create: (_) => _SeededNumbers(numbers),
         ),
+        // صفحة انتظار الرقم الحيّ تقرأ المحفظة لتقرير زر «شراء رقم آخر»
+        ChangeNotifierProvider<WalletProvider>(create: (_) => WalletProvider()),
       ],
       child: MaterialApp(
         home: Directionality(
@@ -183,6 +187,45 @@ void main() {
     expect(find.textContaining('VN #VN-AAA'), findsOneWidget);
 
     expect(w.takeException(), isNull);
+  });
+
+  testWidgets('رقم حيّ في «طلباتي»: يُدرج والضغط يفتح صفحة انتظاره لا الطي', (
+    w,
+  ) async {
+    final live = VirtualNumberRequestModel(
+      id: 'live1',
+      requestNumber: 'VN-LIVE',
+      service: 'telegram',
+      serviceName: 'Telegram',
+      countryName: 'مصر',
+      amount: 0.5,
+      status: 'waiting',
+      isLive: true,
+      phoneNumber: '2015550007777',
+      createdAt: DateTime.now().subtract(const Duration(minutes: 2)),
+      expiresAt: DateTime.now().add(const Duration(minutes: 13)),
+    );
+    await _pump(
+      w,
+      orders: orders,
+      numbers: <VirtualNumberRequestModel>[live, ...numbers],
+    );
+
+    // الحيّ يُعرض مع المنتهية: لم يعد مفقوداً من «طلباتي»
+    expect(find.text('Telegram'), findsOneWidget);
+    expect(find.textContaining('VN #VN-LIVE'), findsOneWidget);
+
+    // الضغط على تذكرة الحيّ ينقل إلى صفحة انتظاره المستقلة
+    await w.tap(find.textContaining('VN #VN-LIVE'));
+    await w.pump();
+    await w.pump(const Duration(milliseconds: 400));
+    expect(find.byType(VirtualNumberWaitScreen), findsOneWidget);
+    expect(find.text('انتظار الرمز'), findsOneWidget);
+    // بذرة بلا cancelAfterAt (خادم قديم): زر الإلغاء ظاهر كما كان مسموحاً
+    expect(find.textContaining('إلغاء الرقم واسترجاع'), findsOneWidget);
+
+    await w.pumpWidget(const SizedBox());
+    await w.pump(const Duration(milliseconds: 400));
   });
 
   testWidgets('فلتر الحالة يُطبَّق على الطلبات والأرقام معاً', (w) async {

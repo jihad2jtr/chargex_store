@@ -11,6 +11,7 @@ import 'package:layan_chargex/providers/app_catalog_provider.dart';
 import 'package:layan_chargex/providers/auth_provider.dart';
 import 'package:layan_chargex/providers/virtual_numbers_provider.dart';
 import 'package:layan_chargex/providers/wallet_provider.dart';
+import 'package:layan_chargex/screens/user/virtual_number_wait_screen.dart';
 import 'package:layan_chargex/screens/user/virtual_numbers_screen.dart';
 import 'package:layan_chargex/widgets/digital_pass_card.dart';
 import 'package:provider/provider.dart';
@@ -385,7 +386,7 @@ void main() {
     _expectNoOverflow(w);
   });
 
-  testWidgets('الرقم الحيّ يستبدل الشبكة ويعرض العدّاد ولوحة الانتظار', (
+  testWidgets('الرقم الحيّ شريط مختصر والكتالوج يبقى متاحاً للشراء التالي', (
     WidgetTester w,
   ) async {
     await _pumpPage(
@@ -401,22 +402,52 @@ void main() {
       ],
     );
 
-    expect(find.text('رقمك النشط'), findsOneWidget);
-    expect(find.text('اختر الخدمة'), findsNothing);
+    expect(find.text('أرقامك الجارية'), findsOneWidget);
+    expect(find.text('1 LIVE'), findsOneWidget);
     expect(find.text('2015550007777'), findsOneWidget);
-    expect(find.text('أدخل هذا الرقم في التطبيق'), findsOneWidget);
-    expect(find.text('بانتظار وصول رسالة التحقق…'), findsOneWidget);
-    expect(find.text('متبقٍ'), findsOneWidget);
-    // لم يصل الرمز: زر الإلغاء هو خيار استرجاع المبلغ
-    expect(find.text('إلغاء واسترجاع'), findsOneWidget);
+    expect(find.text('بانتظار الرمز'), findsOneWidget);
+    // لم تعد الصفحة تحتكر الرقم: شبكة الخدمات تبقى تحت الشريط الجاري
+    expect(find.text('اختر الخدمة'), findsOneWidget);
+    // الإلغاء لم يعد في صفحة الأرقام: لكل رقم صفحة انتظاره الخاصة
+    expect(find.text('إلغاء واسترجاع'), findsNothing);
     expect(find.text('تم — إغلاق'), findsNothing);
-    expect(find.text('نسخ الرقم'), findsOneWidget);
 
     _expectNoOverflow(w);
     await _teardown(w);
   });
 
-  testWidgets('وصول الرمز يعرضه في الصفحة بدل لوحة الانتظار', (
+  testWidgets('الضغط على شريط الرقم الحيّ يفتح صفحة انتظاره المستقلة', (
+    WidgetTester w,
+  ) async {
+    await _pumpPage(
+      w,
+      options: _catalog,
+      requests: <Map<String, dynamic>>[
+        _request(
+          id: 'live',
+          status: 'waiting',
+          isLive: true,
+          expiresIn: const Duration(minutes: 5),
+        ),
+      ],
+    );
+
+    await w.tap(find.text('بانتظار الرمز'));
+    await w.pump();
+    await w.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(VirtualNumberWaitScreen), findsOneWidget);
+    expect(find.text('انتظار الرمز'), findsOneWidget);
+    expect(find.text('متبقٍ'), findsOneWidget);
+    expect(find.text('كيف يعمل؟'), findsOneWidget);
+    // بذرة بلا cancelAfterAt (خادم قديم): الإلغاء مسموح فوراً كما كان
+    expect(find.textContaining('إلغاء الرقم واسترجاع'), findsOneWidget);
+
+    _expectNoOverflow(w);
+    await _teardown(w);
+  });
+
+  testWidgets('وصول الرمز ينعكس في الشريط، وصفحة الانتظار تعرضه لنسخه', (
     WidgetTester w,
   ) async {
     await _pumpPage(
@@ -434,11 +465,20 @@ void main() {
       ],
     );
 
-    expect(find.text('رمز التحقق وصل'), findsOneWidget);
-    expect(find.widgetWithText(SelectableText, '481920'), findsOneWidget);
+    // الشريط المختصر يحمل الرمز بدل لوحة الانتظار القديمة
+    expect(find.text('الرمز: 481920'), findsOneWidget);
+    expect(find.text('اضغط للرمز'), findsOneWidget);
     expect(find.text('بانتظار وصول رسالة التحقق…'), findsNothing);
+    expect(find.text('اختر الخدمة'), findsOneWidget);
+
+    await w.tap(find.text('اضغط للرمز'));
+    await w.pump();
+    await w.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(VirtualNumberWaitScreen), findsOneWidget);
+    expect(find.widgetWithText(SelectableText, '481920'), findsOneWidget);
     expect(find.text('نافذة العرض'), findsOneWidget);
-    expect(find.text('تم — إغلاق'), findsOneWidget);
+    expect(find.text('تم — إغلاق الرقم'), findsOneWidget);
 
     _expectNoOverflow(w);
     await _teardown(w);

@@ -133,7 +133,12 @@ function visibleOperators(
 // كم من الوقت يبقى الكتالوج المخزّن صالحاً قبل إعادة جلبه من المزود
 const CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
 // مهلة انتظار رمز التحقق: بعدها يُلغى الرقم ويُرجع المبلغ تلقائياً
-const DEFAULT_WAIT_TTL_MINUTES = 20;
+const DEFAULT_WAIT_TTL_MINUTES = 15;
+// أقل مدة انتظار قبل إلغاء العميل المسموح: قبلها يبقى الرقم محجوزاً لدى المزود
+// والإلغاء المبكر يُهدر الأرقام بلا مقابل
+const DEFAULT_CANCEL_CUTOFF_MINUTES = 10;
+// سقف الأرقام الحيّة المتزامنة لعميل واحد: الشراء المتعدد متاح لكن بلا تفريط
+const MAX_ACTIVE_NUMBERS_PER_USER = 3;
 // بعد وصول الرمز تبقى الصفحة تعرضه هذه المدة ثم يُغلق الطلب تلقائياً
 const CODE_READ_WINDOW_MS = 20 * 60 * 1000;
 // وتيرة المسح الدوري: فحص الأرقام الحيّة وإنهاء المنتهية
@@ -1787,6 +1792,30 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       : DEFAULT_WAIT_TTL_MINUTES;
   }
 
+  private cancelCutoffMinutes(): number {
+    const raw = Number(
+      this.configService.get<string>('VIRTUAL_NUMBER_CANCEL_AFTER_MINUTES'),
+    );
+    return Number.isFinite(raw) && raw > 0
+      ? Math.min(raw, 60)
+      : DEFAULT_CANCEL_CUTOFF_MINUTES;
+  }
+
+  /**
+   * لحظة إباحة إلغاء العميل: بعد مضي مدة الإبقاء على الطلب الحيّ بلا رمز.
+   * طلب الرمز وصل لا يُُلغى أصلاً (يُنهى) فتُرجَع null.
+   */
+  private cancelCutoffAt(request: VirtualNumberRequestDocument): Date | null {
+    if (!this.isLive(request)) return null;
+    if (request.status === VirtualNumberStatus.RECEIVED || request.smsCode) {
+      return null;
+    }
+    const createdAt = (request as any).createdAt
+      ? new Date((request as any).createdAt)
+      : new Date();
+    return new Date(createdAt.getTime() + this.cancelCutoffMinutes() * 60_000);
+  }
+
   // ===========================================================================
   // طلب رقم (خصم المحفظة ثم طلب المزود)
   // ===========================================================================
@@ -1810,14 +1839,15 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const cleanCountry = (params.country || '').trim();
     const cleanProductId = (params.productId || '').trim();
 
-    // طلب حيّ واحد لكل عميل: يحمي الرصيد ويمنع حرق أرقام المزود
-    const active = await this.requestModel.findOne({
+    // أرقام حيّة متعددة مسموحة بسقف: العميل يشتري وينتقل لانتظار رمزه
+    // ويتابع غيره؛ السقف يحمي الرصيد من التفريط وحرق أرقام المزود
+    const activeCount = await this.requestModel.countDocuments({
       userId: new Types.ObjectId(user._id),
       status: { $in: ACTIVE_VIRTUAL_NUMBER_STATUSES },
     });
-    if (active) {
+    if (activeCount >= MAX_ACTIVE_NUMBERS_PER_USER) {
       throw new BadRequestException(
-        `لديك رقم نشط بالفعل (${active.phoneNumber || 'قيد التجهيز'})؛ ألغِه أو انتظر رمزه قبل طلب رقم جديد`,
+        `لديك ${activeCount} أرقام نشطة بالفعل؛ انتظر رموزها أو ألغِ واحداً قبل طلب رقم جديد`,
       );
     }
 
@@ -2431,6 +2461,18 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         reason || 'تم استلام الرمز وإغلاق الرقم',
         undefined,
         'client',
+      );
+    }
+    // الإلغاء المبكر محظور: الرقم محجوز لدى المزود ولا يُحرَّر قبل المدة،
+    // والعدّاد في واجهة العميل يعرض نفس الحد من cancelAfterAt
+    const cutoff = this.cancelCutoffAt(request);
+    if (cutoff && Date.now() < cutoff.getTime()) {
+      const leftMinutes = Math.max(
+        1,
+        Math.ceil((cutoff.getTime() - Date.now()) / 60_000),
+      );
+      throw new BadRequestException(
+        `يمكنك إلغاء الرقم بعد ${leftMinutes} دقيقة؛ وإن لم تصل رسالة خلال المهلة كاملها يُرجَع المبلغ تلقائياً`,
       );
     }
     return this.cancelRequest(
@@ -4634,6 +4676,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       isLive: this.isLive(request),
       note: request.note ?? '',
       expiresAt: request.expiresAt ?? null,
+      // موعد إباحة إلغاء العميل (لا قبله فيُرفض): تُقرأ منه الواجهة
+      cancelAfterAt: this.cancelCutoffAt(request) ?? null,
       codeReceivedAt: request.codeReceivedAt ?? null,
       refundedAt: request.refundedAt ?? null,
       createdAt: raw.createdAt ?? null,

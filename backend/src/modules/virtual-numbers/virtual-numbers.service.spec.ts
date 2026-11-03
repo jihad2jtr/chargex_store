@@ -154,6 +154,9 @@ const makeRequestModel = (docs: FakeDoc[]) => ({
   findOne: async (filter: any = {}) =>
     docs.find((d) => matches(d, filter)) ?? null,
   find: (filter: any = {}) => queryOf(docs.filter((d) => matches(d, filter))),
+  // بوابة الأرقام المتزامنة تعدّ الحيّ بـ countDocuments، فالفارغة تُسقط الشراء
+  countDocuments: async (filter: any = {}) =>
+    docs.filter((d) => matches(d, filter)).length,
   create: async (data: any) => {
     const doc = makeDoc({ ...data });
     docs.push(doc);
@@ -1037,7 +1040,7 @@ describe('VirtualNumbersService.requestNumber', () => {
     expect(result.newBalance).toBeCloseTo(4.5);
   });
 
-  it('rejects a second live request before touching the wallet', async () => {
+  it('allows more numbers while others are live, and caps at three', async () => {
     const { service, requests, user } = makeHarness();
     requests.push(
       makeDoc({
@@ -1048,15 +1051,34 @@ describe('VirtualNumbersService.requestNumber', () => {
       }),
     );
 
+    // رقمان حيّ الآن لا واحد: الشراء المتعدد مسموح قبل بلوغ السقف
+    const result = await service.requestNumber({
+      userId: user._id.toString(),
+      service: 'telegram',
+      country: '20',
+    });
+    expect(result).toBeTruthy();
+    expect(user.balance).toBeCloseTo(4.5);
+    expect(requests).toHaveLength(2);
+
+    // السقف ثلاثة: الرابع يُرفض بلا خصم
+    requests.push(
+      makeDoc({
+        userId: user._id,
+        status: VirtualNumberStatus.WAITING,
+        phoneNumber: '15550003333',
+        amount: 0.5,
+      }),
+    );
     await expect(
       service.requestNumber({
         userId: user._id.toString(),
         service: 'telegram',
         country: '20',
       }),
-    ).rejects.toThrow(/لديك رقم نشط/);
-    expect(user.balance).toBe(5);
-    expect(requests).toHaveLength(1);
+    ).rejects.toThrow(/أرقام نشطة/);
+    expect(user.balance).toBeCloseTo(4.5);
+    expect(requests).toHaveLength(3);
   });
 
   it('refuses without debit when the client balance is too low', async () => {
@@ -1302,6 +1324,8 @@ describe('VirtualNumbersService.closeMyRequest', () => {
       amount: 0.5,
       status: VirtualNumberStatus.WAITING,
       providerRef: '9004',
+      // تجاوز حد الإبقاء (10 دقائق): الإلغاء مباح والمرتجى كامل المبلغ
+      createdAt: new Date(Date.now() - 11 * 60_000),
       expiresAt: new Date(Date.now() + 60_000),
     });
     requests.push(request);
@@ -1317,6 +1341,34 @@ describe('VirtualNumbersService.closeMyRequest', () => {
         country: '20',
       }),
     );
+  });
+
+  it('يرفض إلغاء العميل قبل انقضاء مدة الإبقاء بلا خصم ولا إلغاء', async () => {
+    const { service, requests, user, client, provider } = makeHarness({
+      balance: 4.5,
+    });
+    const request = makeDoc({
+      userId: user._id,
+      providerId: provider._id,
+      requestNumber: 'VN-2610-GG2',
+      service: 'telegram',
+      country: '20',
+      amount: 0.5,
+      status: VirtualNumberStatus.WAITING,
+      providerRef: '9006',
+      // دقيقتان فقط من عمر الرقم: قبل 10 دقائق الإلغاء محظور
+      createdAt: new Date(Date.now() - 2 * 60_000),
+      expiresAt: new Date(Date.now() + 13 * 60_000),
+    });
+    requests.push(request);
+
+    await expect(
+      service.closeMyRequest(user._id.toString(), request._id.toString()),
+    ).rejects.toThrow(/يمكنك إلغاء الرقم بعد \d+ دقيقة/);
+
+    expect(request.status).toBe(VirtualNumberStatus.WAITING);
+    expect(user.balance).toBe(4.5); // لم يُمس الرصيد
+    expect(client.cancelNumber).not.toHaveBeenCalled();
   });
 });
 
@@ -2485,6 +2537,8 @@ describe('تسجيل الجودة على وثيقة المنتج', () => {
       amount: 0.8,
       status: VirtualNumberStatus.WAITING,
       providerRef: 'ref-D1',
+      // عمر يتجاوز حد الإبقاء: مسار إلغاء العميل المباح يصل للمزامنة
+      createdAt: new Date(Date.now() - 11 * 60_000),
       expiresAt: new Date(Date.now() + 60_000),
     });
     h.requests.push(req);
