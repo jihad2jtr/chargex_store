@@ -60,6 +60,11 @@ import {
   ProductType,
 } from '../../database/schemas/product.schema';
 import {
+  ServiceTemplate,
+  ServiceTemplateDocument,
+  ServiceFieldType,
+} from '../../database/schemas/service-template.schema';
+import {
   Order,
   OrderDocument,
   OrderStatus,
@@ -201,6 +206,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     // بمسمى مستقل لأن productModel محجوز لمنتجات الدول (VirtualNumberProduct)
     @InjectModel(Product.name)
     private readonly manualServiceModel: Model<ProductDocument>,
+    // حقول خدمات التفعيل المضمون مصدرها «أنواع قوالب الخدمة»: تُشتق الحقول
+    // المطلوبة والحساسة من القالب المرتبط بالخدمة عند الإنشاء والتحديث
+    @InjectModel(ServiceTemplate.name)
+    private readonly serviceTemplateModel: Model<ServiceTemplateDocument>,
     @InjectModel(Order.name)
     private readonly orderModel: Model<OrderDocument>,
     @InjectModel(Provider.name)
@@ -4066,6 +4075,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       instructions: service.instructions ?? '',
       price: Number(service.salePrice) || 0,
       requiredFields: service.requiredFields ?? [],
+      // معرّف القالب المرتبط: تعيد الإدارة اختياره عند تعديل الخدمة
+      serviceTemplateId: service.serviceTemplateId
+        ? String(service.serviceTemplateId)
+        : '',
       estimatedMinutes: service.estimatedMinutes ?? 120,
       isActive: service.isActive !== false,
       appId: app
@@ -4172,6 +4185,43 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     return new Types.ObjectId(clean);
   }
 
+  /**
+   * يشتق الحقول المطلوبة والحساسة من قالب الخدمة المرتبط (صفحة «أنواع قوالب
+   * الخدمة» هي مصدر الحقيقة الوحيد لحقول خدمات التفعيل المضمون). يعيد null
+   * إذا غاب المعرّف: عندها تبقى الحقول الحرة المُدخلة مباشرة صالحة (خدمة بلا
+   * قالب)، ومصفي الحقول يتجاهل أي تسمية فارغة.
+   */
+  private async deriveTemplateFields(templateId?: string | null) {
+    const clean = (templateId || '').trim();
+    if (!clean) return null;
+    if (!Types.ObjectId.isValid(clean)) {
+      throw new BadRequestException('قالب الخدمة غير صالح');
+    }
+    const tpl = await this.serviceTemplateModel.findById(clean).lean();
+    if (!tpl) throw new BadRequestException('قالب الخدمة غير موجود');
+    const defs = (tpl.fields || []) as Array<{
+      type?: string;
+      label?: string;
+      required?: boolean;
+      isSensitive?: boolean;
+    }>;
+    const requiredFields = defs
+      .filter((f) => f.required !== false)
+      .map((f) => String(f.label || '').trim())
+      .filter(Boolean);
+    const sensitiveFields = defs
+      .filter(
+        (f) => f.isSensitive === true || f.type === ServiceFieldType.PASSWORD,
+      )
+      .map((f) => String(f.label || '').trim())
+      .filter(Boolean);
+    return {
+      templateId: new Types.ObjectId(clean),
+      requiredFields,
+      sensitiveFields,
+    };
+  }
+
   async createManualService(dto: {
     name?: string;
     vnAppId?: string;
@@ -4180,6 +4230,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     description?: string;
     instructions?: string;
     requiredFields?: string[];
+    serviceTemplateId?: string;
     estimatedMinutes?: number;
     isSensitive?: boolean;
     isActive?: boolean;
@@ -4202,11 +4253,20 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       if (!supervisor) throw new BadRequestException('المشرف غير موجود');
     }
 
-    const requiredFields = (dto.requiredFields ?? [])
-      .map((f) => String(f).trim())
-      .filter(Boolean);
-    // البيانات الحساسة تُشفَّر وتُحفَر في الطلب: الحقول المطلوبة كلها محتملة الحساسية
-    const isSensitive = dto.isSensitive === true;
+    // القالب هو مصدر الحقول المعتمد: إن وُجد اشتُقت منه كل من المطلوبة والحساسة
+    // (وحُدِّد الحساسية تلقائياً)، وإلا استُعملت الحقول الحرة كما أدخلتها الإدارة
+    const derived = await this.deriveTemplateFields(dto.serviceTemplateId);
+    const requiredFields = derived
+      ? derived.requiredFields
+      : (dto.requiredFields ?? [])
+          .map((f) => String(f).trim())
+          .filter(Boolean);
+    const sensitiveFields = derived
+      ? derived.sensitiveFields
+      : dto.isSensitive === true
+        ? requiredFields
+        : [];
+    const isSensitive = sensitiveFields.length > 0;
 
     const saved = await this.manualServiceModel.create({
       virtualNumberAppId: vnApp._id,
@@ -4223,9 +4283,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       // الفراغ قيمة صالحة: تُضاف خدمة بلا أي حقول فيقتصر طلبُ العميل على
       // التأكيد وحده ولا تُفرض حقل احتياطي «المعرف» لا سبب لظهوره
       requiredFields,
+      serviceTemplateId: derived?.templateId ?? undefined,
       estimatedMinutes: Number(dto.estimatedMinutes) || 120,
       isSensitive,
-      sensitiveFields: isSensitive ? requiredFields : [],
+      sensitiveFields,
       instructions: (dto.instructions || '').trim(),
       assignedSupervisorId: supervisorId ?? undefined,
       isActive: dto.isActive !== false,
@@ -4246,6 +4307,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       description?: string;
       instructions?: string;
       requiredFields?: string[];
+      serviceTemplateId?: string | null;
       estimatedMinutes?: number;
       isSensitive?: boolean;
       isActive?: boolean;
@@ -4282,7 +4344,25 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     if (dto.instructions !== undefined) {
       service.instructions = (dto.instructions || '').trim();
     }
-    if (dto.requiredFields !== undefined) {
+    // ربط/تغيير قالب الخدمة: الحقول المطلوبة والحساسة والحساسية تُشتق كلها
+    // من القالب (صفحة الأنواع هي مصدر الحقيقة)، ومعرّف فارغ يقطع الربط
+    if (dto.serviceTemplateId !== undefined) {
+      const derived = await this.deriveTemplateFields(dto.serviceTemplateId);
+      if (derived) {
+        service.serviceTemplateId = derived.templateId;
+        service.requiredFields = derived.requiredFields;
+        service.sensitiveFields = derived.sensitiveFields;
+        service.isSensitive = derived.sensitiveFields.length > 0;
+      } else {
+        service.serviceTemplateId = undefined;
+        // بعد فك الربط تعود الحقول إلى ما تُرسله الإدارة مباشرة (فارغ صالح)
+        const requiredFields = (dto.requiredFields ?? [])
+          .map((f) => String(f).trim())
+          .filter(Boolean);
+        service.requiredFields = requiredFields;
+        service.sensitiveFields = service.isSensitive ? requiredFields : [];
+      }
+    } else if (dto.requiredFields !== undefined) {
       const requiredFields = dto.requiredFields
         .map((f) => String(f).trim())
         .filter(Boolean);

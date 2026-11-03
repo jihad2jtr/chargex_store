@@ -496,6 +496,8 @@ const makeHarness = (
     makeQualityEventModel(qualityEvents) as any,
     // خدمات الأرقام اليدوية وطلباتها: لا شيء مُعرّف في هذه الاختبارات
     makeCollectionModel([]) as any,
+    // قوالب الخدمة: لا ربط في هذه الاختبارات
+    { findById: () => ({ lean: async () => null }) } as any,
     { aggregate: async () => [] } as any,
     providerModel as any,
     userModel as any,
@@ -660,6 +662,14 @@ const makeManualHarness = (
     profitMarginType: ProfitMarginType.PERCENTAGE,
     profitMarginValue: 0,
   });
+  // قوالب الخدمة الوهمية: findById يستعمل نمط استعلام mongoose (lean مؤجل)
+  const templateDocs: FakeDoc[] = [];
+  const serviceTemplateModel = {
+    findById: (id: any) => ({
+      lean: async () =>
+        templateDocs.find((t) => String(t._id) === String(id)) ?? null,
+    }),
+  };
   const service = new VirtualNumbersService(
     makeRequestModel([]) as any,
     { findOne: async () => null, findOneAndUpdate: async () => null } as any,
@@ -667,6 +677,7 @@ const makeManualHarness = (
     makeCollectionModel([]) as any,
     makeQualityEventModel() as any,
     makeCollectionModel(manualDocs) as any,
+    serviceTemplateModel as any,
     {
       ...makeCollectionModel(orderDocs),
       aggregate: async () => [],
@@ -680,7 +691,7 @@ const makeManualHarness = (
     { createNotification: async () => undefined } as any,
     { get: () => undefined } as any,
   );
-  return { service, appDocs, manualDocs, orderDocs };
+  return { service, appDocs, manualDocs, orderDocs, templateDocs };
 };
 
 /**
@@ -859,6 +870,82 @@ describe('VirtualNumbersService.manualServices (تفعيل مضمون)', () => {
     });
     const missing = manualDocs[manualDocs.length - 1] as any;
     expect(missing.requiredFields).toEqual([]);
+  });
+
+  it('createManualService مع قالب مرتبط: الحقول تُقرأ من القالب لا من dto', async () => {
+    const { service, appDocs, manualDocs, templateDocs } = makeManualHarness();
+    const tpl = makeDoc({
+      name: 'حقول تسجيل الدخول',
+      operationType: 'manual',
+      fields: [
+        { type: 'phone', label: 'رقم الهاتف', required: true },
+        { type: 'password', label: 'كلمة المرور', required: true },
+        { type: 'custom', label: 'ملاحظة', required: false },
+      ],
+    });
+    templateDocs.push(tpl);
+
+    await service.createManualService({
+      name: 'تفعيل تيليجرام مضمون',
+      vnAppId: appDocs[0]._id.toString(),
+      price: 2,
+      // حقول حرة تُرسل خطأ: القالب يلغيها لأنه مصدر الحقول المعتمد
+      requiredFields: ['حقل آخر'],
+      serviceTemplateId: String(tpl._id),
+    });
+    const created = manualDocs[manualDocs.length - 1] as any;
+    expect(created.requiredFields).toEqual(['رقم الهاتف', 'كلمة المرور']);
+    // الحساسية تُشتق تلقائياً من نوع password دون مفتاح يدوي
+    expect(created.sensitiveFields).toEqual(['كلمة المرور']);
+    expect(created.isSensitive).toBe(true);
+    expect(String(created.serviceTemplateId)).toBe(String(tpl._id));
+  });
+
+  it('updateManualService بتبديل القالب: الحقول تُستبدل بمشتقات القالب الجديد', async () => {
+    const app = makeDoc({
+      name: 'Telegram',
+      serviceCode: 'telegram',
+      isActive: true,
+    });
+    const manual = makeManualServiceDoc(app, { requiredFields: ['قديم'] });
+    const { service, templateDocs } = makeManualHarness([manual], [], [], [
+      app,
+    ]);
+    const tpl = makeDoc({
+      name: 'قالب جديد',
+      operationType: 'manual',
+      fields: [{ type: 'player_id', label: 'المعرف', required: true }],
+    });
+    templateDocs.push(tpl);
+
+    await service.updateManualService(String(manual._id), {
+      serviceTemplateId: String(tpl._id),
+    });
+    expect(manual.requiredFields).toEqual(['المعرف']);
+    expect(manual.sensitiveFields).toEqual([]);
+    expect(manual.isSensitive).toBe(false);
+    expect(String(manual.serviceTemplateId)).toBe(String(tpl._id));
+  });
+
+  it('updateManualService بقطع القالب (null): الحقول تعود إلى ما تُرسله الإدارة', async () => {
+    const app = makeDoc({
+      name: 'Telegram',
+      serviceCode: 'telegram',
+      isActive: true,
+    });
+    const tplId = new Types.ObjectId();
+    const manual = makeManualServiceDoc(app, {
+      serviceTemplateId: tplId,
+      requiredFields: ['رقم الهاتف'],
+    });
+    const { service } = makeManualHarness([manual], [], [], [app]);
+
+    await service.updateManualService(String(manual._id), {
+      serviceTemplateId: null,
+      requiredFields: [],
+    });
+    expect(manual.serviceTemplateId).toBeUndefined();
+    expect(manual.requiredFields).toEqual([]);
   });
 
   it('الحذف يوقف الخدمة إن كان عليها طلب جارٍ، وإلا يحذفها نهائياً', async () => {
@@ -1341,6 +1428,7 @@ const makeResolverService = (
     makeQualityEventModel() as any,
     // manualServiceModel/orderModel: شواغل موضع أيضاً (لا خدمات يدوية هنا)
     { find: () => queryOf([]), aggregate: async () => [] } as any,
+    { findById: () => ({ lean: async () => null }) } as any, // serviceTemplateModel
     { aggregate: async () => [] } as any,
     {
       findOne: async (filter: any = {}) =>
@@ -1593,6 +1681,7 @@ const makeCuratedHarness = (
     productModel as any,
     makeQualityEventModel(qualityEvents) as any,
     makeCollectionModel([]) as any,
+    { findById: () => ({ lean: async () => null }) } as any, // serviceTemplateModel
     { aggregate: async () => [] } as any,
     providerModel as any,
     makeUserModel([user]) as any,
@@ -1744,6 +1833,7 @@ describe('VirtualNumbersService curation (تطبيقات ودول الأرقام
       makeCollectionModel(productDocs) as any,
       makeQualityEventModel() as any,
       makeCollectionModel([]) as any,
+      { findById: () => ({ lean: async () => null }) } as any, // serviceTemplateModel
       { aggregate: async () => [] } as any,
       providerModel as any,
       makeUserModel([]) as any,
@@ -2946,6 +3036,7 @@ describe('Central Dictionary Registry (معجم مركزي موحّد)', () => {
       makeCollectionModel([]) as any, // productModel
       makeQualityEventModel() as any,
       makeCollectionModel([]) as any, // manualServiceModel
+      { findById: () => ({ lean: async () => null }) } as any, // serviceTemplateModel
       { aggregate: async () => [] } as any, // orderModel
       makeProviderModelFor([provider]) as any,
       makeUserModel([]) as any,

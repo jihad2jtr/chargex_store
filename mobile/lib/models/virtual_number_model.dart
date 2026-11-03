@@ -266,6 +266,9 @@ class VirtualNumberManualServiceModel {
   final List<String> requiredFields;
   final List<String> sensitiveFields;
   final bool isSensitive;
+  // قالب الخدمة المرتبط: صفحة «أنواع قوالب الخدمة» هي مصدر الحقول المطلوب
+  // للعميل في هذه الخدمة؛ فراغ يعني خدمة بلا قالب (حقول حرة أو لا حقول)
+  final String serviceTemplateId;
   final int estimatedMinutes;
   final bool isActive;
   final String appId;
@@ -285,6 +288,7 @@ class VirtualNumberManualServiceModel {
     this.requiredFields = const [],
     this.sensitiveFields = const [],
     this.isSensitive = false,
+    this.serviceTemplateId = '',
     this.estimatedMinutes = 120,
     this.isActive = true,
     this.appId = '',
@@ -312,6 +316,7 @@ class VirtualNumberManualServiceModel {
           .where((e) => e.isNotEmpty)
           .toList(),
       isSensitive: json['isSensitive'] == true,
+      serviceTemplateId: (json['serviceTemplateId'] ?? '').toString(),
       estimatedMinutes: _num(json['estimatedMinutes']).toInt(),
       isActive: json['isActive'] != false,
       appId: (json['appId'] ?? '').toString(),

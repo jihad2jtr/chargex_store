@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../models/service_template_model.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
@@ -42,6 +43,8 @@ class _VirtualNumberManualServicesScreenState
       provider.fetchAdminManualServices(),
       provider.fetchAdminApps(quiet: true),
       admin.fetchAllUsers(silent: true),
+      // الحقول مسؤولية القالب: تُجلب القوالب لتُعرض في منتقي ورقة الخدمة
+      admin.fetchServiceTemplates(),
     ]);
   }
 
@@ -214,13 +217,13 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _priceCtrl;
   late final TextEditingController _minutesCtrl;
-  late final TextEditingController _fieldsCtrl;
   late final TextEditingController _descCtrl;
   late final TextEditingController _instructionsCtrl;
 
   String? _appId;
   String? _supervisorId;
-  bool _isSensitive = false;
+  // قالب الخدمة المرتبط: حقول العميل تُقرأ منه (صفحة أنواع القوالب مصادرها)
+  String? _templateId;
   bool _isActive = true;
   bool _saving = false;
 
@@ -237,14 +240,13 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
     _minutesCtrl = TextEditingController(
       text: (s?.estimatedMinutes ?? 120).toString(),
     );
-    _fieldsCtrl = TextEditingController(
-      text: s?.requiredFields.join('، ') ?? '',
-    );
     _descCtrl = TextEditingController(text: s?.description ?? '');
     _instructionsCtrl = TextEditingController(text: s?.instructions ?? '');
     _appId = s?.appId.isNotEmpty == true ? s!.appId : null;
     _supervisorId = s?.supervisorId.isNotEmpty == true ? s!.supervisorId : null;
-    _isSensitive = s?.isSensitive ?? false;
+    _templateId = s?.serviceTemplateId.isNotEmpty == true
+        ? s!.serviceTemplateId
+        : null;
     _isActive = s?.isActive ?? true;
   }
 
@@ -253,17 +255,10 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
     _nameCtrl.dispose();
     _priceCtrl.dispose();
     _minutesCtrl.dispose();
-    _fieldsCtrl.dispose();
     _descCtrl.dispose();
     _instructionsCtrl.dispose();
     super.dispose();
   }
-
-  List<String> _parseFields(String raw) => raw
-      .split(RegExp(r'[،,;\n]'))
-      .map((e) => e.trim())
-      .where((e) => e.isNotEmpty)
-      .toList();
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
@@ -280,7 +275,6 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
       _toast('حدد سعر الخدمة بالدولار');
       return;
     }
-    final fields = _parseFields(_fieldsCtrl.text);
 
     setState(() => _saving = true);
     final provider = context.read<VirtualNumbersProvider>();
@@ -291,9 +285,10 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
       'price': price,
       'description': _descCtrl.text.trim(),
       'instructions': _instructionsCtrl.text.trim(),
-      'requiredFields': fields,
+      // الحقول مسؤولية قالب الخدمة: يرسل الخادم منها المطلوبة والحساسة؛
+      // بلا قالب تبقى الخدمة بلا حقول (العميل يؤكد الطلب فقط)
+      'serviceTemplateId': _templateId,
       'estimatedMinutes': int.tryParse(_minutesCtrl.text.trim()) ?? 120,
-      'isSensitive': _isSensitive,
       'isActive': _isActive,
     };
     final message = _isEdit
@@ -325,6 +320,20 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
   Widget build(BuildContext context) {
     final apps = context.watch<VirtualNumbersProvider>().adminApps;
     final users = context.watch<AdminProvider>().allUsers;
+    // القوالب اليدوية فقط هي مصدر حقول الخدمة (صفحة أنواع القوالب)
+    final templates = context
+        .watch<AdminProvider>()
+        .serviceTemplates
+        .where((t) => t.operationType == 'manual' && t.isActive)
+        .toList();
+    // القالب المرتبط قد يكون موقوفًا: يُبحث في القائمة الكاملة للمعاينة
+    ServiceTemplateModel? linkedTemplate;
+    for (final t in context.watch<AdminProvider>().serviceTemplates) {
+      if (t.id == _templateId) {
+        linkedTemplate = t;
+        break;
+      }
+    }
 
     return Padding(
       padding: EdgeInsets.only(
@@ -431,13 +440,31 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
               ],
             ),
             const SizedBox(height: 10),
-            _field(
-              controller: _fieldsCtrl,
-              label: 'الحقول المطلوبة (افصل بينها بفاصلة)',
-              icon: Icons.input_rounded,
-              hint:
-                  'اتركها فارغة فلا يُطلب من العميل أي حقل — يكفي تأكيد الطلب',
+            DropdownButtonFormField<String?>(
+              initialValue: _templateId,
+              isExpanded: true,
+              decoration: _decor(
+                'قالب الخدمة (الحقول المطلوبة)',
+                Icons.view_quilt_rounded,
+              ),
+              items: [
+                const DropdownMenuItem(
+                  value: null,
+                  child: Text('بلا قالب — العميل يؤكد الطلب فقط'),
+                ),
+                ...templates.map(
+                  (t) => DropdownMenuItem(
+                    value: t.id,
+                    child: Text(t.name, overflow: TextOverflow.ellipsis),
+                  ),
+                ),
+              ],
+              onChanged: (v) => setState(() => _templateId = v),
             ),
+            if (linkedTemplate != null) ...[
+              const SizedBox(height: 8),
+              _fieldsPreview(linkedTemplate),
+            ],
             const SizedBox(height: 10),
             _field(
               controller: _descCtrl,
@@ -452,19 +479,6 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
               maxLines: 3,
             ),
             const SizedBox(height: 6),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _isSensitive,
-              onChanged: (v) => setState(() => _isSensitive = v),
-              title: Text(
-                'بيانات حساسة (تشفير المؤقت)',
-                style: AppTypography.cairo(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.slate800,
-                ),
-              ),
-            ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: _isActive,
@@ -495,6 +509,88 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// معاينة حقول القالب المختار كما ستُطلب من العميل؛ التعديل يتم في
+  /// صفحة «أنواع قوالب الخدمة» لأنها المسؤولة عن الحقول
+  Widget _fieldsPreview(ServiceTemplateModel template) {
+    if (template.fields.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: AppColors.slate100,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Text(
+          'قالب «${template.name}» بلا حقول — العميل يؤكد الطلب فقط',
+          style: AppTypography.cairo(fontSize: 11, color: AppColors.slate500),
+        ),
+      );
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.slate100,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'حقول قالب «${template.name}» (تُعدل في صفحة أنواع القوالب)',
+            style: AppTypography.cairo(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.slate600,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: template.fields.map((f) {
+              final sensitive = f.isSensitive || f.type == 'password';
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: sensitive
+                      ? AppColors.secondaryContainer
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: sensitive
+                        ? AppColors.ticketAmber
+                        : AppColors.slate300,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (sensitive)
+                      const Icon(
+                        Icons.lock_rounded,
+                        size: 11,
+                        color: AppColors.secondaryBright,
+                      ),
+                    if (sensitive) const SizedBox(width: 4),
+                    Text(
+                      f.label.isNotEmpty ? f.label : f.type,
+                      style: AppTypography.cairo(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.slate800,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
   }
