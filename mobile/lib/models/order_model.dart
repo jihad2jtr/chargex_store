@@ -42,6 +42,9 @@ class OrderChatMessageModel {
   final String? attachmentName;
   final String? attachmentType;
   final bool isSensitive;
+  // رسالة مثبتة = «بيانات الطلب» (كود تحقق/رقم هاتف/كود بخطوتين)
+  final bool isPinned;
+  final String pinLabel;
   final DateTime createdAt;
 
   OrderChatMessageModel({
@@ -54,6 +57,8 @@ class OrderChatMessageModel {
     this.attachmentName,
     this.attachmentType,
     this.isSensitive = false,
+    this.isPinned = false,
+    this.pinLabel = '',
     required this.createdAt,
   });
 
@@ -71,6 +76,32 @@ class OrderChatMessageModel {
       attachmentName: json['attachmentName'],
       attachmentType: json['attachmentType'],
       isSensitive: json['isSensitive'] == true,
+      isPinned: json['isPinned'] == true,
+      pinLabel: json['pinLabel']?.toString() ?? '',
+      createdAt: json['createdAt'] != null
+          ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+    );
+  }
+}
+
+/// بيانات الطلب المثبتة: خلاصة الرسائل المثبتة، تظهر في تذكرة «طلباتي»
+/// والضغط عليها يفتح المحادثة
+class OrderPinnedDataModel {
+  final String label;
+  final String value;
+  final DateTime createdAt;
+
+  OrderPinnedDataModel({
+    required this.label,
+    required this.value,
+    required this.createdAt,
+  });
+
+  factory OrderPinnedDataModel.fromJson(Map<String, dynamic> json) {
+    return OrderPinnedDataModel(
+      label: json['label']?.toString() ?? 'بيانات مثبتة',
+      value: json['value']?.toString() ?? '',
       createdAt: json['createdAt'] != null
           ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now()
           : DateTime.now(),
@@ -124,6 +155,8 @@ class OrderModel {
   final String? revisionNotes;
   final List<OrderTimelineEventModel> timeline;
   final List<OrderChatMessageModel> chatMessages;
+  // الرسائل المثبتة مُلخّصة هنا: تُعرض في قائمة «طلباتي» بلا جلب المحادثة
+  final List<OrderPinnedDataModel> pinnedData;
 
   OrderModel({
     required this.id,
@@ -167,6 +200,7 @@ class OrderModel {
     this.revisionNotes,
     this.timeline = const [],
     this.chatMessages = const [],
+    this.pinnedData = const [],
   });
 
   bool get isManual => type.toLowerCase() == 'manual';
@@ -332,6 +366,13 @@ class OrderModel {
               ?.map(
                 (e) =>
                     OrderChatMessageModel.fromJson(e as Map<String, dynamic>),
+              )
+              .toList() ??
+          [],
+      pinnedData:
+          (json['pinnedData'] as List<dynamic>?)
+              ?.map(
+                (e) => OrderPinnedDataModel.fromJson(e as Map<String, dynamic>),
               )
               .toList() ??
           [],

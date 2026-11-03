@@ -22,10 +22,8 @@ class ManualOrderDetailsScreen extends StatefulWidget {
       _ManualOrderDetailsScreenState();
 }
 
-class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
-    with SingleTickerProviderStateMixin {
+class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
   late OrderModel _currentOrder;
-  late TabController _tabController;
   Timer? _chatRefreshTimer;
 
   // Chat
@@ -33,6 +31,18 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
   final ScrollController _chatScrollCtrl = ScrollController();
   List<OrderChatMessageModel> _messages = [];
   bool _isLoadingMessages = false;
+
+  // نظام الرسائل المثبتة: الشات هو الشاشة، والمثبت يُحفظ في بيانات الطلب
+  bool _pinMode = false;
+  String _pinLabel = _pinLabelsStatic.first;
+
+  // تصنيفات التثبيت الجاهزة (يختارها مقدّم الخدمة عند تثبيت الرسالة)
+  static const List<String> _pinLabelsStatic = [
+    'كود تحقق',
+    'رقم هاتف',
+    'كود تحقق بخطوتين',
+    'بيانات مثبتة',
+  ];
 
   // Decrypted Credentials (e.g. Gmail pass)
   Map<String, dynamic>? _decryptedCredentials;
@@ -48,7 +58,6 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
   void initState() {
     super.initState();
     _currentOrder = widget.order;
-    _tabController = TabController(length: 2, vsync: this);
     _loadOrderDetails();
     _loadMessages();
 
@@ -106,7 +115,6 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
   @override
   void dispose() {
     _chatRefreshTimer?.cancel();
-    _tabController.dispose();
     _messageCtrl.dispose();
     _chatScrollCtrl.dispose();
     super.dispose();
@@ -187,6 +195,9 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
     final text = _messageCtrl.text.trim();
     if (text.isEmpty) return;
 
+    // التثبيت خيار مراسلَة لا ناقل: كل رسالة تثبت مستقلة بنوعها
+    final pin = _canPin && _pinMode;
+
     _messageCtrl.clear();
     final provider = Provider.of<ManualServicesProvider>(
       context,
@@ -195,14 +206,43 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
     final sent = await provider.sendOrderMessage(
       orderId: _currentOrder.id,
       message: text,
+      isPinned: pin,
+      pinLabel: pin ? _pinLabel : null,
     );
 
     if (sent != null && mounted) {
       setState(() {
         _messages.add(sent);
+        if (pin) _pinMode = false;
       });
+      if (pin) {
+        // بيانات الطلب تُسحب من الخادم: نسخة الرسالة المثبتة تدخل pinnedData
+        final updated = await provider.fetchOrderById(_currentOrder.id);
+        if (updated != null && mounted) {
+          setState(() => _currentOrder = updated);
+        }
+      }
       _scrollChatToBottom();
+    } else if (pin && mounted) {
+      // الرفض غالباً من صلاحية التثبيت: تنبيه صريح حتى لا تُحسب الرسالة مُرسلة
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            provider.errorMessage ?? 'تعذّرت إرسال الرسالة',
+            style: AppTypography.cairo(fontSize: 12.5),
+          ),
+          backgroundColor: AppColors.rose,
+        ),
+      );
     }
+  }
+
+  // التثبيت لمقدّم الخدمة فقط: الأدمن أو المشرف المسند له تنفيذ الطلب
+  bool get _canPin {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    if (auth.isAdmin) return true;
+    return auth.isSupervisor &&
+        _currentOrder.assignedSupervisorId == auth.currentUser?.id;
   }
 
   // --- Customer Confirm Receipt ---
@@ -540,43 +580,47 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
             ),
           ],
         ),
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: AppColors.primaryBlue,
-          indicatorWeight: 3,
-          labelColor: AppColors.primaryBlue,
-          unselectedLabelColor: AppColors.slate500,
-          labelStyle: AppTypography.cairo(
-            fontSize: 13,
-            fontWeight: FontWeight.w800,
+        actions: [
+          // الشات هو الشاشة الوحيدة: التفاصيل انتقلت إلى ورقة تُفتح من هنا
+          IconButton(
+            tooltip: 'تفاصيل الطلب',
+            icon: const Icon(Icons.info_outline_rounded),
+            onPressed: _openDetailsSheet,
           ),
-          unselectedLabelStyle: AppTypography.cairo(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-          ),
-          tabs: const [
-            Tab(icon: Icon(Icons.info_outline, size: 20), text: 'تفاصيل الطلب'),
-            Tab(
-              icon: Icon(Icons.chat_bubble_outline, size: 20),
-              text: 'المحادثة والمرفقات',
-            ),
-          ],
-        ),
+        ],
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: [_buildOrderDetailsTab(), _buildChatTab()],
-      ),
+      body: _buildChatTab(),
       bottomNavigationBar: _buildBottomActions(),
     );
   }
 
-  Widget _buildOrderDetailsTab() {
+  // ورقة تفاصيل الطلب: الملخص والمشرف والنتيجة والسجل الزمني، بلا tabs
+  void _openDetailsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+      ),
+      builder: (_) => DraggableScrollableSheet(
+        expand: false,
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        // ورقة التفاصيل تتمرّر داخل Scrollview الخاصة بها أصلاً
+        builder: (sheetCtx, scrollCtrl) =>
+            _buildOrderDetailsTab(scrollCtrl: scrollCtrl),
+      ),
+    );
+  }
+
+  Widget _buildOrderDetailsTab({ScrollController? scrollCtrl}) {
     final dateStr = DateFormat(
       'yyyy/MM/dd - hh:mm a',
     ).format(_currentOrder.createdAt);
 
     return SingleChildScrollView(
+      controller: scrollCtrl,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -770,8 +814,8 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
                       Icons.chat_bubble_outline_rounded,
                       color: AppColors.primaryBlue,
                     ),
-                    tooltip: 'محادثة المشرف',
-                    onPressed: () => _tabController.animateTo(1),
+                    tooltip: 'العودة إلى المحادثة',
+                    onPressed: () => Navigator.pop(context),
                   ),
                 ],
               ),
@@ -1641,8 +1685,16 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
     required bool isFirst,
     required bool isLast,
   }) {
-    final bubbleColor = isMe ? AppColors.primaryBlue : Colors.white;
-    final textColor = isMe ? Colors.white : AppColors.slate900;
+    final bubbleColor = msg.isPinned
+        ? AppColors.secondaryContainer
+        : isMe
+        ? AppColors.primaryBlue
+        : Colors.white;
+    final textColor = msg.isPinned
+        ? AppColors.slate900
+        : isMe
+        ? Colors.white
+        : AppColors.slate900;
     final roleColor = _chatRoleColor(msg.senderRole);
     final maxWidth = MediaQuery.of(context).size.width * 0.76;
     final isImage =
@@ -1659,7 +1711,11 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
           bottomLeft: Radius.circular(isMe && isLast ? 0 : 12),
           bottomRight: Radius.circular(!isMe && isLast ? 0 : 12),
         ),
-        border: isMe ? null : Border.all(color: AppColors.outline),
+        border: isMe && !msg.isPinned
+            ? null
+            : Border.all(
+                color: msg.isPinned ? AppColors.ticketAmber : AppColors.outline,
+              ),
         boxShadow: [
           BoxShadow(
             color: const Color(0xFF0F172A).withValues(alpha: 0.05),
@@ -1673,6 +1729,54 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
             ? CrossAxisAlignment.end
             : CrossAxisAlignment.start,
         children: [
+          if (msg.isPinned) ...[
+            // رأس الرسالة المثبتة: التصنيف + نسخ القيمة بضغطة
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.push_pin_rounded,
+                  size: 12,
+                  color: AppColors.secondaryBright,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    msg.pinLabel.isNotEmpty ? msg.pinLabel : 'بيانات مثبتة',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.cairo(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w900,
+                      color: AppColors.secondaryBright,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                InkWell(
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: msg.message));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('تم نسخ بيانات الطلب 📋'),
+                        duration: Duration(seconds: 1),
+                      ),
+                    );
+                  },
+                  borderRadius: BorderRadius.circular(4),
+                  child: const Padding(
+                    padding: EdgeInsets.all(2),
+                    child: Icon(
+                      Icons.copy_rounded,
+                      size: 12,
+                      color: AppColors.slate600,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 5),
+          ],
           if (isFirst && !isMe) ...[
             Row(
               mainAxisSize: MainAxisSize.min,
@@ -1836,8 +1940,13 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
                       final showDate =
                           prev == null ||
                           !_sameChatDay(prev.createdAt, msg.createdAt);
-                      final isFirst = showDate || !_sameChatGroup(prev, msg);
-                      final isLast = !_sameChatGroup(msg, next);
+                      // المثبتة تقف وحدها: لا تُجمَّع مع ما قبلها ولا بعدها،
+                      // فهي «بيانات طلب» لا رسالة عابرة في السيل
+                      final isFirst =
+                          msg.isPinned ||
+                          showDate ||
+                          !_sameChatGroup(prev, msg);
+                      final isLast = msg.isPinned || !_sameChatGroup(msg, next);
 
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1863,79 +1972,169 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen>
             color: Colors.white,
             border: Border(top: BorderSide(color: AppColors.outline)),
           ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: TextField(
-                  controller: _messageCtrl,
-                  maxLines: 4,
-                  minLines: 1,
-                  textInputAction: TextInputAction.send,
-                  onSubmitted: (_) => _sendMessage(),
-                  textAlignVertical: TextAlignVertical.center,
-                  style: AppTypography.cairo(
-                    fontSize: 13.5,
-                    color: AppColors.slate900,
+              if (_canPin) _buildPinComposer(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _messageCtrl,
+                      maxLines: 4,
+                      minLines: 1,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _sendMessage(),
+                      textAlignVertical: TextAlignVertical.center,
+                      style: AppTypography.cairo(
+                        fontSize: 13.5,
+                        color: AppColors.slate900,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: 'اكتب رسالة...',
+                        hintStyle: AppTypography.cairo(
+                          color: AppColors.slate400,
+                          fontSize: 13,
+                        ),
+                        filled: true,
+                        fillColor: AppColors.surfaceContainerLow,
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          borderSide: const BorderSide(
+                            color: AppColors.outline,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(22),
+                          borderSide: const BorderSide(
+                            color: AppColors.primaryBlue,
+                            width: 1.2,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                  decoration: InputDecoration(
-                    hintText: 'اكتب رسالة...',
-                    hintStyle: AppTypography.cairo(
-                      color: AppColors.slate400,
-                      fontSize: 13,
-                    ),
-                    filled: true,
-                    fillColor: AppColors.surfaceContainerLow,
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                      borderSide: const BorderSide(color: AppColors.outline),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(22),
-                      borderSide: const BorderSide(
+                  const SizedBox(width: 8),
+                  // زر الإرسال الدائري
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 1),
+                    child: SizedBox(
+                      width: 44,
+                      height: 44,
+                      child: Material(
                         color: AppColors.primaryBlue,
-                        width: 1.2,
+                        shape: const CircleBorder(),
+                        elevation: 2,
+                        shadowColor: AppColors.primaryBlue.withValues(
+                          alpha: 0.4,
+                        ),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _sendMessage,
+                          child: const Icon(
+                            Icons.send_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // زر الإرسال الدائري
-              Padding(
-                padding: const EdgeInsets.only(bottom: 1),
-                child: SizedBox(
-                  width: 44,
-                  height: 44,
-                  child: Material(
-                    color: AppColors.primaryBlue,
-                    shape: const CircleBorder(),
-                    elevation: 2,
-                    shadowColor: AppColors.primaryBlue.withValues(alpha: 0.4),
-                    child: InkWell(
-                      customBorder: const CircleBorder(),
-                      onTap: _sendMessage,
-                      child: const Icon(
-                        Icons.send_rounded,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                ),
+                ],
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  // مُثبِّت الرسالة: مقدّم الخدمة يختار نوع البيانات قبل الإرسال،
+  // والرسالة العادية هي الافتراضي كي لا يُثبَّت غير المهم
+  Widget _buildPinComposer() {
+    Widget chip(
+      String label,
+      IconData icon,
+      bool selected,
+      VoidCallback onTap,
+    ) {
+      return Padding(
+        padding: const EdgeInsets.only(left: 6),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.ticketAmber : Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: selected ? AppColors.ticketAmber : AppColors.outline,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  icon,
+                  size: 12,
+                  color: selected ? AppColors.slate900 : AppColors.slate500,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: AppTypography.cairo(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? AppColors.slate900 : AppColors.slate500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            chip(
+              'رسالة عادية',
+              Icons.chat_bubble_outline_rounded,
+              !_pinMode,
+              () {
+                setState(() => _pinMode = false);
+              },
+            ),
+            ..._pinLabelsStatic.map(
+              (label) => chip(
+                label,
+                Icons.push_pin_rounded,
+                _pinMode && _pinLabel == label,
+                () {
+                  setState(() {
+                    _pinMode = true;
+                    _pinLabel = label;
+                  });
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

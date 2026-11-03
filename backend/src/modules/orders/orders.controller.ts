@@ -137,6 +137,9 @@ export class OrdersController {
       attachmentName?: string;
       attachmentType?: string;
       isSensitive?: boolean;
+      // تثبيت الرسالة بياناتِ طلبٍ: لمقدّم الخدمة فقط (يتحقق منه الـ service)
+      isPinned?: boolean;
+      pinLabel?: string;
     },
   ) {
     return this.ordersService.sendOrderMessage(id, user, body);

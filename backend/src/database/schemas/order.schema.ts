@@ -70,11 +70,35 @@ export class OrderChatMessage {
   @Prop({ default: false })
   isSensitive?: boolean;
 
+  // رسالة مثبتة: هي «بيانات الطلب» الذي يبقى ظاهراً في «طلباتي» بعد إغلاق
+  // المحادثة (كود تحقق / رقم هاتف / كود بخطوتين)، ويثبتها مقدّم الخدمة فقط
+  @Prop({ default: false })
+  isPinned?: boolean;
+
+  @Prop({ trim: true })
+  pinLabel?: string; // تصنيف الرسالة المثبتة كما تختاره الإدارة
+
   @Prop({ default: Date.now })
   createdAt: Date;
 }
 
 export const OrderChatMessageSchema = SchemaFactory.createForClass(OrderChatMessage);
+
+// خلاصة الرسائل المثبتة: تُنسخ منها هنا عند التثبيت كي تُعرض في قائمة
+// «طلباتي» دون جلب كامل المحادثة (فالقائمة تستثني chatMessages عمداً)
+@Schema({ _id: false })
+export class OrderPinnedData {
+  @Prop({ required: true })
+  label: string;
+
+  @Prop({ required: true })
+  value: string;
+
+  @Prop({ default: Date.now })
+  createdAt: Date;
+}
+
+export const OrderPinnedDataSchema = SchemaFactory.createForClass(OrderPinnedData);
 
 @Schema({ timestamps: true })
 export class Order {
@@ -193,6 +217,9 @@ export class Order {
 
   @Prop({ type: [OrderChatMessageSchema], default: [] })
   chatMessages: OrderChatMessage[];
+
+  @Prop({ type: [OrderPinnedDataSchema], default: [] })
+  pinnedData: OrderPinnedData[];
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

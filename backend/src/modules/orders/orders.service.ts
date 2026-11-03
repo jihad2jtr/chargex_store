@@ -1778,6 +1778,8 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       attachmentName?: string;
       attachmentType?: string;
       isSensitive?: boolean;
+      isPinned?: boolean;
+      pinLabel?: string;
     },
   ) {
     const order = await this.orderModel.findById(orderId).populate('productId', 'name');
@@ -1793,6 +1795,16 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
     const senderRole = isAdmin ? 'admin' : isSupervisor ? 'supervisor' : 'user';
 
+    // التثبيت حق لمقدّم الخدمة (مشرف مسند أو أدمن) لا للعميل: الرسالة المثبتة
+    // هي «بيانات الطلب» (كود تحقق/رقم هاتف/كود بخطوتين) فلا تُثبَّت بلا نص
+    const pinRequested = data.isPinned === true;
+    if (pinRequested) {
+      if (isBuyer) throw new BadRequestException('تثبيت الرسائل متاح لمقدّم الخدمة فقط');
+      if (!(data.message || '').trim()) {
+        throw new BadRequestException('الرسالة المثبتة يجب أن تحمل نصاً (كود أو رقم)');
+      }
+    }
+
     const newMessage: OrderChatMessage = {
       senderId: user._id,
       senderName: user.name,
@@ -1802,10 +1814,21 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       attachmentName: data.attachmentName,
       attachmentType: data.attachmentType,
       isSensitive: data.isSensitive || false,
+      isPinned: pinRequested,
+      pinLabel: pinRequested ? (data.pinLabel || '').trim() || 'بيانات مثبتة' : undefined,
       createdAt: new Date(),
     };
 
     order.chatMessages.push(newMessage);
+    // نسخة مُلخّصة في بيانات الطلب: تُعرض في «طلباتي» دون فتح المحادثة،
+    // والضغط عليها يفتح الشات نفسه
+    if (pinRequested) {
+      order.pinnedData.push({
+        label: newMessage.pinLabel!,
+        value: newMessage.message.trim(),
+        createdAt: newMessage.createdAt,
+      });
+    }
     await order.save();
 
     // Determine recipient for notification
@@ -1821,7 +1844,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     } else if (isSupervisor || isAdmin) {
       await this.notificationsService.createNotification({
         userId: order.userId.toString(),
-        title: `رسالة جديدة من ${user.name} حول طلبك #${order.orderNumber} 💬`,
+        title: pinRequested
+          ? `بيانات جديدة لطلبك #${order.orderNumber} 📌`
+          : `رسالة جديدة من ${user.name} حول طلبك #${order.orderNumber} 💬`,
         body: data.message ? (data.message.length > 80 ? `${data.message.slice(0, 80)}...` : data.message) : 'تم إرسال مرفق جديد',
         type: 'order_chat',
         data: { orderId: order._id.toString() },

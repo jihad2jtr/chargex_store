@@ -467,6 +467,167 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   }
 
   // ===========================================================================
+  // 1.5 MANUAL ORDERS — «بيانات الطلب»: الرسائل المثبتة تظهر على التذكرة
+  // نفسها، والضغط على اللوحة يفتح المحادثة (نظام الشات مع التثبيت)
+  // ===========================================================================
+  Widget _manualPinnedPanel(OrderModel order) {
+    Future<void> openChat() async {
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ManualOrderDetailsScreen(order: order),
+        ),
+      );
+      // العودة من الشات تُحدّث السجل: بيانات جديدة قد ثبتت أثناء الغياب
+      if (mounted) {
+        Provider.of<AppCatalogProvider>(context, listen: false).fetchMyOrders();
+      }
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(11, 1, 11, 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: openChat,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFFBEB),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: const Color(0xFFF59E0B).withValues(alpha: 0.45),
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.push_pin_rounded,
+                      size: 12,
+                      color: Color(0xFFB45309),
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        'بيانات الطلب',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          color: const Color(0xFFB45309),
+                        ),
+                      ),
+                    ),
+                    // مدخل الشات الصريح بجانب عنوان اللوحة
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'المحادثة',
+                          style: AppTypography.cairo(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            color: const Color(0xFF0284C7),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        const Icon(
+                          Icons.chat_bubble_outline_rounded,
+                          size: 12,
+                          color: Color(0xFF0284C7),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                if (order.pinnedData.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 3),
+                    child: Text(
+                      'لم يثبّت مقدّم الخدمة بيانات بعد — كود التحقق أو رقم الهاتف سيظهر هنا',
+                      maxLines: 2,
+                      style: AppTypography.cairo(
+                        fontSize: 9,
+                        height: 1.4,
+                        color: const Color(0xFF64748B),
+                      ),
+                    ),
+                  )
+                else
+                  ...order.pinnedData.map(
+                    (p) => Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Row(
+                        children: [
+                          Flexible(
+                            flex: 2,
+                            child: Text(
+                              '${p.label}:',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.cairo(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: const Color(0xFF475569),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            flex: 3,
+                            child: Text(
+                              p.value,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.technicalCode(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w900,
+                                color: const Color(0xFF0F172A),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          // النسخ لا يفتح الشات: InkWell أعمق يلتقط الضغطة أولاً
+                          InkWell(
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: p.value));
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'تم نسخ ${p.label} 📋',
+                                    style: AppTypography.cairo(),
+                                  ),
+                                  duration: const Duration(seconds: 1),
+                                ),
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(4),
+                            child: const Padding(
+                              padding: EdgeInsets.all(2),
+                              child: Icon(
+                                Icons.copy_rounded,
+                                size: 11,
+                                color: Color(0xFF94A3B8),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ===========================================================================
   // 2. SEARCH BAR
   // ===========================================================================
   Widget _buildSearchBar() {
@@ -668,18 +829,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         : (order.isRejected
               ? const Color(0xFFEF4444).withValues(alpha: 0.25)
               : const Color(0xFFE2E8F0));
-    // الخدمة اليدوية تفتح شاشة تفاصيلها، وبقية التذاكر تفرد/تطوى
-    final VoidCallback onTap = order.isManual
-        ? () {
-            Navigator.of(context)
-                .push(
-                  MaterialPageRoute(
-                    builder: (_) => ManualOrderDetailsScreen(order: order),
-                  ),
-                )
-                .then((_) => catalog.fetchMyOrders());
-          }
-        : () => _toggleTicket(order);
+    // كل التذاكر تفرد/تطوى بالضغط — يدوية كانت أو غيرها: الدخول إلى
+    // محادثة اليدوية صار من لوحة «بيانات الطلب» المثبتة أسفل التذكرة
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -692,7 +843,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           _ticketSection(
             top: true,
             borderColor: borderColor,
-            onTap: onTap,
+            onTap: () => _toggleTicket(order),
             children: [
               // ===============================================================
               // PASS HEAD: فن + عنوان + سعر/حالة + مؤشر الفرد
@@ -836,7 +987,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
           _ticketSection(
             top: false,
             borderColor: borderColor,
-            onTap: onTap,
+            onTap: () => _toggleTicket(order),
             children: [
               // ===============================================================
               // META LINE: رقم التذكرة + التاريخ + إشارة الكود المسلَّم
@@ -957,6 +1108,10 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   ],
                 ),
               ),
+
+              // اليدوية: «بيانات الطلب» (الرسائل المثبتة) ظاهرة دائماً،
+              // والضغط عليها يفتح المحادثة — هيكل الشات بدل شاشة التفاصيل
+              if (order.isManual) _manualPinnedPanel(order),
 
               // التفاصيل تُطوى افتراضياً كي تبقى قائمة السجل قصيرة
               AnimatedSize(
@@ -1388,7 +1543,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                                 ),
                                               ),
                                               Text(
-                                                'اضغط لفتح الجدول الزمني، المحادثة والملفات المرفقة',
+                                                'المحادثة وبيانات الطلب من اللوحة المثبتة فوق',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: AppTypography.cairo(

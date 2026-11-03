@@ -248,6 +248,9 @@ class ManualServicesProvider extends ChangeNotifier {
     String? attachmentName,
     String? attachmentType,
     bool isSensitive = false,
+    // التثبيت لمقدّم الخدمة: الرسالة المثبتة تُنسَخ إلى بيانات الطلب في «طلباتي»
+    bool isPinned = false,
+    String? pinLabel,
   }) async {
     try {
       final res = await _api.post(
@@ -258,6 +261,8 @@ class ManualServicesProvider extends ChangeNotifier {
           'attachmentName': attachmentName,
           'attachmentType': attachmentType,
           'isSensitive': isSensitive,
+          'isPinned': isPinned,
+          'pinLabel': ?pinLabel,
         },
       );
       if (res is Map) {
