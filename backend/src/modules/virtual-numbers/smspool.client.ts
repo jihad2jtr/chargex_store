@@ -361,7 +361,12 @@ export function normalizeSmsPoolCatalog(input: {
           operators: pool
             .slice()
             .sort((a, b) => a.cost - b.cost)
-            .map((item) => ({ code: 'any', name: item.name })),
+            .map((item) => ({
+              code: 'any',
+              name: item.name,
+              price: item.cost,
+              count: item.count,
+            })),
         };
       })
       .filter((country) => country.cost > 0)

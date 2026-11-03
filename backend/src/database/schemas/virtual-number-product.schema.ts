@@ -3,11 +3,12 @@ import { Document, Types } from 'mongoose';
 
 export type VirtualNumberProductDocument = VirtualNumberProduct & Document;
 
-// «منتج» الأرقام الوهمية: دولة واحدة ضمن تطبيق (خدمة) لدى مزود بعينه. هوية
-// المنتج إذن = appId + providerId + countryCode، وهو ما يسمح بأن يظهر
-// واتساب-الفلبين مرتين: عرض من «Server 1» وعرض مستقل من «Server 2».
-// يُضاف من صفحة مزودي الأرقام باختيار الدولة من كتالوج المزود، وهو الذي يُفعَّل
-// أو يُلغى ليظهر أو يختفي لدى العميل — مقابل منتج اللعبة في المتجر.
+// «منتج» الأرقام الوهمية: دولة واحدة ضمن تطبيق (خدمة) لدى مزود بعينه، ومشغّل
+// بعينه («سيرفر»: Hero-SMS / 5sim يعرضان الخدمة نفسها عبر مشغّلين لكل منهم سعره
+// ومخزونه). هوية المنتج إذن = appId + providerId + countryCode + operator، وهو ما
+// يسمح بأن يظهر واتساب-الفلبين مرتين لمزود واحد: مرة عبر مشغّل ومرة عبر آخر.
+// يُضاف من صفحة مزودي الأرقام باختيار الدولة والمشغّل من كتالوج المزود، وهو الذي
+// يُفعَّل أو يُلغى ليظهر أو يختفي لدى العميل — مقابل منتج اللعبة في المتجر.
 // السعر لا يُخزَّن هنا: يُحسب لحظياً من تكلفة المزود في الكتالوج الحيّ + هامش
 // ربحه. لقطات الحقول (cost/count/operators) تُعرض في اللوحة فقط عند تعذّر الكتالوج.
 @Schema({ timestamps: true })
@@ -31,14 +32,33 @@ export class VirtualNumberProduct {
   @Prop({ trim: true, default: '' })
   countryName: string; // لقطة من اسم الدولة للعرض
 
+  // المشغّل («سيرفر») الذي يُشترى منه هذا المنتج: يُرسل للمزود عند الطلب، وبه
+  // تفترق المنتجات عن بعضها لنفس الدولة. الفراغ = أي مشغّل متاح (نمط المزودين
+  // الذين لا يعرضون مشغّلين، أو بيانات قديمة قبل هذا الحقل).
+  @Prop({ trim: true, default: '', index: true })
+  operator: string;
+
+  @Prop({ trim: true, default: '' })
+  operatorName: string; // لقطة اسم المشغّل للعرض (Orange، axis…)
+
+  @Prop({ trim: true, default: '' })
+  operatorType: string; // physical | virtual كما يسميه المزود (للعرض)
+
   @Prop({ type: Number, default: 0 })
   cost: number; // لقطة تكلفة المزود لحظة الإضافة (للعرض عند غياب الكتالوج)
 
   @Prop({ type: Number, default: 0 })
   count: number; // لقطة عدد الأرقام المتاحة
 
+  // لقطة مشغّلي الدولة كما وصلت من المزود (بأسعارهم) للعرض في اللوحة
   @Prop({ type: [Object], default: [] })
-  operators: Array<{ code: string; name: string }>;
+  operators: Array<{
+    code: string;
+    name: string;
+    price?: number;
+    type?: string;
+    count?: number;
+  }>;
 
   // المزود الذي أُخذت منه الدولة: إلزامي لأن التقييم والجودة والسعر كلّه يخصّ مزوداً
   @Prop({
@@ -95,10 +115,15 @@ export const VirtualNumberProductSchema = SchemaFactory.createForClass(
   VirtualNumberProduct,
 );
 
-// نفس التطبيق ونفس الدولة يجوز من مزودين مختلفين — لكن لا تُضاف الدولة مرتين
-// لنفس المزود. هذا الفهرس هو جوهر السماح بتعدد المزودين.
+// نفس التطبيق ونفس الدولة يجوز من مزودين مختلفين، ومن مشغّلين مختلفين لنفس
+// المزود — لكن لا تُضاف (الدولة + المشغّل) مرتين لنفس المزود. هذا الفهرس هو جوهر
+// السماح بتعدد السيرفرات (المشغّلين) لكل مزود.
+// ملاحظة: الفهرس القديم {appId, providerId, countryCode} يُسقَط عند الإقلاع
+// (VirtualNumbersService.onModuleInit) لأنه كان يمنع وجود مشغّلين لنفس الدولة.
+export const VIRTUAL_NUMBER_PRODUCT_LEGACY_INDEX =
+  'appId_1_providerId_1_countryCode_1';
 VirtualNumberProductSchema.index(
-  { appId: 1, providerId: 1, countryCode: 1 },
+  { appId: 1, providerId: 1, countryCode: 1, operator: 1 },
   { unique: true },
 );
 VirtualNumberProductSchema.index({ serviceCode: 1, countryCode: 1 });

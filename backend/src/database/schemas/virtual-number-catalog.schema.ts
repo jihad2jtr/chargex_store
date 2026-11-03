@@ -1,5 +1,6 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { Document, Types } from 'mongoose';
+import { VirtualNumberOperator } from '../../modules/virtual-numbers/virtual-number-client';
 
 export type VirtualNumberCatalogDocument = VirtualNumberCatalog & Document;
 
@@ -7,7 +8,7 @@ export interface VirtualNumberCountry {
   code: string;
   name: string;
   cost: number; // تكلفة المزود بالدولار
-  operators: Array<{ code: string; name: string }>;
+  operators: VirtualNumberOperator[];
   count?: number; // عدد الأرقام المتاحة لدى المزود
 }
 

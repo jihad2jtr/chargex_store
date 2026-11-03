@@ -182,7 +182,12 @@ export function normalizeDogeSmsCatalog(input: {
           operators: pool
             .slice()
             .sort((a, b) => a.cost - b.cost)
-            .map((channel) => ({ code: channel.code, name: channel.name })),
+            .map((channel) => ({
+              code: channel.code,
+              name: channel.name,
+              price: channel.cost,
+              count: channel.count,
+            })),
         };
       })
       .filter((country) => country.cost > 0)

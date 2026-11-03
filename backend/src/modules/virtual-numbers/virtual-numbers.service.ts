@@ -77,6 +77,7 @@ import { HEROSMS_DEFAULT_ENDPOINT } from './herosms.client';
 import {
   VirtualNumberClient,
   VirtualNumberHandle,
+  VirtualNumberOperator,
   digitsOnly,
   extractVerificationCode,
   pickStringValue,
@@ -108,11 +109,20 @@ import { POPULAR_APP_KEYS } from './popular-apps';
 
 /** يُخفي سيرفرات المزوّد الداخلية (virtual4، virtual21…) عن كل واجهات العرض */
 function visibleOperators(
-  operators?: Array<{ code: string; name: string }>,
-): Array<{ code: string; name: string }> {
-  return (operators ?? []).filter(
-    (op) => !isHiddenServerName(op.code) && !isHiddenServerName(op.name),
-  );
+  operators?: VirtualNumberOperator[],
+): VirtualNumberOperator[] {
+  const seen = new Set<string>();
+  const out: VirtualNumberOperator[] = [];
+  // التكرار بالرمز: مزود قد يعيد المشغّل نفسه مرات (مجمّعات SMSPool) فيُدمج،
+  // والأول يحتفظ به لأن الكتالوج مرتّب بالتكلفة تصاعدياً فيبقى الأرخص
+  for (const op of operators ?? []) {
+    if (!op?.code || !op?.name) continue;
+    if (isHiddenServerName(op.code) || isHiddenServerName(op.name)) continue;
+    if (seen.has(op.code)) continue;
+    seen.add(op.code);
+    out.push(op);
+  }
+  return out;
 }
 
 // كم من الوقت يبقى الكتالوج المخزّن صالحاً قبل إعادة جلبه من المزود
@@ -290,10 +300,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * يسقط الفهرس الفريد القديم {appId, countryCode} إن بقي من إصدار سابق.
-   * Mongoose لا يحذف الفهارس القديمة من تلقاء نفسه، فالفهرس العتيق سيستمر في
-   * رفض الدولة نفسها من مزود ثانٍ ولو تغيّر تعريف المخطط. تُقرأ الفهارس من
-   * المجموعة الحيّة لا من المخطط، لأن المخطط أصبح يصف الفهرس الجديد.
+   * يسقط الفهارس الفريدة القديمة على المنتج إن بقيت من إصدار سابق:
+   * {appId, countryCode} ثم {appId, providerId, countryCode}. كِلاهما يرفض
+   * وجود مشغّلين («سيرفرات») لنفس الدولة عند المزود نفسه، وهو ما يمنعه المخطط
+   * الجديد {appId, providerId, countryCode, operator}. Mongoose لا يحذف
+   * الفهارس القديمة من تلقاء نفسه، فتُقرأ الفهارس من المجموعة الحيّة لا المخطط.
    */
   private async dropLegacyProductIndex() {
     const live: Array<{
@@ -302,15 +313,16 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       key?: Record<string, any>;
     }> = await this.productModel.collection.indexes().catch(() => []);
 
-    const legacy = live.filter(
-      (idx) =>
-        idx.unique === true &&
-        Object.keys(idx.key ?? {}).join(',') === 'appId,countryCode',
-    );
+    const wanted = 'appId,providerId,countryCode,operator';
+    const legacy = live.filter((idx) => {
+      if (idx.unique !== true) return false;
+      const key = Object.keys(idx.key ?? {}).join(',');
+      return key !== wanted;
+    });
     if (legacy.length === 0) return;
 
     for (const idx of legacy) {
-      const name = idx.name ?? 'appId_1_countryCode_1';
+      const name = idx.name ?? 'legacy';
       await this.productModel.collection.dropIndex(name).catch((err: any) => {
         // «not found» نتيجة مقبولة: الفهرس أُسقط في إقلاع سابق
         this.logger.warn(
@@ -1454,8 +1466,17 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       const offer = {
         productId: String(product._id),
         providerId: String(provider._id),
-        // الاسم الوهمي وحده يذهب للعميل؛ اسم المزود الحقيقي لا يغادر اللوحة
+        // الاسم الوهمي للمزود وحده يغادر اللوحة؛ اسم المزود الحقيقي لا يغادرها
         serverLabel: (provider as any).serverLabel || 'Server',
+        // اسم بطاقة العميل: المشغّل («سيرفر») إن كان المنتج لمشغّل بعينه، وإلا
+        // وسم المزود — فكل منتج هنا سيرفر قائم بذاته بسعره
+        label:
+          product.operatorName ||
+          (provider as any).serverLabel ||
+          'Server',
+        operator: product.operator || '',
+        operatorName: product.operatorName || '',
+        operatorType: product.operatorType || '',
         service: product.serviceCode,
         country: product.countryCode,
         countryName: product.countryName || cMeta.name,
@@ -1902,7 +1923,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         serviceName,
         country,
         countryName,
-        operator: (params.operator || '').trim(),
+        // المشغّل من المنتج أولاً: هو «السيرفر» الذي بيع منه هذا المنتج، فلا
+        // يُخلط بسيرفر آخر؛ وparams.operator احتياط للمسار القديم/بيانات قديمة
+        operator: (product?.operator || params.operator || '').trim(),
+        operatorName: (product?.operatorName || '').trim(),
         amount: salePrice,
         cost,
         profit: Number((salePrice - cost).toFixed(2)),
@@ -3136,10 +3160,15 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         sortOrder: app.sortOrder ?? 0,
         productCount: products.length,
         activeProductCount: activeCount,
+        // كل منتج سطر مستقل في اللوحة: نفس الدولة قد تُباع من مشغّلين لدى نفس
+        // المزود، فيظهر اسم المشغّل (أو رمز القناة) بجانب الدولة ليعرف الأدمن
+        // أي سيرفر يُوقف قبل أن يمسّ غيره
         countries: products.map((p) => ({
           id: p._id.toString(),
           code: p.countryCode,
           name: p.countryName || p.countryCode,
+          operator: String(p.operator || ''),
+          operatorName: String(p.operatorName || p.operator || ''),
           active: p.isActive !== false,
           providerId: p.providerId ? String(p.providerId) : '',
           serverLabel: serverLabelById.get(String(p.providerId ?? '')) || '',
@@ -3366,17 +3395,16 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       if (key) appByKey.set(key, a);
     }
 
-    // كل المنتجات الحالية مفهرسة بمفتاح مزود|خدمة|دولة: الدولة نفسها من مزود
-    // آخر منتجٌ مستقل، فلا تُوسم «مُنتقاة» في كتالوج هذا المزود لمجرد أن مزوداً
-    // غيرها يبيعها
+    // كل المنتجات الحالية مفهرسة بمفتاح مزود|خدمة|دولة ← قائمة منتجات: الدولة
+    // الواحدة قد تحمل منتجاً لكل مشغّل، فلا تكفي خريطة منتج واحد لكل دولة
     const providerKey = String(provider._id);
     const products = await this.productModel.find({});
-    const productByKey = new Map<string, VirtualNumberProductDocument>();
+    const productsByCountry = new Map<string, VirtualNumberProductDocument[]>();
     for (const p of products) {
-      productByKey.set(
-        `${String(p.providerId ?? '')}|${p.serviceCode}|${p.countryCode}`,
-        p,
-      );
+      const key = `${String(p.providerId ?? '')}|${p.serviceCode}|${p.countryCode}`;
+      const list = productsByCountry.get(key) ?? [];
+      list.push(p);
+      productsByCountry.set(key, list);
     }
 
     const marginType = provider.profitMarginType ?? ProfitMarginType.PERCENTAGE;
@@ -3411,14 +3439,94 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           appName: app?.name ?? '',
           appActive: app ? app.isActive !== false : false,
           countries: (svc.countries ?? []).map((c) => {
-            const product = productByKey.get(
-              `${providerKey}|${svc.code}|${c.code}`,
+            const existing =
+              productsByCountry.get(
+                `${providerKey}|${svc.code}|${c.code}`,
+              ) ?? [];
+            const byOperator = new Map(
+              existing.map((p) => [(p.operator || '').trim(), p]),
             );
             const cost = Number(c.cost) || 0;
             const cMeta = this.countryMeta(
               c.code || c.name,
               provider?.providerType,
             );
+            const productState = (product: VirtualNumberProductDocument) => ({
+              added: true,
+              productId: product._id.toString(),
+              productActive: product.isActive !== false,
+              productAutoDisabled: product.autoDisabled === true,
+              productConsecutiveFailures: Number(
+                product.quality?.consecutiveFailures ?? 0,
+              ),
+            });
+            const notAdded = {
+              added: false,
+              productId: null,
+              productActive: false,
+              productAutoDisabled: false,
+              productConsecutiveFailures: 0,
+            };
+            // صف لكل مشغّل: سعره من الكتالوج (وسعر الدولة إن لم يُفصح المزود عن
+            // سعر المشغّل) وحالة منتجه إن كان مضافاً
+            type OperatorRow = {
+              code: string;
+              name: string;
+              type: string;
+              price: number;
+              count: number;
+              cost: number;
+              salePrice: number;
+              added: boolean;
+              productId: string | null;
+              productActive: boolean;
+              productAutoDisabled: boolean;
+              productConsecutiveFailures: number;
+            };
+            const rows: OperatorRow[] = visibleOperators(c.operators).map(
+              (op) => {
+                const opCost = Number(op.price) > 0 ? Number(op.price) : cost;
+                const product = byOperator.get(op.code);
+                return {
+                  code: op.code,
+                  name: op.name,
+                  type: op.type ?? '',
+                  price: Number(op.price) || 0,
+                  count: op.count ?? c.count ?? 0,
+                  cost: opCost,
+                  salePrice: this.computeSalePrice(
+                    opCost,
+                    marginType,
+                    marginValue,
+                  ),
+                  ...(product
+                    ? productState(product)
+                    : { ...notAdded, productId: null }),
+                };
+              },
+            );
+            // منتج مضاف بلا مشغّل مقابل في الكتالوج الحالي (بيانات قديمة أو
+            // مشغّل أزاله المزود): يُعرض صفاً حتى يبقى قابلاً للإيقاف والحذف
+            const known = new Set(rows.map((r) => r.code));
+            for (const [code, product] of byOperator) {
+              if (known.has(code)) continue;
+              const opCost = Number(product.cost) || cost;
+              rows.push({
+                code,
+                name: product.operatorName || '',
+                type: product.operatorType || '',
+                price: opCost,
+                count: product.count ?? 0,
+                cost: opCost,
+                salePrice: this.computeSalePrice(
+                  opCost,
+                  marginType,
+                  marginValue,
+                ),
+                ...productState(product),
+              });
+            }
+            const addedOp = rows.find((r) => r.added);
             return {
               code: c.code,
               name: c.name || cMeta.name,
@@ -3428,17 +3536,15 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
               iso: (c as any)?.iso || cMeta.iso,
               cost,
               count: c.count ?? 0,
-              operators: visibleOperators(c.operators),
+              operators: rows,
               salePrice: this.computeSalePrice(cost, marginType, marginValue),
-              added: Boolean(product),
-              productId: product ? product._id.toString() : null,
-              productActive: product ? product.isActive !== false : false,
-              // حالة الجودة تُوسم بها الدولة في صفحة الانتقاء نفسها
-              productAutoDisabled: product
-                ? product.autoDisabled === true
-                : false,
-              productConsecutiveFailures: product
-                ? Number(product.quality?.consecutiveFailures ?? 0)
+              // حقول قديمة = أول منتج مضاف، للنُسخ التي تقرأ منتجاً واحداً للدولة
+              added: Boolean(addedOp),
+              productId: addedOp ? addedOp.productId : null,
+              productActive: addedOp ? addedOp.productActive : false,
+              productAutoDisabled: addedOp ? addedOp.productAutoDisabled : false,
+              productConsecutiveFailures: addedOp
+                ? addedOp.productConsecutiveFailures
                 : 0,
             };
           }),
@@ -3491,7 +3597,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       name?: string;
       cost?: number;
       count?: number;
-      operators?: Array<{ code: string; name: string }>;
+      // المشغّلون المختارون للإضافة: كل مشغّل يُنشئ منتجاً مستقلاً بسعره.
+      // قائمة فارغة = منتج عام واحد يختار له المزود أي مشغّل
+      operators?: VirtualNumberOperator[];
     }>;
   }) {
     const app = await this.appModel.findById(dto.appId);
@@ -3538,31 +3646,81 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     for (const c of countries) {
       const code = (c.code || '').trim();
       if (!code) continue;
-      // التكرار يُقاس على (تطبيق + سيرفر + دولة): نفس الدولة من سيرفر آخر منتجٌ
-      // جديدٌ كامل العدّادات لا نسخة معدّلة مما يوجد
-      const exists = await this.productModel.exists({
-        appId: app._id,
-        providerId: targetProviderId,
-        countryCode: code,
-      });
-      if (exists) continue;
-      await this.productModel.create({
-        appId: app._id,
-        serviceCode,
-        countryCode: code,
-        countryName: (c.name || '').trim() || code,
-        cost: Number(c.cost) || 0,
-        count: Number(c.count) || 0,
-        operators: (c.operators ?? []).map((o) => ({
-          code: o.code,
-          name: o.name,
-        })),
-        providerId: targetProviderId,
-        isActive: true,
-      });
-      added += 1;
+      const countryCost = Number(c.cost) || 0;
+      const countryCount = Number(c.count) || 0;
+      const countryName = (c.name || '').trim() || code;
+      // المشغّل هو وحدة البيع: كل مشغّل مختار يصير منتجاً مستقلاً بتكلفته هو،
+      // فلا يُباع مرتفع السعر بسعر أرخص مشغّل. وحين لا يعرض المزود مشغّلين
+      // يُنشأ منتج عام واحد (بلا مشغّل) بتكلفة الدولة، والمزود يختار عند الطلب
+      const picked = (c.operators ?? []).filter((o) =>
+        Boolean((o?.code || '').trim()),
+      );
+      const targets =
+        picked.length > 0
+          ? picked.map((o) => {
+              const opCode = (o.code || '').trim();
+              const opPrice = Number(o.price);
+              return {
+                operator: opCode,
+                // «any» ليس مشغّلاً بعينه بل «أي مشغّل»: يبقى بلا اسم فيُعرض
+                // باسم السيرفر الوهمي بدل ظهور الرمز التقني للعميل
+                operatorName:
+                  opCode === 'any'
+                    ? ''
+                    : (o.name || '').trim() || opCode,
+                operatorType: (o.type || '').trim(),
+                cost: opPrice > 0 ? opPrice : countryCost,
+                count:
+                  o.count === undefined || o.count === null
+                    ? countryCount
+                    : Number(o.count) || 0,
+              };
+            })
+          : [
+              {
+                operator: '',
+                operatorName: '',
+                operatorType: '',
+                cost: countryCost,
+                count: countryCount,
+              },
+            ];
+
+      for (const target of targets) {
+        // التكرار يُقاس على (تطبيق + سيرفر + دولة + مشغّل): مشغّل ثانٍ للدولة
+        // نفسها منتجٌ جديدٌ كامل العدّادات لا نسخة معدّلة مما يوجد
+        const exists = await this.productModel.exists({
+          appId: app._id,
+          providerId: targetProviderId,
+          countryCode: code,
+          operator: target.operator,
+        });
+        if (exists) continue;
+        await this.productModel.create({
+          appId: app._id,
+          serviceCode,
+          countryCode: code,
+          countryName,
+          operator: target.operator,
+          operatorName: target.operatorName,
+          operatorType: target.operatorType,
+          cost: target.cost,
+          count: target.count,
+          // لقطة المشغّلين المختارين: تُعرض في اللوحة بلا قراءة الكتالوج الحيّ
+          operators: picked.map((o) => ({
+            code: o.code,
+            name: o.name,
+            price: o.price,
+            type: o.type,
+            count: o.count,
+          })),
+          providerId: targetProviderId,
+          isActive: true,
+        });
+        added += 1;
+      }
     }
-    return { added, message: `تمت إضافة ${added} دولة إلى التطبيق` };
+    return { added, message: `تمت إضافة ${added} عرض إلى التطبيق` };
   }
 
   /** تغيير حالة دولة (منتج): تظهر أو تختفي عن العميل */
@@ -4377,9 +4535,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       country: request.country,
       countryName: request.countryName || countryMeta.name,
       flag: countryMeta.flag,
-      operator: isHiddenServerName(request.operator || '')
-        ? ''
-        : request.operator,
+      // اسم المشغّل المعروض أولاً: رمزه التقني (fr-lycamobile) لا يصل للعميل
+      operator: request.operatorName
+        ? request.operatorName
+        : isHiddenServerName(request.operator || '')
+          ? ''
+          : request.operator,
       amount: Number(request.amount) || 0,
       phoneNumber: request.phoneNumber
         ? `+${String(request.phoneNumber).replace(/[^\d]/g, '')}`

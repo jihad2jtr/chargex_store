@@ -67,6 +67,8 @@ VirtualNumberAppModel _app({
   activeProductCount: activeProductCount,
 );
 
+/// دولة مضاف منها عرض واحد (عام بلا مشغّل) بحالته: المشغّل هو وحدة البيع،
+/// فحالة الإيقاف والحذف تخصّ صفّه لا صف الدولة مجمّلة
 VirtualNumberCatalogCountry _addedCountry({
   bool stoppedByQuality = false,
   int consecutiveFailures = 0,
@@ -81,6 +83,20 @@ VirtualNumberCatalogCountry _addedCountry({
   productActive: !stoppedByQuality,
   productAutoDisabled: stoppedByQuality,
   productConsecutiveFailures: consecutiveFailures,
+  operators: [
+    VirtualNumberCatalogOperator(
+      code: '',
+      name: '',
+      price: 0.4,
+      count: 12,
+      salePrice: 0.5,
+      added: true,
+      productId: 'prod-eg',
+      productActive: !stoppedByQuality,
+      productAutoDisabled: stoppedByQuality,
+      productConsecutiveFailures: consecutiveFailures,
+    ),
+  ],
 );
 
 VirtualNumberCatalogCountry _freshCountry() =>
@@ -257,13 +273,13 @@ class _SeededVn extends VirtualNumbersProvider {
   @override
   Future<String?> addCountriesToApp({
     required String appId,
-    required List<VirtualNumberCatalogCountry> countries,
+    required List<Map<String, dynamic>> countries,
     String? providerId,
     String? serviceCode,
   }) async {
     lastAddCountries = {
       'appId': appId,
-      'codes': countries.map((c) => c.code).toList(),
+      'codes': countries.map((c) => c['code']).toList(),
       'serviceCode': serviceCode,
     };
     return 'تمت إضافة الدول';
@@ -556,7 +572,7 @@ void main() {
         // الدولة المُنتقاة: سطر تفعيل/إخفاء + حالة الظهور + وسم السيرفر
         await _scrollUntil(w, find.textContaining('مصر'));
         expect(find.textContaining('مصر'), findsOneWidget);
-        expect(find.textContaining('ظاهرة للعميل'), findsWidgets);
+        expect(find.textContaining('ظاهر للعميل'), findsWidgets);
         expect(find.byType(Switch), findsOneWidget);
         // وسم السيرفر الوهمي بجانب الدولة، وفي سطر السعر يُذكر المزود لأنه
         // شاشة إدارة لا شاشة عميل
@@ -566,8 +582,8 @@ void main() {
         expect(find.textContaining('كندا'), findsOneWidget);
         expect(find.byType(Checkbox), findsOneWidget);
         // عنوانا القسمان يذكوران السيرفر: الإضافة هنا منتج تحت هذا السيرفر وحده
-        expect(find.textContaining('دول هذا السيرفر'), findsOneWidget);
-        expect(find.textContaining('دول كتالوج هذا السيرفر'), findsOneWidget);
+        expect(find.textContaining('عروض هذا السيرفر'), findsOneWidget);
+        expect(find.textContaining('عروض كتالوج هذا السيرفر'), findsOneWidget);
       },
     );
 
@@ -593,7 +609,7 @@ void main() {
       await _settle(w);
       expect(vn.toggledProducts, ['prod-eg']);
 
-      await w.tap(find.byTooltip('حذف الدولة من التطبيق'));
+      await w.tap(find.byTooltip('حذف العرض من التطبيق'));
       await _settle(w);
       expect(vn.removedProducts, ['prod-eg']);
     });

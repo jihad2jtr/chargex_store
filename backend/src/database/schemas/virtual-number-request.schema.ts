@@ -61,6 +61,9 @@ export class VirtualNumberRequest {
   @Prop({ trim: true, default: '' })
   operator: string; // رمز المشغّل (أي مشغّل حين يكون فارغاً)
 
+  @Prop({ trim: true, default: '' })
+  operatorName: string; // اسم المشغّل المعروض (Orange) بدل رمزه التقني
+
   // المنتج (تطبيق+دولة+مزود) الذي بيع فعلاً: عقدة تسجيل الجودة. يُخلَّد على الطلب
   // لأن كتالوج المزود قد يتغير بعدها.
   @Prop({ type: Types.ObjectId, ref: 'VirtualNumberProduct', index: true })

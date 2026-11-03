@@ -5,6 +5,7 @@ import {
   VirtualNumberClient,
   VirtualNumberCredentials,
   VirtualNumberHandle,
+  VirtualNumberOperator,
   VirtualNumberProfile,
   VirtualNumberProviderError,
   VirtualNumberServiceEntry,
@@ -236,25 +237,44 @@ export function normalizeHeroSmsCatalog(input: {
     ['code', 'id', 'country', 'key'],
   );
 
-  type Row = { cost: number; count?: number; operators: Array<{ code: string; name: string }> };
+  type Row = {
+    cost: number;
+    count?: number;
+    operators: VirtualNumberOperator[];
+  };
   const byService = new Map<string, Map<string, Row>>();
 
   const leafRow = (node: any): Row | null => {
     if (!node || typeof node !== 'object') return null;
     const price = node.price ?? node.cost ?? node.amount;
     if (price === undefined && node.count === undefined) return null;
-    const operators = toEntries(node.operators ?? node.ops).map((entry) => ({
-      code: String(
-        (entry.value && typeof entry.value === 'object'
-          ? pickStringValue(entry.value, ['code', 'id', 'name'])
+    // المشغّل لكل مشغّل سعره ومخزونه: يُقرآن معه فيصير «سيرفراً» قائماً بذاته،
+    // وإن لم يُفصح المزود عن سعر المشغّل يُترك السعر فارغاً ليُؤخذ سعر الدولة
+    const operators: VirtualNumberOperator[] = toEntries(
+      node.operators ?? node.ops,
+    ).map((entry) => {
+      const value =
+        entry.value && typeof entry.value === 'object' ? entry.value : {};
+      const code = String(
+        (Object.keys(value).length > 0
+          ? pickStringValue(value, ['code', 'id', 'name', 'operator'])
           : entry.value) ?? entry.key,
-      ).trim(),
-      name: String(
-        (entry.value && typeof entry.value === 'object'
-          ? pickStringValue(entry.value, ['name', 'code'])
+      ).trim();
+      const name = String(
+        (Object.keys(value).length > 0
+          ? pickStringValue(value, ['name', 'code', 'id', 'operator'])
           : entry.value) ?? entry.key,
-      ).trim(),
-    }));
+      ).trim();
+      const opPrice = value.price ?? value.cost ?? value.amount;
+      const opCount = value.count ?? value.num ?? value.total;
+      return {
+        code,
+        name,
+        price: opPrice === undefined ? undefined : toNumberValue(opPrice),
+        type: pickStringValue(value, ['type', 'operatorType']) ?? undefined,
+        count: opCount === undefined ? undefined : toNumberValue(opCount),
+      } as VirtualNumberOperator;
+    });
     return {
       cost: toNumberValue(price),
       count:

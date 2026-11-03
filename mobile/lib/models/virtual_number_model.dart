@@ -73,24 +73,48 @@ class VirtualNumberOperator {
   final String code;
   final String name;
 
-  const VirtualNumberOperator({required this.code, required this.name});
+  /// تكلفة هذا المشغّل عند المزود: تُسقط إن لم يُفصح المزود عنها فيُقرأ سعر
+  /// الدولة. هي ما يُبنى عليه سعر العميل حين يُباع المشغّل وحدةً مستقلة
+  final double price;
+  final String type; // physical | virtual | ... كما يسميه المزود
+  final int count;
+
+  const VirtualNumberOperator({
+    required this.code,
+    required this.name,
+    this.price = 0,
+    this.type = '',
+    this.count = 0,
+  });
 
   factory VirtualNumberOperator.fromJson(Map<String, dynamic> json) {
     return VirtualNumberOperator(
       code: (json['code'] ?? '').toString(),
       name: (json['name'] ?? json['code'] ?? '').toString(),
+      price: _num(json['price']),
+      type: (json['type'] ?? '').toString(),
+      count: _num(json['count']).toInt(),
     );
   }
+
+  /// ما يُعرض على البطاقة: اسم المشغّل، و«أي مشغّل» حين لا يُسمّيه المزود
+  String get displayName => name.isNotEmpty ? name : 'أي مشغّل';
 }
 
 /// عرض سيرفر واحد لدولة داخل تطبيق (منتج عند مزود بعينه). الدولة نفسها قد
 /// تُباع من أكثر من سيرفر: لكل عرض سعره ومخزونه ومشغّلوه، ولا يُدمج عرضان
 /// ولا يُختار أرخصهما تلقائياً — الاختيار للعميل.
+/// المشغّل وحدة البيع: كل (دولة + مشغّل) عرضٌ مستقل بسعره، فيحمل العرض مشغّله.
 class VirtualNumberOffer {
   /// معرّف المنتج لدى الخادم: به يُشترى الرقم وبه تُسجَّل جودة هذا السيرفر
   final String productId;
   final String providerId;
   final String serverLabel;
+
+  /// اسم المشغّل المعروض: هو عنوان البطاقة حين يوجد، وإلا اسم السيرفر الوهمي
+  final String operator;
+  final String operatorName;
+  final String operatorType;
   final String service;
   final String country;
   final String countryName;
@@ -104,6 +128,9 @@ class VirtualNumberOffer {
     this.productId = '',
     this.providerId = '',
     this.serverLabel = '',
+    this.operator = '',
+    this.operatorName = '',
+    this.operatorType = '',
     this.service = '',
     this.country = '',
     this.countryName = '',
@@ -117,6 +144,9 @@ class VirtualNumberOffer {
       productId: (json['productId'] ?? '').toString(),
       providerId: (json['providerId'] ?? '').toString(),
       serverLabel: (json['serverLabel'] ?? '').toString(),
+      operator: (json['operator'] ?? '').toString(),
+      operatorName: (json['operatorName'] ?? '').toString(),
+      operatorType: (json['operatorType'] ?? '').toString(),
       service: (json['service'] ?? '').toString(),
       country: (json['country'] ?? '').toString(),
       countryName: (json['countryName'] ?? '').toString(),
@@ -143,6 +173,9 @@ class VirtualNumberOffer {
     'productId': productId,
     'providerId': providerId,
     'serverLabel': serverLabel,
+    'operator': operator,
+    'operatorName': operatorName,
+    'operatorType': operatorType,
     'service': service,
     'country': country,
     'countryName': countryName,
@@ -150,12 +183,17 @@ class VirtualNumberOffer {
     'salePrice': salePrice,
     'count': count,
     'operators': operators
-        .map((o) => {'code': o.code, 'name': o.name})
+        .map((o) => {'code': o.code, 'name': o.name, 'price': o.price})
         .toList(),
   };
 
-  /// الاسم الوهمي وحده يُعرض؛ وغيابه يعني بيانات قديمة فلا يُختار به منتج
-  String get label => serverLabel.isNotEmpty ? serverLabel : 'سيرفر';
+  /// عنوان البطاقة: اسم المشغّل (Orange) إن وُجد، وإلا اسم السيرفر الوهمي.
+  /// لا يظهر رمز تقني للعميل أبداً
+  String get label {
+    if (operatorName.isNotEmpty) return operatorName;
+    if (serverLabel.isNotEmpty) return serverLabel;
+    return 'سيرفر';
+  }
 
   bool get isPurchasable => productId.isNotEmpty;
 
@@ -369,6 +407,8 @@ class VirtualNumberRequestModel {
   final String country;
   final String countryName;
   final String flag;
+
+  /// اسم المشغّل المعروض (Orange) — الرمز التقني لا يصل للعميل
   final String operator;
   final double amount;
   final String? phoneNumber;
@@ -794,7 +834,6 @@ class VirtualNumberDictionaryEntry {
       );
 }
 
-
 /// دولة داخل بطاقة تطبيق الأرقام (تُعرض مباشرة بدون فتح الكتالوج)
 class VirtualNumberAppCountry {
   /// معرّف المنتج: به تُفعَّل الدولة وتُوقف، وهو عقدة تسجيل الجودة
@@ -806,6 +845,14 @@ class VirtualNumberAppCountry {
 
   /// اسم السيرفر الوهمي: نفس ما يراه العميل على بطاقة العرض
   final String serverLabel;
+
+  /// اسم المشغّل الحقيقي (Orange، channel_id…): يظهر في اللوحة وحدها لأن
+  /// الدولة نفسها قد تُباع من مشغّلين لدى نفس المزود بنفس وسم السيرفر،
+  /// فتبدوا الرقاقتان متطابقتين للأدمن فيظن أن التبديل لا يعمل
+  final String operatorName;
+
+  /// رمز المشغّل لدى المزود: احتياط للعرض حين يخلو الاسم
+  final String operator;
 
   /// موقوف جودةً بعد تكرار الفشل المتتالي
   final bool autoDisabled;
@@ -821,6 +868,8 @@ class VirtualNumberAppCountry {
     this.active = true,
     this.providerId = '',
     this.serverLabel = '',
+    this.operatorName = '',
+    this.operator = '',
     this.autoDisabled = false,
     this.consecutiveFailures = 0,
     this.totalOrders = 0,
@@ -836,6 +885,8 @@ class VirtualNumberAppCountry {
         active: json['active'] != false,
         providerId: (json['providerId'] ?? '').toString(),
         serverLabel: (json['serverLabel'] ?? '').toString(),
+        operatorName: (json['operatorName'] ?? '').toString(),
+        operator: (json['operator'] ?? '').toString(),
         autoDisabled: json['autoDisabled'] == true,
         consecutiveFailures: _num(json['consecutiveFailures']).toInt(),
         totalOrders: _num(json['totalOrders']).toInt(),
@@ -860,7 +911,9 @@ class VirtualNumberCatalogCountry {
   final String flag;
   final double cost;
   final int count;
-  final List<VirtualNumberOperator> operators;
+
+  /// صف لكل مشغّل («سيرفر») لدى هذا المزود: بسعره وحالة منتجه
+  final List<VirtualNumberCatalogOperator> operators;
   final double salePrice;
   final bool added;
   final String productId;
@@ -896,7 +949,7 @@ class VirtualNumberCatalogCountry {
         flag: (json['flag'] ?? '🌐').toString(),
         cost: _num(json['cost']),
         count: _num(json['count']).toInt(),
-        operators: _operators(json['operators']),
+        operators: _catalogOperators(json['operators']),
         salePrice: _num(json['salePrice']),
         added: json['added'] == true,
         productId: (json['productId'] ?? '').toString(),
@@ -906,6 +959,78 @@ class VirtualNumberCatalogCountry {
           json['productConsecutiveFailures'],
         ).toInt(),
       );
+
+  /// المشغّلون غير المضافين بعد: هم ما يُنتقى لإنشاء منتجات مستقلة
+  List<VirtualNumberCatalogOperator> get addableOperators =>
+      operators.where((o) => !o.added).toList();
+
+  /// المضاف منهم: تُعرض صفوفها للإيقاف والتفعيل والحذف
+  List<VirtualNumberCatalogOperator> get addedOperators =>
+      operators.where((o) => o.added).toList();
+}
+
+/// صف مشغّل في كتالوج الإدارة: تكلفته وسعر عميله وحالة منتجه إن كان مضافاً
+class VirtualNumberCatalogOperator {
+  final String code;
+  final String name;
+  final String type;
+
+  /// تكلفة المشغّل عند المزود (وسعر الدولة إن لم يُفصح المزود عن سعر المشغّل)
+  final double price;
+  final int count;
+  final double salePrice;
+
+  final bool added;
+  final String productId;
+  final bool productActive;
+  final bool productAutoDisabled;
+  final int productConsecutiveFailures;
+
+  const VirtualNumberCatalogOperator({
+    required this.code,
+    this.name = '',
+    this.type = '',
+    this.price = 0,
+    this.count = 0,
+    this.salePrice = 0,
+    this.added = false,
+    this.productId = '',
+    this.productActive = false,
+    this.productAutoDisabled = false,
+    this.productConsecutiveFailures = 0,
+  });
+
+  factory VirtualNumberCatalogOperator.fromJson(Map<String, dynamic> json) =>
+      VirtualNumberCatalogOperator(
+        code: (json['code'] ?? '').toString(),
+        name: (json['name'] ?? '').toString(),
+        type: (json['type'] ?? '').toString(),
+        price: _num(json['cost']) > 0
+            ? _num(json['cost'])
+            : _num(json['price']),
+        count: _num(json['count']).toInt(),
+        salePrice: _num(json['salePrice']),
+        added: json['added'] == true,
+        productId: (json['productId'] ?? '').toString(),
+        productActive: json['productActive'] == true,
+        productAutoDisabled: json['productAutoDisabled'] == true,
+        productConsecutiveFailures: _num(
+          json['productConsecutiveFailures'],
+        ).toInt(),
+      );
+
+  /// اسم المشغّل المعروض، و«أي مشغّل» حين لا يسمّيه المزود (any)
+  String get displayName => name.isNotEmpty ? name : 'أي مشغّل';
+
+  /// مفتاح الانتقاء: دولة + مشغّل، ولا يُدمج مشغّلان في اختيار واحد
+  String keyOf(String countryCode) => '$countryCode|$code';
+
+  /// نقطة حالة المنتج المضاف: أخضر / تحذير / موقوف
+  String get qualityState {
+    if (productAutoDisabled) return 'disabled';
+    if (productConsecutiveFailures >= 1) return 'watching';
+    return 'healthy';
+  }
 }
 
 /// خدمة كاملة بدولها في كتالوج الإدارة، مع تطبيقها المرافق إن وُجد
@@ -1387,6 +1512,18 @@ List<VirtualNumberOperator> _operators(dynamic value) {
       .toList();
 }
 
+/// صفوف مشغّلي كتالوج الإدارة (سعر + حالة منتج)
+List<VirtualNumberCatalogOperator> _catalogOperators(dynamic value) {
+  if (value is! List) return const [];
+  return value
+      .whereType<Map>()
+      .map(
+        (e) =>
+            VirtualNumberCatalogOperator.fromJson(Map<String, dynamic>.from(e)),
+      )
+      .toList();
+}
+
 /// قائمة نصوص من قيمة JSON (تتجاهل الفارغ)
 List<String> _stringList(dynamic value) {
   if (value is! List) return const [];
@@ -1512,4 +1649,3 @@ class VirtualNumberImportReport {
         countriesPending: _num(json['countriesPending']).toInt(),
       );
 }
-

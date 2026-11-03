@@ -29,6 +29,10 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   // فلتر حالة المنتجات: 0 الكل، 1 جاهزة، 2 بلا دول مفعّلة، 3 متوقفة
   int _filter = 0;
 
+  // شجرة التصفح: مفاتيح الدول الفردة داخل تذكرة التطبيق
+  // (تطبيق|دولة)؛ الدولة ذات المشغّل الواحد لا تحتاج فرداً
+  final Set<String> _expandedCountryKeys = <String>{};
+
   @override
   void initState() {
     super.initState();
@@ -512,15 +516,10 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
                   ),
                 ]
               : const [],
-          // الدول المفعّلة داخل جسم التذكرة: نقطة الجودة + وسم السيرفر لكل دولة
+          // الدول داخل جسم التذكرة: مجموعة لكل دولة، وفرد الدولة يُظهر
+          // مشغّليها سطراً سطراً مع التبديل والحذف والشراء التجريبي
           media: (open && countries.isNotEmpty)
-              ? Wrap(
-                  spacing: 5,
-                  runSpacing: 4,
-                  children: [
-                    for (final country in countries) _countryChip(country),
-                  ],
-                )
+              ? _countryTree(app, countries, accent)
               : null,
           // التذييل بعد خط التمزّق: إجراءات التطبيق (كما في بقية تذاكر الإدارة).
           // مطوياً: مؤشر Chevron يلمّح بالنقر للفرد
@@ -579,56 +578,261 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     );
   }
 
-  /// بطاقة دولة واحدة: اسمها + وسم السيرفر + نقطة حالتها. الدولة نفسها قد
-  /// تُباع من أكثر من سيرفر، فلكل سيرفر عدّاد جودته وإيقافه المستقل.
-  Widget _countryChip(VirtualNumberAppCountry country) {
-    final tone = _qualityColor(country);
-    final label = country.serverLabel.trim();
-    return Material(
-      color: tone.withValues(alpha: 0.08),
-      borderRadius: BorderRadius.circular(7),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(7),
-        // النقر يفتح إيقافاً/إعادة تفعيل سريعين دون دخول شاشة الجودة
-        onTap: _busy || country.id.isEmpty
-            ? null
-            : () => _openCountryActions(country),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(7),
-            border: Border.all(color: tone.withValues(alpha: 0.3)),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 6,
-                height: 6,
-                decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
-              ),
-              const SizedBox(width: 5),
-              Text(
-                country.name,
-                style: AppTypography.cairo(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.w700,
-                  color: tone,
+  /// شجرة داخل تذكرة التطبيق: دولة ← مشغّلون. الدولة ذات مشغّل
+  /// واحد تُعرض سطراً واحداً بلا رأس منفصل، ومتى تعدّد المشغّلون
+  /// ظهر رأس قابل للفرد يفتح أسطر المشغّلين اسفله
+  Widget _countryTree(
+    VirtualNumberAppModel app,
+    List<VirtualNumberAppCountry> countries,
+    Color accent,
+  ) {
+    final groups = <String, List<VirtualNumberAppCountry>>{};
+    for (final c in countries) {
+      (groups[c.code] ??= <VirtualNumberAppCountry>[]).add(c);
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final entry in groups.entries)
+          _countryGroup(app.id, entry.key, entry.value, accent),
+      ],
+    );
+  }
+
+  /// رأس الدولة + أسطر مشغّليها: التطبيق ⊃ دولة ⊃ مشغّل. الدولة ذات
+  /// مشغّل واحد تُعرض برأسها وسطر مشغّلها مباشرة، ومتى تعدّد المشغّلون
+  /// صار الرأس قابلاً للنقر ليفرد أسطرهم أو يطويها
+  Widget _countryGroup(
+    String appId,
+    String countryCode,
+    List<VirtualNumberAppCountry> operators,
+    Color accent,
+  ) {
+    final first = operators.first;
+    final activeCount = operators.where((o) => o.active).length;
+    final multi = operators.length > 1;
+    final key = '$appId|$countryCode';
+    // دولة بمشغّل واحد: لا حاجة لفرد، تُعرض مفتوحة دائماً
+    final expanded = !multi || _expandedCountryKeys.contains(key);
+    final headerLabel = first.name.trim().isEmpty
+        ? countryCode
+        : first.name.trim();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // رأس الدولة: النقر يفرد/يطوي أسطر مشغّليها عند التعدد
+        InkWell(
+          borderRadius: BorderRadius.circular(6),
+          onTap: multi
+              ? () => setState(() {
+                  if (_expandedCountryKeys.contains(key)) {
+                    _expandedCountryKeys.remove(key);
+                  } else {
+                    _expandedCountryKeys.add(key);
+                  }
+                })
+              : null,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 6),
+            child: Row(
+              children: [
+                Icon(
+                  multi
+                      ? (expanded
+                            ? Icons.expand_less_rounded
+                            : Icons.expand_more_rounded)
+                      : Icons.location_city_rounded,
+                  size: 15,
+                  color: accent,
                 ),
-              ),
-              if (label.isNotEmpty) ...[
                 const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: AppTypography.cairo(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.slate500,
+                Expanded(
+                  child: Text(
+                    multi
+                        ? '$headerLabel · ${operators.length} مشغّل'
+                        : headerLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AppTypography.cairo(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      color: accent,
+                    ),
                   ),
                 ),
+                if (multi)
+                  Text(
+                    '$activeCount/${operators.length} مفعّل',
+                    style: AppTypography.cairo(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.slate500,
+                    ),
+                  ),
               ],
-            ],
+            ),
           ),
+        ),
+        if (expanded)
+          for (final op in operators)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: _operatorRow(op, accent),
+            ),
+      ],
+    );
+  }
+
+  /// سطر مشغّل واحد تحت رأس دولته: اسم المشغّل + نقطة الجودة + شراء
+  /// تجريبي + تبديل الظهور + (إعادة تفعيل عند الإيقاف الجودة) + حذف
+  Widget _operatorRow(VirtualNumberAppCountry country, Color accent) {
+    final tone = _qualityColor(country);
+    final opName = country.operatorName.trim().isNotEmpty
+        ? country.operatorName.trim()
+        : (country.serverLabel.trim().isNotEmpty
+              ? country.serverLabel.trim()
+              : 'مشغّل');
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: tone.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: tone, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 5),
+          Expanded(
+            child: Text(
+              opName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate900,
+              ),
+            ),
+          ),
+          // الشراء التجريبي: يسبق ظهور المنتج للعميل للتأكد من وصول الرقم
+          if (country.id.isNotEmpty)
+            IconButton(
+              tooltip: 'شراء تجريبي من هذا السيرفر',
+              visualDensity: VisualDensity.compact,
+              iconSize: 16,
+              onPressed: _busy ? null : () => _testBuy(country, opName),
+              icon: const Icon(
+                Icons.shopping_bag_outlined,
+                color: AppColors.primary,
+              ),
+            ),
+          // إعادة التفعيل بعد إيقاف الجودة: تصفّر الفشل المتتالي
+          if (country.autoDisabled)
+            IconButton(
+              tooltip: 'إعادة التفعيل (يصفّر الفشل المتتالي)',
+              visualDensity: VisualDensity.compact,
+              iconSize: 16,
+              onPressed: _busy || country.id.isEmpty
+                  ? null
+                  : () => _run(
+                      () => context
+                          .read<VirtualNumbersProvider>()
+                          .reactivateProduct(
+                            country.id,
+                            note: 'إعادة تفعيل سريعة من اللوحة',
+                          ),
+                    ),
+              icon: const Icon(
+                Icons.restart_alt_rounded,
+                color: AppColors.emerald,
+              ),
+            )
+          else
+            IconButton(
+              tooltip: country.active
+                  ? 'إخفاء هذا المشغّل عن العميل'
+                  : 'إظهار هذا المشغّل للعميل',
+              visualDensity: VisualDensity.compact,
+              iconSize: 16,
+              onPressed: _busy || country.id.isEmpty
+                  ? null
+                  : () => _run(
+                      () => context
+                          .read<VirtualNumbersProvider>()
+                          .toggleAdminProduct(country.id),
+                    ),
+              icon: Icon(
+                country.active
+                    ? Icons.toggle_on_rounded
+                    : Icons.toggle_off_rounded,
+                color: country.active ? AppColors.emerald : AppColors.slate400,
+              ),
+            ),
+          IconButton(
+            tooltip: 'حذف هذا المشغّل من التطبيق',
+            visualDensity: VisualDensity.compact,
+            iconSize: 16,
+            onPressed: _busy || country.id.isEmpty
+                ? null
+                : () => _run(
+                    () => context
+                        .read<VirtualNumbersProvider>()
+                        .removeAdminProduct(country.id),
+                  ),
+            icon: const Icon(
+              Icons.delete_outline_rounded,
+              color: AppColors.rose,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// شراء تجريبي: يستدعي مسار العميل نفسه (requestNumber) باسم الأدمن،
+  /// فيُخصم من رصيده ويظهر الرقم في صفحة أرقامه للتحقق
+  Future<void> _testBuy(VirtualNumberAppCountry country, String opName) async {
+    final vn = context.read<VirtualNumbersProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('شراء تجريبي'),
+        content: Text(
+          'سيُطلب رقم من «${country.name} — $opName» على حسابك الإداري؛ '
+          'يُخصم سعره من رصيدك ويصلك الرقم في صفحة أرقام العميل كأي طلب عادي.',
+          style: AppTypography.cairo(fontSize: 12.5, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('طلب الرقم'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    final message = await vn.requestNumber(productId: country.id);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
+        content: Text(
+          message ?? vn.errorMessage ?? 'تعذّر الشراء التجريبي',
+          style: AppTypography.cairo(fontSize: 12.5, color: Colors.white),
         ),
       ),
     );
@@ -643,16 +847,9 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     return AppColors.emerald;
   }
 
-  String _qualityLabel(VirtualNumberAppCountry country) {
-    if (country.autoDisabled) return 'موقوف تلقائياً لتكرار فشل الأرقام';
-    if (country.consecutiveFailures >= 1) {
-      return 'تحت المراقبة: ${country.consecutiveFailures} فشل متتالٍ';
-    }
-    return country.active ? 'ظاهرة للعميل' : 'مخفية عن العميل';
-  }
-
   /// احتياط عند خلو `app.countries` (كتالوج مخزّن): تُقرأ الدول المضافة من
-  /// كتالوج مزوده المعروض، فيبقى وسم السيرفر مطابقاً لذلك المزود
+  /// كتالوج مزوده المعروض، فيبقى وسم السيرفر مطابقاً لذلك المزود.
+  /// كل مشغّل مضاف يصبح سطراً مستقللاً: الدمج بينها يُلغي تمييز التبديل
   List<VirtualNumberAppCountry> _countriesFromCatalog(
     VirtualNumberAppModel app,
   ) {
@@ -661,122 +858,27 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
         .cast<VirtualNumberCatalogService?>()
         .firstWhere((s) => s!.code == app.serviceCode, orElse: () => null);
     if (service == null) return const [];
-    return service.countries
-        .where((c) => c.added)
-        .map(
-          (c) => VirtualNumberAppCountry(
-            id: c.productId,
+    return [
+      for (final c in service.countries)
+        for (final op in c.addedOperators)
+          VirtualNumberAppCountry(
+            id: op.productId,
             code: c.code,
             name: c.name,
-            active: c.productActive,
+            active: op.productActive,
             providerId: catalog.providerId,
             serverLabel: catalog.providerServerLabel,
-            autoDisabled: c.productAutoDisabled,
-            consecutiveFailures: c.productConsecutiveFailures,
+            // «أي مشغّل» قيمة العرض الافتراضية عند غياب الاسم: اللوحة
+            // تُفضّل فراغ الحقل على ظهور كلمة احتياطية لمنتج لا مشغّل له
+            operatorName: op.added && op.displayName != 'أي مشغّل'
+                ? op.displayName
+                : '',
+            operator: op.code,
+            autoDisabled: op.productAutoDisabled,
+            consecutiveFailures: op.productConsecutiveFailures,
             totalOrders: 0,
           ),
-        )
-        .toList();
-  }
-
-  /// إجراء سريع على منتج واحد: إيقاف/تفعيل يدوي، أو إعادة تفعيل بعد إيقاف
-  /// الجودة (تصفّر الفشل المتتالي وتُبقي العدّادات التاريخية)
-  Future<void> _openCountryActions(VirtualNumberAppCountry country) async {
-    final provider = context.read<VirtualNumbersProvider>();
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                country.name,
-                style: AppTypography.cairo(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.slate900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                '${country.serverLabel.trim().isEmpty ? 'بلا وسم سيرفر' : country.serverLabel.trim()}'
-                ' — ${_qualityLabel(country)}',
-                style: AppTypography.cairo(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: _qualityColor(country),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'طلبات ${country.totalOrders} • نجاح ${country.success} • '
-                'فشل ${country.failure}',
-                style: AppTypography.cairo(
-                  fontSize: 11,
-                  color: AppColors.slate500,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (country.autoDisabled)
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _run(
-                      () => provider.reactivateProduct(
-                        country.id,
-                        note: 'إعادة تفعيل سريعة من اللوحة',
-                      ),
-                    );
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: AppColors.emerald,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.restart_alt_rounded, size: 17),
-                  label: const Text('إعادة التفعيل'),
-                )
-              else
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.pop(ctx);
-                    _run(() => provider.toggleAdminProduct(country.id));
-                  },
-                  style: FilledButton.styleFrom(
-                    backgroundColor: country.active
-                        ? AppColors.slate800
-                        : AppColors.emerald,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: Icon(
-                    country.active
-                        ? Icons.power_settings_new_rounded
-                        : Icons.check_circle_rounded,
-                    size: 17,
-                    color: Colors.white,
-                  ),
-                  label: Text(
-                    country.active
-                        ? 'إيقاف ظهورها للعميل'
-                        : 'تفعيل ظهورها للعميل',
-                    style: AppTypography.arabicButton(
-                      color: Colors.white,
-                      fontSize: 12.5,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-        ),
-      ),
-    );
+    ];
   }
 
   Widget _visibilityChip(VirtualNumberAppModel app) {

@@ -880,12 +880,14 @@ class VirtualNumbersProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// إضافة دول مختارة من الكتالوج إلى تطبيق (تُتجاهل الدول الموجودة مسبقاً).
+  /// إضافة عروض مختارة من الكتالوج إلى تطبيق (تُتجاهل العروض الموجودة مسبقاً).
   /// [serviceCode] رمز الخدمة الأصلي لدى هذا المزود من كتالوجه — يُحفظ على المنتج
   /// فيُخاطَب به المزود عند الشراء، وقد يختلف عن رمز التطبيق بين مزودين.
+  /// [countries] حمولة جاهزة: لكل دولة `operators` هي المشغّلون المختارون بعينهم،
+  /// فيُنشئ الخادم منتجاً مستقلاً لكل مشغّل بسعره (قائمة فارغة = عرض عام)
   Future<String?> addCountriesToApp({
     required String appId,
-    required List<VirtualNumberCatalogCountry> countries,
+    required List<Map<String, dynamic>> countries,
     String? providerId,
     String? serviceCode,
   }) => _curationAction(
@@ -896,19 +898,7 @@ class VirtualNumbersProvider extends ChangeNotifier {
       if (providerId != null && providerId.isNotEmpty) 'providerId': providerId,
       if (serviceCode != null && serviceCode.isNotEmpty)
         'serviceCode': serviceCode,
-      'countries': countries
-          .map(
-            (c) => {
-              'code': c.code,
-              'name': c.name,
-              'cost': c.cost,
-              'count': c.count,
-              'operators': c.operators
-                  .map((o) => {'code': o.code, 'name': o.name})
-                  .toList(),
-            },
-          )
-          .toList(),
+      'countries': countries,
     },
     fallback: 'تمت إضافة الدول',
   );

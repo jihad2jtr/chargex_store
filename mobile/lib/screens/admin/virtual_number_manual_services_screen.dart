@@ -435,7 +435,8 @@ class _ManualServiceFormSheetState extends State<_ManualServiceFormSheet> {
               controller: _fieldsCtrl,
               label: 'الحقول المطلوبة (افصل بينها بفاصلة)',
               icon: Icons.input_rounded,
-              hint: 'مثال: رقم الهاتف، اسم الحساب',
+              hint:
+                  'اتركها فارغة فلا يُطلب من العميل أي حقل — يكفي تأكيد الطلب',
             ),
             const SizedBox(height: 10),
             _field(
@@ -608,12 +609,17 @@ class _ManualServiceCard extends StatelessWidget {
             value: '${service.openOrders} طلب',
             tint: AppColors.ticketAmber,
           ),
-        if (service.requiredFields.isNotEmpty)
-          OpsTicketInfoRow(
-            icon: Icons.input_rounded,
-            label: 'الحقول',
-            value: service.requiredFields.join('، '),
-          ),
+        // الحقول تُعرض دائماً كي تعرف الإدارة ما سيُطلب من العميل فعلياً:
+        // بلا حقول تعني أن نافذة الشراء مجرّد تأكيد طلب
+        OpsTicketInfoRow(
+          icon: service.requiredFields.isEmpty
+              ? Icons.do_not_disturb_alt_rounded
+              : Icons.input_rounded,
+          label: 'الحقول',
+          value: service.requiredFields.isEmpty
+              ? 'لا شيء — العميل يؤكد الطلب فقط'
+              : service.requiredFields.join('، '),
+        ),
       ],
       note: service.description.isNotEmpty ? service.description : null,
       actions: [

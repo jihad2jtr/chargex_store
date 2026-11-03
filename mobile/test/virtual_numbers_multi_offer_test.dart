@@ -204,9 +204,10 @@ void main() {
       expect(find.text('من \$0.80'), findsOneWidget);
       expect(find.text('السيرفر'), findsOneWidget);
 
-      // بطاقتان مستقلتان: لكل سيرفر اسمه الوهمي وسعره
-      expect(find.text('Server 1'), findsOneWidget);
-      expect(find.text('Server 2'), findsOneWidget);
+      // بطاقتان مستقلتان: لكل سيرفر اسمه المبهم «سيرفر N» وسعره، ولا يظهر
+      // اسم المزود الحقيقي ولا وسم السيرفر الوهمي على بطاقة العميل
+      expect(find.text('سيرفر 1'), findsOneWidget);
+      expect(find.text('سيرفر 2'), findsOneWidget);
       expect(find.text('\$1.00'), findsOneWidget);
       expect(find.text('\$0.80'), findsWidgets);
       // وقت التشغيل لا يعرض عدد الأرقام المتاحة بعد إلغاء اعتماد الكتالوج الحيّ
@@ -233,20 +234,20 @@ void main() {
       );
       await _openSheet(w);
 
-      // لا ترشيح أرخص: أول عرض في القائمة هو المختار، وسعره يمشي في الزر
+      // كل سيرفر صار منتجاً قائماً بذاته: لا شرائح مشغّل داخله، والبطاقة
+      // تُعرض باسم مبهم «سيرفر N» كي لا يعرف العميل من أي مزود يأتيه الرقم.
+      // المختار ابتداءً أولُ السيرفرات لا أرخصها
       expect(find.text('تفعيل الرقم \$1.00'), findsOneWidget);
-      // ومشغّلات ذلك السيرفر وحدها
-      expect(find.text('Movistar'), findsOneWidget);
-      expect(find.text('Vodafone'), findsNothing);
+      // وقائمة السيرفرات معروضة كلها: لا ترشيح ولا إخفاء للأغلى
+      expect(find.text('سيرفر 1'), findsOneWidget);
+      expect(find.text('سيرفر 2'), findsOneWidget);
 
-      await w.tap(find.text('Server 2'));
+      await w.tap(find.text('سيرفر 2'));
       await w.pump();
       await w.pump(const Duration(milliseconds: 250));
 
+      // التبديل يبدّل السعر في الزر: صفة العرض المختار لا صفة الدولة
       expect(find.text('تفعيل الرقم \$0.80'), findsOneWidget);
-      // المشغّل صفة السيرفر المختار: قائمة السيرفر الثاني غير قائمة الأول
-      expect(find.text('Vodafone'), findsOneWidget);
-      expect(find.text('Movistar'), findsNothing);
 
       _expectNoOverflow(w);
     },
@@ -272,20 +273,17 @@ void main() {
           : RecordingHttp.notHandled(call);
 
       await _openSheet(w);
-      await w.tap(find.text('Server 2'));
+      await w.tap(find.text('سيرفر 2'));
       await w.pump();
       await w.pump(const Duration(milliseconds: 250));
-      // المشغّل من قائمة السيرفر المختار وحده، فيُرسل برمه لا باسمه
-      await w.tap(find.text('Vodafone'));
-      await w.pump();
-      await w.pump(const Duration(milliseconds: 250));
+      // كل بطاقة سيرفر = منتج واحد بمشغّل واحد: الشراء عليها مباشرة بلا
+      // اختيار شريحة مشغّل إضافية
       await w.tap(find.text('تفعيل الرقم \$0.80'));
       await w.pump();
       await w.pump(const Duration(milliseconds: 400));
 
-      // نافذة التأكيد تُسمّي السيرفر المختار بصريح العبارة
-      expect(find.textContaining('السيرفر: Server 2'), findsOneWidget);
-      expect(find.textContaining('المشغّل: Vodafone'), findsOneWidget);
+      // نافذة التأكيد تُسمّي السيرفر المختار باسمه المبهم بصريح العبارة
+      expect(find.textContaining('السيرفر: سيرفر 2'), findsOneWidget);
       await w.tap(find.text('تفعيل الرقم'));
       await w.pump();
       await w.pump(const Duration(milliseconds: 400));
@@ -298,11 +296,11 @@ void main() {
       );
       expect(sent, isNotNull);
       expect(sent!.field('productId'), 'p2');
-      // لا رموز تطبيق ولا دولة: الخادم يقرأ كل ذلك من المنتج، فاختيار سيرفر
-      // آخر لا يمكن أن يسقط على المزود الخطأ
+      // لا رموز تطبيق ولا دولة ولا مشغّل: الخادم يقرأ كل ذلك من المنتج،
+      // فاختيار سيرفر آخر لا يمكن أن يسقط على المزود الخطأ
       expect(sent.json!.containsKey('service'), isFalse);
       expect(sent.json!.containsKey('country'), isFalse);
-      expect(sent.field('operator'), 'vodafone');
+      expect(sent.json!.containsKey('operator'), isFalse);
       expect(sent.field('clientRequestId'), isA<String>());
 
       // بطاقة الرقم النشط تحمل الاسم الوهمي للسيرفر الذي باع الرقم
@@ -398,9 +396,10 @@ void main() {
     );
     await _openSheet(w);
 
-    // العرض الثالث ظاهر باسمه، والشراء عليه يبقى ممكناً: نفاد المخزون يُعرف عند
-    // الخادم وحده فيسجَّل OUT_OF_STOCK لا فشل. وقت التشغيل لم يعد يعرض عدد الأرقام
-    expect(find.text('Server 3'), findsOneWidget);
+    // العرض الثالث ظاهر باسمه المبهم «سيرفر 2» (لا اسمه الحقيقي)، والشراء
+    // عليه يبقى ممكناً: نفاد المخزون يُعرف عند الخادم وحده فيسجَّل
+    // OUT_OF_STOCK لا فشل. وقت التشغيل لم يعد يعرض عدد الأرقام
+    expect(find.text('سيرفر 2'), findsOneWidget);
     // لا نصّ عدد أرقام ولا «مخزون غير معروف» على بطاقة السيرفر
     expect(find.text('مخزون غير معروف'), findsNothing);
     expect(find.text('متاح 40 رقم'), findsNothing);

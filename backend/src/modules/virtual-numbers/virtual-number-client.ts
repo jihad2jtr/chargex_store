@@ -57,6 +57,19 @@ export interface VirtualNumberCancelParams {
   operator?: string;
 }
 
+/**
+ * مشغّل («سيرفر») لدى المزود: بعض المزودين يعرضون الخدمة نفسها عبر عدة مشغّلين
+ * (انظر Hero-SMS: operator=axis) ولكل مشغّل سعره ومخزونه المستقلان. السعر هنا
+ * تكلفة هذا المشغّل وحده، ويُخزَّن في المنتج فيصير المشغّل وحدة بيع قائمة بذاتها.
+ */
+export interface VirtualNumberOperator {
+  code: string;
+  name: string;
+  price?: number; // تكلفة المشغّل عند المزود (تُسقط إن لم يُفصح عنها)
+  type?: string; // physical | virtual | ... كما يسميه المزود
+  count?: number; // مخزون هذا المشغّل وحده
+}
+
 export interface VirtualNumberServiceEntry {
   code: string;
   name: string;
@@ -75,7 +88,7 @@ export interface VirtualNumberServiceEntry {
     iso?: string;
     cost: number;
     count?: number;
-    operators: Array<{ code: string; name: string }>;
+    operators: VirtualNumberOperator[];
   }>;
 }
 

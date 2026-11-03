@@ -39,6 +39,10 @@ class _VirtualNumberCatalogScreenState
   late String? _selectedAppId = widget.focusApp?.id;
   bool _busy = false;
 
+  // شجرة الانتقاء: مفتاح لكل دولة داخل قسم (مضاف/متاح) —
+  // «a|cu» للمضاف و«f|cu» للمتاح؛ النقر على رأس الدولة يفرد مشغّليها
+  final Set<String> _expandedCountryKeys = <String>{};
+
   VirtualNumbersProvider get _vn => context.read<VirtualNumbersProvider>();
 
   @override
@@ -854,16 +858,40 @@ class _VirtualNumberCatalogScreenState
     VirtualNumberAdminCatalog catalog,
     bool hasApp,
   ) {
-    final added = service.countries.where((c) => c.added).toList();
-    final fresh = service.countries.where((c) => !c.added).toList();
+    // كل صف = عرض مستقل (دولة + مشغّل): المضاف يُعرض بحالته، والمتاح يُنتقى
+    // بسعره. فلا يُدمج مشغّلان في صف واحد ولا يُخفى فارق السعر بينهما.
+    final addedRows = <_CatalogOfferRow>[];
+    final freshRows = <_CatalogOfferRow>[];
+    for (final country in service.countries) {
+      for (final op in country.addedOperators) {
+        addedRows.add(_CatalogOfferRow(country, op));
+      }
+      final addable = country.addableOperators;
+      if (addable.isNotEmpty) {
+        for (final op in addable) {
+          freshRows.add(_CatalogOfferRow(country, op));
+        }
+      } else if (country.operators.isEmpty) {
+        // مزود بلا مشغّلين: عرض عام واحد يختار له المزود أي مشغّل
+        freshRows.add(
+          _CatalogOfferRow(
+            country,
+            VirtualNumberCatalogOperator(
+              code: '',
+              price: country.cost,
+              count: country.count,
+            ),
+          ),
+        );
+      }
+    }
     final selected = <String>{};
+    String keyOf(_CatalogOfferRow row) => row.operator.keyOf(row.country.code);
 
     return StatefulBuilder(
       builder: (context, setBodyState) {
-        Widget row(VirtualNumberCatalogCountry country) {
-          if (country.added) {
-            return _addedRow(country, catalog);
-          }
+        Widget freshRow(_CatalogOfferRow row) {
+          final key = keyOf(row);
           return CheckboxListTile(
             dense: true,
             controlAffinity: ListTileControlAffinity.leading,
@@ -871,16 +899,18 @@ class _VirtualNumberCatalogScreenState
             checkboxShape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(4),
             ),
-            value: selected.contains(country.code),
+            value: selected.contains(key),
             onChanged: (v) => setBodyState(() {
               if (v == true) {
-                selected.add(country.code);
+                selected.add(key);
               } else {
-                selected.remove(country.code);
+                selected.remove(key);
               }
             }),
             title: Text(
-              _countryLabel(country),
+              row.operator.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -888,10 +918,9 @@ class _VirtualNumberCatalogScreenState
               ),
             ),
             subtitle: Text(
-              'رمز المزود ${country.code} • '
-              'تكلفة \$${country.cost.toStringAsFixed(2)} • '
-              'سعر العميل \$${country.salePrice.toStringAsFixed(2)} • '
-              'متاح ${country.count}',
+              'تكلفة \$${row.operator.price.toStringAsFixed(2)} • '
+              'سعر العميل \$${row.operator.salePrice.toStringAsFixed(2)} • '
+              'متاح ${row.operator.count}',
               style: AppTypography.cairo(
                 fontSize: 10,
                 color: AppColors.slate500,
@@ -900,31 +929,87 @@ class _VirtualNumberCatalogScreenState
           );
         }
 
+        // تجميع الصفوف بحسب الدولة لرسم شجرة «دولة ⊃ مشغّلون»
+        final addedGroups = <String, List<_CatalogOfferRow>>{};
+        for (final r in addedRows) {
+          (addedGroups[r.country.code] ??= <_CatalogOfferRow>[]).add(r);
+        }
+        final freshGroups = <String, List<_CatalogOfferRow>>{};
+        for (final r in freshRows) {
+          (freshGroups[r.country.code] ??= <_CatalogOfferRow>[]).add(r);
+        }
+
         return Column(
           children: [
-            if (added.isNotEmpty) ...[
+            if (addedRows.isNotEmpty) ...[
               _sectionLabel(
-                'دول هذا السيرفر — فَعّل أو عطّل ظهورها للعميل (لا يخصّ غيرها)',
+                'عروض هذا السيرفر المضافة — فَعّل أو عطّل ظهورها للعميل (لا تخصّ غيرها)',
               ),
-              ...added.map(row),
+              for (final entry in addedGroups.entries) ...[
+                _countryHeader(
+                  section: 'a',
+                  country: entry.value.first.country,
+                  operatorCount: entry.value.length,
+                  onToggle: () {
+                    final k = 'a|${entry.key}';
+                    setBodyState(() {
+                      if (_expandedCountryKeys.contains(k)) {
+                        _expandedCountryKeys.remove(k);
+                      } else {
+                        _expandedCountryKeys.add(k);
+                      }
+                    });
+                  },
+                ),
+                if (entry.value.length == 1 ||
+                    _expandedCountryKeys.contains('a|${entry.key}'))
+                  for (final r in entry.value)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: _addedRow(r.country, r.operator, catalog),
+                    ),
+              ],
               const Divider(height: 16),
             ],
-            if (fresh.isNotEmpty) ...[
+            if (freshRows.isNotEmpty) ...[
               _sectionLabel(
                 hasApp
-                    // نفس الدولة لدى سيرفر آخر = منتج مستقل: عدّاداته وهامشه
-                    // وإيقافه خاصتان به وحده، فلا يُدمج سعران لصف واحد
-                    ? 'دول كتالوج هذا السيرفر — إضافتها تُنشئ منتجاً باسم السيرفر '
-                          'تحت التطبيق نفسه، ولو كانت الدولة معروضة عند غيره'
-                    : 'لا تطبيق لهذه الخدمة بعد — أضف دولاً فيُنشأ تطبيقها',
+                    // المشغّل بعينه هو الوحدة المباعة: لكل عرض سعره ومنتجه
+                    // وعدّاد جودته، فلا يُدمج سعران في صف واحد
+                    ? 'عروض كتالوج هذا السيرفر — كل عرض منتج مستقل بمشغّله وسعره'
+                    : 'لا تطبيق لهذه الخدمة بعد — أضف عروضاً فيُنشأ تطبيقها',
               ),
               SizedBox(
-                // الكتالوج قد يحمل مئات الدول: قائمة داخلية قابلة للتمرير
-                height: 320,
-                child: ListView.separated(
-                  itemCount: fresh.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 1),
-                  itemBuilder: (_, i) => row(fresh[i]),
+                // الكتالوج قد يحمل مئات الدول والمشغّلين: قائمة داخلية قابلة للتمرير
+                height: 380,
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (final entry in freshGroups.entries) ...[
+                      _countryHeader(
+                        section: 'f',
+                        country: entry.value.first.country,
+                        operatorCount: entry.value.length,
+                        onToggle: () {
+                          final k = 'f|${entry.key}';
+                          setBodyState(() {
+                            if (_expandedCountryKeys.contains(k)) {
+                              _expandedCountryKeys.remove(k);
+                            } else {
+                              _expandedCountryKeys.add(k);
+                            }
+                          });
+                        },
+                      ),
+                      if (entry.value.length == 1 ||
+                          _expandedCountryKeys.contains('f|${entry.key}'))
+                        for (final r in entry.value)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 10),
+                            child: freshRow(r),
+                          ),
+                    ],
+                  ],
                 ),
               ),
               const SizedBox(height: 8),
@@ -934,8 +1019,8 @@ class _VirtualNumberCatalogScreenState
                   children: [
                     Text(
                       selected.isEmpty
-                          ? 'لم تُحدَّد دول بعد'
-                          : '${selected.length} دولة مختارة',
+                          ? 'لم يُحدَّد عرض بعد'
+                          : '${selected.length} عرض مختار',
                       style: AppTypography.cairo(
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
@@ -946,7 +1031,12 @@ class _VirtualNumberCatalogScreenState
                     FilledButton.icon(
                       onPressed: selected.isEmpty || _busy
                           ? null
-                          : () => _addSelected(service, selected.toList()),
+                          : () => _addSelected(
+                              service,
+                              freshRows
+                                  .where((r) => selected.contains(keyOf(r)))
+                                  .toList(),
+                            ),
                       style: FilledButton.styleFrom(
                         backgroundColor: AppColors.slate900,
                         padding: const EdgeInsets.symmetric(
@@ -964,7 +1054,7 @@ class _VirtualNumberCatalogScreenState
                 ),
               ),
             ],
-            if (added.isEmpty && fresh.isEmpty)
+            if (addedRows.isEmpty && freshRows.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(18),
                 child: Text(
@@ -981,6 +1071,58 @@ class _VirtualNumberCatalogScreenState
     );
   }
 
+  /// رأس دولة داخل شجرة الانتقاء: النقر يفرد/يطوي أسطر مشغّليها؛
+  /// الدولة بمشغّل واحد تفتح تلقائياً فلا يحتاج الأدمن نقرة إضافية
+  Widget _countryHeader({
+    required String section,
+    required VirtualNumberCatalogCountry country,
+    required int operatorCount,
+    required VoidCallback onToggle,
+  }) {
+    final key = '$section|${country.code}';
+    final expanded = operatorCount == 1 || _expandedCountryKeys.contains(key);
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: operatorCount == 1 ? null : onToggle,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: AppColors.slate900.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              operatorCount == 1
+                  ? Icons.location_city_rounded
+                  : (expanded
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded),
+              size: 15,
+              color: AppColors.slate700,
+            ),
+            const SizedBox(width: 5),
+            Expanded(
+              child: Text(
+                operatorCount == 1
+                    ? _countryLabel(country)
+                    : '${_countryLabel(country)} · $operatorCount مشغّل',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cairo(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.slate900,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   /// اسم الدولة من المعجم: عربي أولاً مع الإنجليزي والعلم، وإن غاب الاسم
   /// المترجم يبقى الاسم كما وصل من المزود
   String _countryLabel(VirtualNumberCatalogCountry country) {
@@ -992,23 +1134,25 @@ class _VirtualNumberCatalogScreenState
     return '$flag$ar$en';
   }
 
-  /// سطر دولة مُنتقاة: تبديل التفعيل + إعادة التفعيل بعد إيقاف الجودة + حذف
-  /// من التطبيق. الدولة ذاتها قد تظهر مرتين في سيرفرين، فلكل منهما هذا السطر
-  /// بحالته الخاصة: إيقاف سيرفر لا يمسّ مطابِقه عند مزود آخر.
+  /// سطر عرض مُضاف (دولة + مشغّل): تبديل التفعيل + إعادة التفعيل بعد إيقاف
+  /// الجودة + حذف من التطبيق. المشغّل هو الوحدة المباعة، فلكل مشغّل سطره
+  /// وحالته: إيقاف مشغّل لا يمسّ مشغّلاً آخر في الدولة نفسها.
   Widget _addedRow(
     VirtualNumberCatalogCountry country,
+    VirtualNumberCatalogOperator operator,
     VirtualNumberAdminCatalog catalog,
   ) {
-    final stoppedByQuality = country.productAutoDisabled;
+    final stoppedByQuality = operator.productAutoDisabled;
     final watching =
-        !stoppedByQuality && country.productConsecutiveFailures >= 1;
+        !stoppedByQuality && operator.productConsecutiveFailures >= 1;
     final tone = stoppedByQuality
         ? AppColors.rose
         : (watching
               ? AppColors.ticketAmber
-              : (country.productActive
+              : (operator.productActive
                     ? AppColors.emerald
                     : AppColors.slate400));
+    final productId = operator.productId;
 
     return ListTile(
       dense: true,
@@ -1016,7 +1160,7 @@ class _VirtualNumberCatalogScreenState
       leading: Icon(
         stoppedByQuality
             ? Icons.block_rounded
-            : (country.productActive
+            : (operator.productActive
                   ? Icons.check_circle_rounded
                   : Icons.radio_button_off_rounded),
         size: 19,
@@ -1026,7 +1170,8 @@ class _VirtualNumberCatalogScreenState
         children: [
           Expanded(
             child: Text(
-              _countryLabel(country),
+              // رأس الدولة يرسم اسمها فوق، فسطر المشغّل يخصّ اسم المشغّل وحده
+              operator.displayName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
@@ -1041,10 +1186,10 @@ class _VirtualNumberCatalogScreenState
         ],
       ),
       subtitle: Text(
-        'سعر العميل \$${country.salePrice.toStringAsFixed(2)}'
-        '${stoppedByQuality ? ' • موقوف جودةً (${country.productConsecutiveFailures} فشل متتالٍ)' : ''}'
-        '${watching ? ' • تحت المراقبة (${country.productConsecutiveFailures} فشل متتالٍ)' : ''}'
-        '${stoppedByQuality || watching ? '' : (country.productActive ? ' • ظاهرة للعميل' : ' • مخفية عن العميل')}',
+        'سعر العميل \$${operator.salePrice.toStringAsFixed(2)}'
+        '${stoppedByQuality ? ' • موقوف جودةً (${operator.productConsecutiveFailures} فشل متتالٍ)' : ''}'
+        '${watching ? ' • تحت المراقبة (${operator.productConsecutiveFailures} فشل متتالٍ)' : ''}'
+        '${stoppedByQuality || watching ? '' : (operator.productActive ? ' • ظاهر للعميل' : ' • مخفي عن العميل')}',
         style: AppTypography.cairo(fontSize: 10, color: tone),
       ),
       trailing: Row(
@@ -1054,11 +1199,11 @@ class _VirtualNumberCatalogScreenState
             IconButton(
               tooltip: 'إعادة التفعيل (يصفّر الفشل المتتالي ويُبقي التاريخ)',
               visualDensity: VisualDensity.compact,
-              onPressed: _busy || country.productId.isEmpty
+              onPressed: _busy || productId.isEmpty
                   ? null
                   : () => _run(
                       () => _vn.reactivateProduct(
-                        country.productId,
+                        productId,
                         note: 'إعادة تفعيل من كتالوج المزود',
                       ),
                     ),
@@ -1069,17 +1214,17 @@ class _VirtualNumberCatalogScreenState
               ),
             ),
           Switch(
-            value: country.productActive,
-            onChanged: _busy || country.productId.isEmpty
+            value: operator.productActive,
+            onChanged: _busy || productId.isEmpty
                 ? null
-                : (_) => _run(() => _vn.toggleAdminProduct(country.productId)),
+                : (_) => _run(() => _vn.toggleAdminProduct(productId)),
           ),
           IconButton(
-            tooltip: 'حذف الدولة من التطبيق',
+            tooltip: 'حذف العرض من التطبيق',
             visualDensity: VisualDensity.compact,
-            onPressed: _busy || country.productId.isEmpty
+            onPressed: _busy || productId.isEmpty
                 ? null
-                : () => _run(() => _vn.removeAdminProduct(country.productId)),
+                : () => _run(() => _vn.removeAdminProduct(productId)),
             icon: const Icon(
               Icons.delete_outline_rounded,
               size: 18,
@@ -1129,27 +1274,58 @@ class _VirtualNumberCatalogScreenState
     );
   }
 
-  /// إضافة الدول المختارة إلى التطبيق المختار (شبكة التطبيقات: له appId دائماً)
+  /// إضافة العروض المختارة إلى التطبيق المختار (شبكة التطبيقات: له appId دائماً).
+  /// كل عرض = دولة + مشغّل: تُجمع عروض الدولة الواحدة في حمولة واحدة وتُنشئ
+  /// منتجاً مستقلاً لكل مشغّل بسعره.
   Future<void> _addSelected(
     VirtualNumberCatalogService service,
-    List<String> codes,
+    List<_CatalogOfferRow> rows,
   ) async {
     final provider = context.read<VirtualNumbersProvider>();
     final catalog = provider.adminCatalog;
-    final chosen = service.countries
-        .where((c) => codes.contains(c.code))
-        .toList();
-
     final appId = _selectedAppId ?? service.appId;
-    if (appId.isEmpty) return;
+    if (appId.isEmpty || rows.isEmpty) return;
+
+    final byCountry = <String, List<_CatalogOfferRow>>{};
+    for (final row in rows) {
+      (byCountry[row.country.code] ??= []).add(row);
+    }
+    final payload = byCountry.values.map((list) {
+      final country = list.first.country;
+      return <String, dynamic>{
+        'code': country.code,
+        'name': country.name,
+        'cost': country.cost,
+        'count': country.count,
+        'operators': list
+            .map(
+              (r) => {
+                'code': r.operator.code,
+                'name': r.operator.name,
+                'price': r.operator.price,
+                'type': r.operator.type,
+                'count': r.operator.count,
+              },
+            )
+            .toList(),
+      };
+    }).toList();
 
     await _run(
       () => provider.addCountriesToApp(
         appId: appId,
-        countries: chosen,
+        countries: payload,
         providerId: catalog.providerId,
         serviceCode: service.code,
       ),
     );
   }
+}
+
+/// صف انتقاء في كتالوج الإدارة: دولة + مشغّل (السيرفر) الذي يُباع منتجاً مستقلاً
+class _CatalogOfferRow {
+  final VirtualNumberCatalogCountry country;
+  final VirtualNumberCatalogOperator operator;
+
+  const _CatalogOfferRow(this.country, this.operator);
 }

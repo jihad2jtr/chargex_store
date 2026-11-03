@@ -214,8 +214,11 @@ describe('normalizeSmsPoolCatalog', () => {
     expect(bolt.countries[0].cost).toBeCloseTo(0.08);
     expect(bolt.countries[0].count).toBe(750);
     expect(bolt.countries[0].name).toBe('Latvia');
-    // المجمّعات تُعرض بأسمائها برمز 'any': الشراء لا يمرّر معرّف المجمّع
-    expect(bolt.countries[0].operators).toEqual([{ code: 'any', name: 'Charlie' }]);
+    // المجمّعات تُعرض بأسمائها برمز 'any' وبسعرها ومخزونها: الشراء لا يمرّر
+    // معرّف المجمّع، لكن أدمن الانتقاء يحتاج سعر كل مجمّع ليعرف ثمن ما يضيفه
+    expect(bolt.countries[0].operators).toEqual([
+      { code: 'any', name: 'Charlie', price: 0.08, count: 750 },
+    ]);
   });
 
   it('يأخذ اسم الدولة من المعجم حين يؤكده اسم المزود فقط', () => {

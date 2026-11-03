@@ -593,8 +593,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
         service: service,
         balance: context.read<WalletProvider>().balance,
         waitMinutes: context.read<VirtualNumbersProvider>().options.waitMinutes,
-        onSubmit: (country, offer, operator) =>
-            _submit(service, country, offer, operator),
+        onSubmit: (country, offer) => _submit(service, country, offer),
       ),
     );
     if (mounted) context.read<VirtualNumbersProvider>().startAutoPolling();
@@ -715,7 +714,6 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     VirtualNumberServiceOption service,
     VirtualNumberCountryOption country,
     VirtualNumberOffer offer,
-    VirtualNumberOperator? operator,
   ) async {
     final provider = context.read<VirtualNumbersProvider>();
     final wallet = context.read<WalletProvider>();
@@ -761,8 +759,9 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
         ),
         content: Text(
           'الدولة: ${country.nameAr.isNotEmpty ? country.nameAr : country.name}\n'
-          'السيرفر: ${offer.label}\n'
-          'المشغّل: ${operator?.name ?? 'أي مشغّل متاح'}\n'
+          // اسم السيرفر للعميل مبهم: لا يسرّب اسم المشغّل الحقيقي ولا
+          // وسم المزود، بل «سيرفر N» بحسب ترتيبه في قائمة عروض الدولة
+          'السيرفر: ${_serverTitleFor(country, offer)}\n'
           'السعر: \$${price.toStringAsFixed(2)} يُخصم من رصيدك\n\n'
           'يصل الرمز تلقائياً خلال الانتظار، وإن لم تصل رسالة تُرجع المبلغ كاملاً.',
           style: AppTypography.cairo(fontSize: 12.5, height: 1.6),
@@ -787,7 +786,8 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
       // بلا معرّف منتج (كتالوج قديم مخزَّن) يعود المسار القديم برموز التطبيق
       service: offer.isPurchasable ? '' : service.code,
       country: offer.isPurchasable ? '' : country.code,
-      operator: operator?.code,
+      // المشغّل صار صفة المنتج نفسه: يُرسل في المسار القديم فقط حين لا منتج
+      operator: offer.isPurchasable ? null : offer.operator,
     );
 
     if (!mounted) return message != null;
@@ -1735,9 +1735,10 @@ class _ManualServiceSheetState extends State<_ManualServiceSheet> {
   @override
   void initState() {
     super.initState();
-    _fieldLabels = widget.service.requiredFields.isEmpty
-        ? const ['المعرف']
-        : widget.service.requiredFields;
+    // الحقول كما عرّفتها الإدارة حرفياً: خدمة يدوية بلا حقول تُنفَّذ بمجرّد
+    // تأكيد الطلب، فإجبار حقل «المعرف» كان يُلزم العميل ببيانات لا تحتاجها
+    // الخدمة ويُرفض طلبه إن تركه فارغاً
+    _fieldLabels = widget.service.requiredFields;
     _controllers = {
       for (final label in _fieldLabels) label: TextEditingController(),
     };
@@ -1769,6 +1770,42 @@ class _ManualServiceSheetState extends State<_ManualServiceSheet> {
     if (!mounted) return;
     setState(() => _sending = false);
     if (ok) Navigator.pop(context, true);
+  }
+
+  /// خدمة بلا حقول إدخال: يُطمأن العميل أن لا بيانات مطلوبة منه، فيُصبح
+  /// زر التأكيد هو الخطوة الوحيدة قبل دخول الطلب مساحة المشرف
+  Widget _noFieldsNote() {
+    return Container(
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: AppColors.slate100,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.slate200),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.fact_check_outlined,
+            size: 17,
+            color: AppColors.slate600,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'لا تحتاج هذه الخدمة أي بيانات منك — أكّد الطلب فقط وسيبدأ '
+              'المشرف المختص في التنفيذ.',
+              style: AppTypography.cairo(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AppColors.slate600,
+                height: 1.5,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -1886,6 +1923,10 @@ class _ManualServiceSheetState extends State<_ManualServiceSheet> {
                 ),
               ],
               const SizedBox(height: 14),
+              if (_fieldLabels.isEmpty) ...[
+                _noFieldsNote(),
+                const SizedBox(height: 14),
+              ],
               for (final label in _fieldLabels)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
@@ -1961,7 +2002,6 @@ class _CountrySheet extends StatefulWidget {
   final Future<bool> Function(
     VirtualNumberCountryOption country,
     VirtualNumberOffer offer,
-    VirtualNumberOperator? operator,
   )
   onSubmit;
 
@@ -1979,10 +2019,9 @@ class _CountrySheet extends StatefulWidget {
 class _CountrySheetState extends State<_CountrySheet> {
   VirtualNumberCountryOption? _country;
 
-  /// العرض المختار: الدولة الواحدة قد تُباع من أكثر من سيرفر، والسعر والمشغّل
-  /// والمخزون كل ذلك صفة هذا العرض لا صفة الدولة
+  /// العرض المختار: الدولة الواحدة قد تُباع عبر عدة عروض (كل مشغّل/سيرفر عرض
+  /// مستقل بسعره ومخزونه)، فالسعر والمخزون صفة هذا العرض لا صفة الدولة
   VirtualNumberOffer? _offer;
-  String? _operatorCode;
   bool _submitting = false;
   final TextEditingController _search = TextEditingController();
   String _query = '';
@@ -1999,7 +2038,6 @@ class _CountrySheetState extends State<_CountrySheet> {
     _country = country;
     // أول سيرفرات الدولة هو المختار: لا تُوجَّه يد العميل إلى أرخص سعر
     _offer = country.effectiveOffers.first;
-    _operatorCode = null;
   }
 
   @override
@@ -2027,18 +2065,10 @@ class _CountrySheetState extends State<_CountrySheet> {
     final offer = _offer;
     if (country == null || offer == null || _submitting) return;
     setState(() => _submitting = true);
-    final ok = await widget.onSubmit(country, offer, _operatorFor(offer));
+    final ok = await widget.onSubmit(country, offer);
     if (!mounted) return;
     setState(() => _submitting = false);
     if (ok) Navigator.of(context).pop();
-  }
-
-  VirtualNumberOperator? _operatorFor(VirtualNumberOffer offer) {
-    if (_operatorCode == null || offer.operators.isEmpty) return null;
-    for (final operator in offer.operators) {
-      if (operator.code == _operatorCode) return operator;
-    }
-    return null;
   }
 
   @override
@@ -2183,20 +2213,6 @@ class _CountrySheetState extends State<_CountrySheet> {
               ),
             ),
             _serverCards(_country!),
-          ],
-          if (_country != null && _country!.hasMultipleServers) ...[
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
-              child: Text(
-                'المشغّل',
-                style: AppTypography.cairo(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.slate600,
-                ),
-              ),
-            ),
-            _operatorRow(),
           ],
           Padding(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 6),
@@ -2462,34 +2478,10 @@ class _CountrySheetState extends State<_CountrySheet> {
     );
   }
 
-  Widget _operatorRow() {
-    // المشغّل صفة السيرفر المختار: لكل سيرفر مشغّلاته الخاصة
-    final list = _offer?.operators ?? const <VirtualNumberOperator>[];
-    if (list.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        child: Text(
-          'يُختار المشغّل تلقائياً',
-          style: AppTypography.cairo(fontSize: 10.5, color: AppColors.slate500),
-        ),
-      );
-    }
-
-    return SizedBox(
-      height: 40,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
-        children: [
-          _operatorChip(null, 'أي مشغّل'),
-          ...list.map((o) => _operatorChip(o.code, o.name)),
-        ],
-      ),
-    );
-  }
-
-  /// بطاقات السيرفرات: عرض مستقل لكل سيرفر باسمه الوهمي وسعره ومخزونه، بلا
-  /// دمج ولا ترشيح أرخص — العميل هو من يختار من يبيع له الرقم
+  /// بطاقات السيرفرات: عرض مستقل لكل سيرفر ب اسمه المبهم «سيرفر N» وسعره
+  /// ومخزونه. الاسم الحقيقي للمشغّل لا يظهر للعميل حتى لا يعرف من أي
+  /// مزود يأتيه الرقم، وحين يكون للدولة سيرفر واحد تُستعمل تسمية المزود
+  /// الافتراضية كما كان قبل تعدد السيرفرات
   Widget _serverCards(VirtualNumberCountryOption country) {
     final offers = country.effectiveOffers;
     return SizedBox(
@@ -2503,13 +2495,19 @@ class _CountrySheetState extends State<_CountrySheet> {
           final offer = offers[index];
           final selected = _offer?.selectionKey == offer.selectionKey;
           final affordable = offer.salePrice <= widget.balance;
-          return _serverCard(offer, selected, affordable);
+          return _serverCard(offer, selected, affordable, index, offers.length);
         },
       ),
     );
   }
 
-  Widget _serverCard(VirtualNumberOffer offer, bool selected, bool affordable) {
+  Widget _serverCard(
+    VirtualNumberOffer offer,
+    bool selected,
+    bool affordable,
+    int index,
+    int total,
+  ) {
     return Material(
       color: selected ? const Color(0xFFFFF7E6) : Colors.white,
       borderRadius: BorderRadius.circular(12),
@@ -2517,7 +2515,6 @@ class _CountrySheetState extends State<_CountrySheet> {
         borderRadius: BorderRadius.circular(12),
         onTap: () => setState(() {
           _offer = offer;
-          _operatorCode = null;
         }),
         child: Container(
           width: 132,
@@ -2549,7 +2546,9 @@ class _CountrySheetState extends State<_CountrySheet> {
                   const SizedBox(width: 5),
                   Expanded(
                     child: Text(
-                      offer.label,
+                      // الاسم المعروض: مبهم «سيرفر N» حين تعدّدت بطاقات
+                      // الدولة، وإلا اسم السيرفر الوهمي للمزود
+                      total > 1 ? 'سيرفر ${index + 1}' : offer.label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: AppTypography.cairo(
@@ -2575,23 +2574,17 @@ class _CountrySheetState extends State<_CountrySheet> {
       ),
     );
   }
+}
 
-  Widget _operatorChip(String? code, String label) {
-    final selected = _operatorCode == code;
-    return Padding(
-      padding: const EdgeInsets.only(left: 7),
-      child: ChoiceChip(
-        label: Text(label),
-        selected: selected,
-        onSelected: (_) => setState(() => _operatorCode = code),
-        labelStyle: AppTypography.cairo(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          color: selected ? Colors.white : AppColors.slate700,
-        ),
-        selectedColor: AppColors.slate900,
-        backgroundColor: AppColors.slate100,
-      ),
-    );
-  }
+/// عنوان السيرفر للعميل: «سيرفر N» بحسب ترتيبه في بطاقات الدولة حين
+/// تعدّدت، وإلا الاسم الوهمي للمزود. لا يسرّب اسم المشغّل الحقيقي
+/// كي لا يعرف العميل من أي مصدر يأتيه الرقم
+String _serverTitleFor(
+  VirtualNumberCountryOption country,
+  VirtualNumberOffer offer,
+) {
+  final list = country.effectiveOffers;
+  if (list.length <= 1) return offer.label;
+  final pos = list.indexWhere((o) => o.selectionKey == offer.selectionKey);
+  return pos >= 0 ? 'سيرفر ${pos + 1}' : offer.label;
 }

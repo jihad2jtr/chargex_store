@@ -512,8 +512,9 @@ void main() {
     expect(find.text('رصيد غير كافٍ'), findsNothing);
     expect(find.text('تفعيل رقم Telegram'), findsOneWidget);
     expect(find.textContaining('يُخصم من رصيدك'), findsOneWidget);
-    // محتوى الحوار نص واحد بأسطر: الدولة/المشغّل/السعر — فالمطابقة الجزئية
-    expect(find.textContaining('المشغّل: أي مشغّل متاح'), findsOneWidget);
+    // محتوى الحوار نص واحد بأسطر: الدولة/السيرفر/السعر — فاختيار المشغّل
+    // صار صفة المنتج نفسه لا شريحة مستقلة داخل السيرفر
+    expect(find.textContaining('السيرفر:'), findsOneWidget);
     expect(find.textContaining('الدولة: مصر'), findsOneWidget);
     expect(find.text('تفعيل الرقم'), findsOneWidget);
 
@@ -539,4 +540,42 @@ void main() {
       _expectNoOverflow(w);
     },
   );
+
+  testWidgets('خدمة يدوية بلا حقول: نافذة الشراء لا تطلب «المعرف» ولا أي حقل', (
+    WidgetTester w,
+  ) async {
+    await _pumpPage(
+      w,
+      options: _catalog,
+      manual: [_manualService(requiredFields: const [])],
+      richWallet: true,
+    );
+    await _openSheet(w, 'تفعيل تيليجرام يدوي');
+
+    final sheet = find.byType(BottomSheet);
+    expect(sheet, findsOneWidget);
+    // إدارة الخدمة لم تُعرّف حقولاً: لا حقل إدخال داخل النافذة إطلاقاً،
+    // فإجبار «المعرف» كان يُلزم العميل ببيانات لا تحتاجها الخدمة
+    expect(
+      find.descendant(of: sheet, matching: find.byType(TextField)),
+      findsNothing,
+    );
+    expect(find.text('المعرف'), findsNothing);
+    // تُستبدل الحقول بعبارة طمأنة واحدة، ويظل زر التأكيد هو خطوة الطلب
+    expect(
+      find.textContaining('لا تحتاج هذه الخدمة أي بيانات'),
+      findsOneWidget,
+    );
+    expect(
+      w
+          .widget<ElevatedButton>(
+            find.widgetWithText(ElevatedButton, 'تأكيد الطلب (\$2.50)'),
+          )
+          .onPressed,
+      isNotNull,
+    );
+
+    _expectNoOverflow(w);
+    await _teardown(w);
+  });
 }

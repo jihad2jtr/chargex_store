@@ -10,6 +10,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { VirtualNumbersService } from './virtual-numbers.service';
+import { VirtualNumberOperator } from './virtual-number-client';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -314,7 +315,9 @@ export class VirtualNumbersController {
         name?: string;
         cost?: number;
         count?: number;
-        operators?: Array<{ code: string; name: string }>;
+        // المشغّلون المختارون: كل مشغّل يُنشئ منتجاً مستقلاً بسعره؛
+        // وقائمة فارغة تعني منتجاً عاماً واحداً يختار له المزود مشغّلاً
+        operators?: VirtualNumberOperator[];
       }>;
     },
   ) {

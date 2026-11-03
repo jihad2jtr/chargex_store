@@ -173,7 +173,12 @@ export function normalizeFiveSimCatalog(input: {
           operators: pool
             .filter((op) => !isHiddenServerName(op.code) && !isHiddenServerName(op.name))
             .sort((a, b) => a.cost - b.cost)
-            .map((op) => ({ code: op.code, name: op.name })),
+            .map((op) => ({
+              code: op.code,
+              name: op.name,
+              price: op.cost,
+              count: op.count,
+            })),
         };
       })
       .sort((a, b) => a.cost - b.cost);
