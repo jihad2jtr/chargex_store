@@ -4220,7 +4220,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       salePrice: price,
       kind: 'service',
       quantityLabel: '',
-      requiredFields: requiredFields.length > 0 ? requiredFields : ['المعرف'],
+      // الفراغ قيمة صالحة: تُضاف خدمة بلا أي حقول فيقتصر طلبُ العميل على
+      // التأكيد وحده ولا تُفرض حقل احتياطي «المعرف» لا سبب لظهوره
+      requiredFields,
       estimatedMinutes: Number(dto.estimatedMinutes) || 120,
       isSensitive,
       sensitiveFields: isSensitive ? requiredFields : [],
@@ -4284,8 +4286,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       const requiredFields = dto.requiredFields
         .map((f) => String(f).trim())
         .filter(Boolean);
-      service.requiredFields =
-        requiredFields.length > 0 ? requiredFields : service.requiredFields;
+      // مصفوفة فارغة قيمة صالحة تُفرغ الحقول فعلاً: الإدارة ملزمة مصدر
+      // الحقائق، فحذف كل حقل في النموذج يجب أن يصل إلى المنتج ويخفيه
+      service.requiredFields = requiredFields;
       // الحقول الحساسة مشتقة من المطلوبة: تُحدَّث مع كل تغيير في الحقول
       if (service.isSensitive) service.sensitiveFields = service.requiredFields;
     }

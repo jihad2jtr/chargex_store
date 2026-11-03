@@ -839,6 +839,28 @@ describe('VirtualNumbersService.manualServices (تفعيل مضمون)', () => {
     expect(created.requiredFields).toEqual(['المستخدم']);
   });
 
+  it('createManualService بليست حقول يحفظ قائمة فارغة: لا يُفرض «المعرف» لا سبب له', async () => {
+    const { service, appDocs, manualDocs } = makeManualHarness();
+
+    await service.createManualService({
+      name: 'تأكيد فقط',
+      vnAppId: appDocs[0]._id.toString(),
+      price: 2,
+      requiredFields: [],
+    });
+    const empty = manualDocs[manualDocs.length - 1] as any;
+    expect(empty.requiredFields).toEqual([]);
+
+    // غياب dto.requiredFields تماماً يعطي نفس النتيجة: قائمة فارغة
+    await service.createManualService({
+      name: 'بليست حقول أصلاً',
+      vnAppId: appDocs[0]._id.toString(),
+      price: 2,
+    });
+    const missing = manualDocs[manualDocs.length - 1] as any;
+    expect(missing.requiredFields).toEqual([]);
+  });
+
   it('الحذف يوقف الخدمة إن كان عليها طلب جارٍ، وإلا يحذفها نهائياً', async () => {
     const { service, appDocs } = makeManualHarness();
     const live = makeManualServiceDoc(appDocs[0]);
