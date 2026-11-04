@@ -10,6 +10,9 @@ import '../../providers/admin_provider.dart';
 import '../../providers/manual_services_provider.dart';
 import '../../providers/app_catalog_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../../models/order_model.dart';
+import '../../screens/user/manual_order_details_screen.dart';
+import '../../screens/user/orders_history_screen.dart';
 import '../../widgets/top_notice.dart';
 
 @pragma('vm:entry-point')
@@ -94,7 +97,7 @@ class FcmService {
       FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
         debugPrint('[FCM] Notification opened app: ${message.data}');
         _notifyAppDataChange(message.data);
-        _handleNotificationNavigation(message.data);
+        handleNotificationNavigation(message.data);
       });
 
       // 9. Check terminated message that opened app
@@ -103,7 +106,7 @@ class FcmService {
       if (initialMessage != null) {
         debugPrint('[FCM] App opened from terminated state by notification');
         _notifyAppDataChange(initialMessage.data);
-        _handleNotificationNavigation(initialMessage.data);
+        handleNotificationNavigation(initialMessage.data);
       }
 
       _isInitialized = true;
@@ -162,15 +165,66 @@ class FcmService {
       iconColor: const Color(0xFF00BCD4),
       hold: const Duration(seconds: 5),
       actionLabel: 'عرض',
-      onAction: () => _handleNotificationNavigation(message.data),
+      onAction: () => handleNotificationNavigation(message.data),
     );
   }
 
   /// Deep link navigation when notification is tapped
-  void _handleNotificationNavigation(Map<String, dynamic> data) {
+  Future<void> handleNotificationNavigation(Map<String, dynamic> data) async {
     final orderId = data['orderId']?.toString();
     final type = data['type']?.toString();
     debugPrint('[FCM] Navigating to: type=$type, orderId=$orderId');
+
+    // الإشعارات المالية والعامة لا تملك صفحة طلب: الضغط عليها لا يفتح شيئاً
+    if (orderId == null || orderId.isEmpty) return;
+    final context = navigatorKey?.currentContext;
+    if (context == null) return;
+
+    // النسخة الكاملة تُجلب قبل التنقل: تذكرة المحادثة تُقرأ من النموذج
+    // المنقول، والصفحة لا تُحدّث نفسها إلا بعد دوريّات الخمس ثوانٍ
+    // المزوّدان يُلتقطان قبل الجلب: لا يُستعمل السياق بعد الانقطاع غير المتزامن
+    final manual = Provider.of<ManualServicesProvider>(context, listen: false);
+    final catalog = Provider.of<AppCatalogProvider>(context, listen: false);
+
+    OrderModel? order;
+    try {
+      order = await manual.fetchOrderById(orderId);
+    } catch (_) {}
+
+    if (order == null) {
+      // طلب العميل قد يكون في سجله المحمّل: يُفتح منه بدل انتظار الشبكة
+      for (final o in catalog.myOrders) {
+        if (o.id == orderId) {
+          order = o;
+          break;
+        }
+      }
+    }
+
+    // الطلبات التلقائية (شحن/كود) لا تذكرة دردشة لها: وجهتها سجل الطلبات حيث
+    // تُفرد تذكرتها، وفتح محادثة فارغة لها يوهم العميل بطلب يدوي. أما بلا
+    // نسخة كاملة (شبكة معطّلة) فتُفتح صفحة اليدوي على المعرّف وحده، لأن
+    // الدردشة تُجلب بالمعرّف والصفحة تسحب بقيّة الحقول من /orders/:id دورياً
+    final Widget page;
+    if (order != null && !order.isManual) {
+      page = const OrdersHistoryScreen();
+    } else {
+      page = ManualOrderDetailsScreen(
+        order: order ?? OrderModel.identify(orderId),
+      );
+    }
+
+    // السياق قد يكون تبدّل أثناء الجلب (انغلاق التطبيق أو تغيّر الشجرة)،
+    // لذلك يُقرأ من جديد بدل السياق الملتقط قبل الانقطاع
+    final liveContext = navigatorKey?.currentContext;
+    if (liveContext == null || !liveContext.mounted) return;
+
+    Navigator.of(liveContext).push(
+      MaterialPageRoute(
+        settings: RouteSettings(name: 'order/$orderId'),
+        builder: (_) => page,
+      ),
+    );
   }
 
   /// Automatically refresh application data providers when FCM push arrives

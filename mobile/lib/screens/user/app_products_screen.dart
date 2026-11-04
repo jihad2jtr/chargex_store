@@ -14,6 +14,7 @@ import '../../providers/margin_provider.dart';
 import '../../widgets/balance_badge.dart';
 import '../../widgets/product_list_card.dart';
 import '../../widgets/top_notice.dart';
+import 'manual_order_details_screen.dart';
 
 class AppProductsScreen extends StatefulWidget {
   final AppItemModel app;
@@ -394,7 +395,7 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                                         : (userBalance - product.salePrice),
                                   );
 
-                                  _showPurchaseSuccessDialog(result);
+                                  await _showPurchaseSuccessDialog(result);
                                 } else if (context.mounted) {
                                   // A failed attempt is refunded server-side, but the
                                   // balance may have been resynced — refresh before reporting
@@ -509,10 +510,11 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
     );
   }
 
-  void _showPurchaseSuccessDialog(Map<String, dynamic> result) {
+  Future<void> _showPurchaseSuccessDialog(Map<String, dynamic> result) async {
     final deliveredCode = result['deliveredCode'] as String?;
+    final catalog = context.read<AppCatalogProvider>();
 
-    showDialog(
+    await showDialog(
       context: context,
       builder: (ctx) {
         return AlertDialog(
@@ -587,6 +589,18 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
         );
       },
     );
+
+    // الشحن اليدوي لا يكتمل هنا: بعد إغلاق الحوار يُنقل العميل إلى صفحة
+    // الطلب/الدردشة ليُتمّ ما يطلبه مقدّم الخدمة (كود/مرفق/بيانات إضافية).
+    // الطلبات التلقائية تُسلَّم فوراً فلا حاجة لإخراجها من صفحة الباقات
+    final order = catalog.lastPurchasedOrder(result);
+    if (order != null && order.isManual && mounted) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ManualOrderDetailsScreen(order: order),
+        ),
+      );
+    }
   }
 
   @override

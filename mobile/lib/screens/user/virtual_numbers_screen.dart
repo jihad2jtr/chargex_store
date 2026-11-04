@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../core/constants/app_icon_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
+import '../../models/order_model.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/app_catalog_provider.dart';
 import '../../providers/auth_provider.dart';
@@ -13,6 +14,7 @@ import '../../providers/virtual_numbers_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/top_notice.dart';
+import 'manual_order_details_screen.dart';
 import 'topup_screen.dart';
 import 'virtual_number_wait_screen.dart';
 
@@ -40,6 +42,10 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   /// التبديل بين الخدمات التلقائية واليدوية
   VirtualNumberCategory _selectedCategory = VirtualNumberCategory.auto;
   bool _categoryManuallySelected = false;
+
+  /// الطلب اليدوي الناتج عن آخر إرسال: تُلتقط نسخته داخل النافذة التي تُغلق
+  /// نفسها، ثم يُفتح صفحته (الشات) بعد إغلاقها من سياق هذه الصفحة
+  OrderModel? _pendingManualOrder;
 
   VirtualNumbersProvider? _provider;
   Timer? _ticker;
@@ -753,7 +759,25 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     if (!mounted) return;
     context.read<AppCatalogProvider>().fetchMyOrders();
     await context.read<VirtualNumbersProvider>().fetchMyRequests();
+    // الشراء اليدوي لا يكتمل في هذه الصفحة: العميل يحتاج الدردشة ليُتابع
+    // الطلب ويكمل ما يطلبه مقدّم الخدمة (كود/مرفق/بيانات إضافية)
+    final created = _pendingManualOrder;
+    _pendingManualOrder = null;
+    if (created != null && mounted) _openManualOrderChat(created);
   }
+
+  /// صفحة الطلب/الدردشة: مستقلة كالانتظار، والعودة منها تُبقي القائمة محدَّثة
+  void _openManualOrderChat(OrderModel order) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ManualOrderDetailsScreen(order: order)),
+    );
+  }
+
+  /// نسخة الطلب الملتقطة من استجابة الشراء: الخادم يعيد الطلب كاملاً بعد
+  /// populate، وهي ما تحتاجه تذكرة المحادثة (اسم الخدمة والمسند والمهلة).
+  /// يستُدعى سجل «طلباتي» احتياطاً إن لم تُعد الاستجابة كائناً صالحاً.
+  OrderModel? _manualOrderFrom(Map<String, dynamic> result) =>
+      context.read<AppCatalogProvider>().lastPurchasedOrder(result);
 
   /// يُعيد true عند نجاح الطلب كي تُغلق النافذة نفسها
   Future<bool> _submitManual(
@@ -822,6 +846,9 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     if (newBalance is num) {
       context.read<AuthProvider>().updateBalanceLocally(newBalance.toDouble());
     }
+    // تُلتقط هنا والنافذة ما زالت مفتوحة: التنقل بعدها من هذه الصفحة لا من
+    // النافذة التي تُغلق نفسها، فيبقى الظاهر هو الطلب لا القائمة القديمة
+    _pendingManualOrder = _manualOrderFrom(result);
     messenger.showTopSnackBar(
       SnackBar(
         backgroundColor: AppColors.emerald,

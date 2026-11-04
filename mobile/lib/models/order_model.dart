@@ -203,6 +203,23 @@ class OrderModel {
     this.pinnedData = const [],
   });
 
+  /// نسخة بأقل ما يلزم لفتح صفحة الطلب من إشعار: يبقى المعرّف صحيحاً فتسحب
+  /// الصفحة بقيّة الحقول من `/orders/:id`. النوع يدوي كي لا تُقصي الصفحة
+  /// عناصر متابعة الطلب اليدوي قبل وصول النسخة الكاملة.
+  factory OrderModel.identify(String id) => OrderModel(
+    id: id,
+    orderNumber: '',
+    userId: '',
+    appId: '',
+    appName: '',
+    productId: '',
+    productName: '',
+    type: 'manual',
+    amount: 0,
+    status: 'pending',
+    createdAt: DateTime.now(),
+  );
+
   bool get isManual => type.toLowerCase() == 'manual';
   String get productType => type;
 
@@ -387,6 +404,21 @@ class OrderModel {
           [],
     );
   }
+
+  /// قراءة لا ترمي: ردّ الشراء قد يعيد معرّفاً خاماً أو مستنداً تنقصه حقول،
+  /// والفاشل يُعاد منه null فيُلتقط الطلب من السجل المحمّل بدل الانهيار
+  static OrderModel? tryFrom(Object? raw) {
+    if (raw is! Map) return null;
+    try {
+      return OrderModel.fromJson(Map<String, dynamic>.from(raw));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// معرّف الطلب كما يجيء في ردّ الشراء: كائناً كان أو نصّ معرّف وحده
+  static String? idOf(Object? raw) =>
+      raw is Map ? (raw['_id'] ?? raw['id'])?.toString() : raw?.toString();
 
   Map<String, dynamic> toJson() {
     return {

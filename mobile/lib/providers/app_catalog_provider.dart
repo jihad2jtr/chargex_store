@@ -192,6 +192,23 @@ class AppCatalogProvider extends ChangeNotifier {
     }
   }
 
+  /// الطلب الناتج عن عملية شراء: تُفضَّل نسخته في ردّ الخادم (بالمسند والمهلة
+  /// وباقي الحقول بعد populate)، وإن تعذّرت قراءته يُلتقط من السجل الذي
+  /// حدّثته [purchaseProduct] للتوّ — لئلا يبقى العميل في صفحة القائمة بعد
+  /// أن دُفع مبلغه، إذ الشراء اليدوي يتابع في صفحة الطلب/الدردشة
+  OrderModel? lastPurchasedOrder(Map<String, dynamic>? result) {
+    final raw = result?['order'];
+    final parsed = OrderModel.tryFrom(raw);
+    if (parsed != null) return parsed;
+
+    final id = OrderModel.idOf(raw);
+    if (id == null || id.isEmpty) return null;
+    for (final o in myOrders) {
+      if (o.id == id) return o;
+    }
+    return null;
+  }
+
   Future<void> fetchMyOrders() async {
     try {
       final res = await _api.get(ApiConstants.myOrders);
