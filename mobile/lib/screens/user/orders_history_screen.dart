@@ -12,6 +12,7 @@ import '../../providers/app_catalog_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/app_thumb.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 import 'manual_order_details_screen.dart';
 import 'virtual_number_wait_screen.dart';
 
@@ -106,7 +107,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     sb.writeln('⚡ متجر JGO Store');
 
     Clipboard.setData(ClipboardData(text: sb.toString()));
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(
           'تم نسخ ملخص التذكرة للحافظة بنجاح 📋',
@@ -578,7 +579,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                           InkWell(
                             onTap: () {
                               Clipboard.setData(ClipboardData(text: p.value));
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context).showTopSnackBar(
                                 SnackBar(
                                   content: Text(
                                     'تم نسخ ${p.label} 📋',
@@ -984,7 +985,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                           Clipboard.setData(
                             ClipboardData(text: order.orderNumber),
                           );
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(context).showTopSnackBar(
                             SnackBar(
                               content: Text(
                                 'تم نسخ رقم التذكرة: #${order.orderNumber}',
@@ -1180,7 +1181,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                                       );
                                                       ScaffoldMessenger.of(
                                                         context,
-                                                      ).showSnackBar(
+                                                      ).showTopSnackBar(
                                                         SnackBar(
                                                           content: Text(
                                                             'تم نسخ ${entry.key}: ${entry.value}',
@@ -1381,7 +1382,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                               );
                                               ScaffoldMessenger.of(
                                                 context,
-                                              ).showSnackBar(
+                                              ).showTopSnackBar(
                                                 SnackBar(
                                                   content: Text(
                                                     'تم نسخ كود البطاقة بنجاح ✅',
@@ -1764,7 +1765,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   void _copyValue(String value, String label) {
     if (value.isEmpty) return;
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         duration: const Duration(seconds: 1),
         content: Text('تم نسخ $label', style: AppTypography.cairo()),

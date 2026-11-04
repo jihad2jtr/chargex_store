@@ -7,6 +7,7 @@ import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 import '../../widgets/virtual_app_ticket_leading.dart';
 
 /// لوحة مراقبة جودة الأرقام: صف لكل منتج (سيرفر + تطبيق + دولة) بعدّاداته
@@ -62,7 +63,7 @@ class _VirtualNumberQualityScreenState
     final message = await action();
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
@@ -511,7 +512,7 @@ class _QualityDetailSheetState extends State<_QualityDetailSheet> {
     await _load();
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,

@@ -16,6 +16,7 @@ import '../screens/admin/admin_dashboard_screen.dart';
 import '../screens/supervisor/supervisor_dashboard_screen.dart';
 import '../screens/agent/agent_dashboard_screen.dart';
 import 'margin_dialog.dart';
+import 'top_notice.dart';
 import 'update_check_dialog.dart';
 import 'user_avatar.dart';
 
@@ -317,7 +318,7 @@ class UnifiedTactileHeader extends StatelessWidget {
                       ),
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: uid));
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               'تم نسخ آيدي الحساب: $uid بنجاح',

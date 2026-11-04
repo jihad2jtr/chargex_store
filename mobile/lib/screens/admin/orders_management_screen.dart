@@ -12,6 +12,7 @@ import '../../providers/admin_provider.dart';
 import '../../widgets/brand_logo.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 
 /// لوحة «إدارة الطلبات والشحن»:
 /// هيدر عمليات داكن بعدّادات + مبدّل أقسام + فلاتر بعدد الطلبات
@@ -70,7 +71,7 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
 
   void _toast(String message, bool ok) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(
           message,

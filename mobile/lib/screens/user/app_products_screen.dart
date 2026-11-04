@@ -13,6 +13,7 @@ import '../../providers/exchange_rate_provider.dart';
 import '../../providers/margin_provider.dart';
 import '../../widgets/balance_badge.dart';
 import '../../widgets/product_list_card.dart';
+import '../../widgets/top_notice.dart';
 
 class AppProductsScreen extends StatefulWidget {
   final AppItemModel app;
@@ -362,7 +363,9 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                                   if (val.isEmpty &&
                                       product.type != 'codes' &&
                                       !isOptional) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
+                                    ScaffoldMessenger.of(
+                                      context,
+                                    ).showTopSnackBar(
                                       SnackBar(
                                         content: Text(
                                           'يرجى إدخال ${entry.key}',
@@ -397,7 +400,7 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                                   // balance may have been resynced — refresh before reporting
                                   await auth.refreshProfile();
                                   if (!context.mounted) return;
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(context).showTopSnackBar(
                                     SnackBar(
                                       content: Text(
                                         catalog.errorMessage ??
@@ -562,7 +565,7 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                         ),
                         onPressed: () {
                           Clipboard.setData(ClipboardData(text: deliveredCode));
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          ScaffoldMessenger.of(context).showTopSnackBar(
                             const SnackBar(
                               content: Text('تم نسخ الكود للحافظة'),
                             ),

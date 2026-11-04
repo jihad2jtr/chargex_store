@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:layan_chargex/core/theme/app_colors.dart';
 import 'package:layan_chargex/models/order_model.dart';
 import 'package:layan_chargex/models/product_model.dart';
 import 'package:layan_chargex/models/user_model.dart';
@@ -388,6 +389,33 @@ void main() {
     // البطاقة المدمجة قصيرة: لا تستهلك ارتفاع الشاشة كما كان الكونسول
     final Size queueSize = w.getSize(_ticketClips().first);
     expect(queueSize.height, lessThan(170));
+
+    await _dispose(w);
+  });
+
+  testWidgets('كرت الحالة أسود كلون الشريط العلوي ونصّه فاتح', (w) async {
+    await _pumpScreen(w);
+
+    // أرضيةُ التذكرة الأولى (الترحيب والمؤشرات) =darkNav كالشريط العلوي
+    final Material queueSurface = w.widget<Material>(
+      find
+          .descendant(of: _ticketClips().first, matching: find.byType(Material))
+          .first,
+    );
+    expect(queueSurface.color, AppColors.darkNav);
+    // وكرت «خدماتي المسندة» ما زال أبيض: السواد لكرت الحالة وحده
+    final Material servicesSurface = w.widget<Material>(
+      find
+          .descendant(of: _ticketClips().at(1), matching: find.byType(Material))
+          .first,
+    );
+    expect(servicesSurface.color, AppColors.surfaceCard);
+
+    // الاسمُ أبيض على السواد لا أسودٌ فيه فلا يُقرأ
+    expect(
+      w.widget<Text>(find.text('أهلاً بك، مشرف الاختبار')).style?.color,
+      Colors.white,
+    );
 
     await _dispose(w);
   });

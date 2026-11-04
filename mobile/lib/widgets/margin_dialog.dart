@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
 import '../providers/margin_provider.dart';
+import 'top_notice.dart';
 
 class MarginDialog extends StatefulWidget {
   const MarginDialog({super.key});
@@ -406,7 +407,7 @@ class _MarginDialogState extends State<MarginDialog> {
                       );
                       if (context.mounted) {
                         Navigator.of(context).pop();
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               _isEnabled

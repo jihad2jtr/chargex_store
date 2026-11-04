@@ -10,6 +10,7 @@ import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 import 'topup_screen.dart';
 
 /// صفحة انتظار الرمز: تُفتح فور الشراء ومن «طلباتي» بالضغط على الرقم.
@@ -83,7 +84,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
   void _copy(String value, String label) {
     if (value.isEmpty) return;
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),
         backgroundColor: AppColors.slate800,
@@ -104,7 +105,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
     Clipboard.setData(ClipboardData(text: code));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           backgroundColor: AppColors.emerald,
           behavior: SnackBarBehavior.floating,
@@ -176,7 +177,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
     if (!mounted) return;
     setState(() => _cancelling = false);
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
         behavior: SnackBarBehavior.floating,
@@ -198,7 +199,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
     final provider = context.read<VirtualNumbersProvider>();
     final message = await provider.closeRequest(widget.requestId);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
         content: Text(

@@ -109,6 +109,8 @@ export declare class OrderChatMessage {
     attachmentName?: string;
     attachmentType?: string;
     isSensitive?: boolean;
+    isPinned?: boolean;
+    pinLabel?: string;
     createdAt: Date;
 }
 export declare const OrderChatMessageSchema: import("mongoose").Schema<OrderChatMessage, import("mongoose").Model<OrderChatMessage, any, any, any, any, any, OrderChatMessage & {
@@ -196,6 +198,24 @@ export declare const OrderChatMessageSchema: import("mongoose").Schema<OrderChat
     }, "id"> & import("mongoose").HydratedDocumentOverrides<{
         id: string;
     }>> | undefined;
+    isPinned?: import("mongoose").SchemaDefinitionProperty<boolean | undefined, OrderChatMessage, Document<unknown, {}, OrderChatMessage, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<OrderChatMessage & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    pinLabel?: import("mongoose").SchemaDefinitionProperty<string | undefined, OrderChatMessage, Document<unknown, {}, OrderChatMessage, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<OrderChatMessage & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
     createdAt?: import("mongoose").SchemaDefinitionProperty<Date, OrderChatMessage, Document<unknown, {}, OrderChatMessage, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<OrderChatMessage & {
@@ -206,6 +226,52 @@ export declare const OrderChatMessageSchema: import("mongoose").Schema<OrderChat
         id: string;
     }>> | undefined;
 }, OrderChatMessage>;
+export declare class OrderPinnedData {
+    label: string;
+    value: string;
+    createdAt: Date;
+}
+export declare const OrderPinnedDataSchema: import("mongoose").Schema<OrderPinnedData, import("mongoose").Model<OrderPinnedData, any, any, any, any, any, OrderPinnedData & {
+    _id: Types.ObjectId;
+} & {
+    __v: number;
+}>, {}, {}, {}, {}, import("mongoose").DefaultSchemaOptions, OrderPinnedData, Document<unknown, {}, OrderPinnedData, {
+    id: string;
+}, import("mongoose").DefaultSchemaOptions> & Omit<OrderPinnedData & {
+    _id: Types.ObjectId;
+} & {
+    __v: number;
+}, "id"> & import("mongoose").HydratedDocumentOverrides<{
+    id: string;
+}>, {
+    label?: import("mongoose").SchemaDefinitionProperty<string, OrderPinnedData, Document<unknown, {}, OrderPinnedData, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<OrderPinnedData & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    value?: import("mongoose").SchemaDefinitionProperty<string, OrderPinnedData, Document<unknown, {}, OrderPinnedData, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<OrderPinnedData & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    createdAt?: import("mongoose").SchemaDefinitionProperty<Date, OrderPinnedData, Document<unknown, {}, OrderPinnedData, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<OrderPinnedData & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+}, OrderPinnedData>;
 export declare class Order {
     orderNumber: string;
     requestId?: string;
@@ -244,6 +310,7 @@ export declare class Order {
     revisionNotes?: string;
     timeline: OrderTimelineEvent[];
     chatMessages: OrderChatMessage[];
+    pinnedData: OrderPinnedData[];
 }
 export declare const OrderSchema: import("mongoose").Schema<Order, import("mongoose").Model<Order, any, any, any, any, any, Order & {
     _id: Types.ObjectId;
@@ -583,6 +650,15 @@ export declare const OrderSchema: import("mongoose").Schema<Order, import("mongo
         id: string;
     }>> | undefined;
     chatMessages?: import("mongoose").SchemaDefinitionProperty<OrderChatMessage[], Order, Document<unknown, {}, Order, {
+        id: string;
+    }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
+        _id: Types.ObjectId;
+    } & {
+        __v: number;
+    }, "id"> & import("mongoose").HydratedDocumentOverrides<{
+        id: string;
+    }>> | undefined;
+    pinnedData?: import("mongoose").SchemaDefinitionProperty<OrderPinnedData[], Order, Document<unknown, {}, Order, {
         id: string;
     }, import("mongoose").DefaultSchemaOptions> & Omit<Order & {
         _id: Types.ObjectId;

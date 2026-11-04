@@ -6,6 +6,7 @@ import '../core/theme/app_typography.dart';
 import '../models/virtual_number_model.dart';
 import '../providers/virtual_numbers_provider.dart';
 import 'app_asset_picker.dart';
+import 'top_notice.dart';
 
 /// محرّر إنشاء/تعديل تطبيق أرقام (الاسم + رمز الخدمة + معرض الأيقونات).
 ///
@@ -103,7 +104,7 @@ class _VirtualNumberAppFormDialogState
     final name = _nameCtrl.text.trim();
     final code = _codeCtrl.text.trim().toLowerCase();
     if (name.isEmpty || code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         const SnackBar(content: Text('الاسم ورمز الخدمة مطلوبان')),
       );
       return;
@@ -378,10 +379,7 @@ class _VirtualNumberAppFormDialogState
           TextField(
             controller: _sortCtrl,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              hintText: '0',
-              isDense: true,
-            ),
+            decoration: const InputDecoration(hintText: '0', isDense: true),
           ),
         ],
       ),

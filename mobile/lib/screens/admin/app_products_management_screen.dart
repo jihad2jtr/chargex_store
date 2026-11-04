@@ -10,6 +10,7 @@ import '../../providers/admin_provider.dart';
 import '../../widgets/app_thumb.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 
 class AppProductsManagementScreen extends StatefulWidget {
   final AppItemModel app;
@@ -779,7 +780,7 @@ class _AppProductsManagementScreenState
                     final selectedProvider = providerOf(selectedProviderId);
 
                     if (name.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showTopSnackBar(
                         const SnackBar(content: Text('اسم الباقة مطلوب')),
                       );
                       return;
@@ -823,7 +824,7 @@ class _AppProductsManagementScreenState
                     if (ctx.mounted) Navigator.of(ctx).pop();
 
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showTopSnackBar(
                         SnackBar(
                           content: Text(
                             ok
@@ -907,7 +908,7 @@ class _AppProductsManagementScreenState
                 if (ctx.mounted) Navigator.of(ctx).pop();
 
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showTopSnackBar(
                     SnackBar(
                       content: Text(
                         ok
@@ -951,7 +952,7 @@ class _AppProductsManagementScreenState
               if (ctx.mounted) Navigator.of(ctx).pop();
 
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       ok ? 'تم حذف الباقة بنجاح' : 'فشل حذف الباقة',
@@ -1008,11 +1009,11 @@ class _AppProductsManagementScreenState
     if (!mounted) return;
 
     if (msg != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(content: Text(msg), backgroundColor: AppColors.tertiary),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(admin.errorMessage ?? 'فشل تحديث الأسعار'),
           backgroundColor: AppColors.error,
@@ -2089,7 +2090,7 @@ class _AppProductsManagementScreenState
   }
 
   void _toast(String message, bool ok) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(message),
         backgroundColor: ok ? AppColors.tertiary : AppColors.error,

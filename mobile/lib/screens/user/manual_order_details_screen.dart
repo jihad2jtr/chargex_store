@@ -11,6 +11,7 @@ import '../../providers/manual_services_provider.dart';
 import '../../providers/app_catalog_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 
 class ManualOrderDetailsScreen extends StatefulWidget {
   final OrderModel order;
@@ -166,7 +167,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
       }
     });
     if (_decryptedInput == null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(provider.errorMessage ?? 'تعذر كشف البيانات'),
           backgroundColor: AppColors.error,
@@ -227,7 +228,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
       _scrollChatToBottom();
     } else if (pin && mounted) {
       // الرفض غالباً من صلاحية التثبيت: تنبيه صريح حتى لا تُحسب الرسالة مُرسلة
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(
             provider.errorMessage ?? 'تعذّرت إرسال الرسالة',
@@ -352,7 +353,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                 text,
               );
               if (ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   const SnackBar(
                     content: Text('تم إرسال طلب التعديل للمشرف بنجاح 🔄'),
                     backgroundColor: AppColors.ticketAmber,
@@ -463,7 +464,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                 text,
               );
               if (ok && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   const SnackBar(
                     content: Text(
                       'تم فتح الاعتراض وسيتدخل فريق الإدارة لحله 🚨',
@@ -1072,7 +1073,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                                         );
                                         ScaffoldMessenger.of(
                                           context,
-                                        ).showSnackBar(
+                                        ).showTopSnackBar(
                                           SnackBar(
                                             content: Text(
                                               'تم نسخ ${e.key} للحافظة',
@@ -1705,7 +1706,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                 InkWell(
                   onTap: () {
                     Clipboard.setData(ClipboardData(text: msg.message));
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(context).showTopSnackBar(
                       const SnackBar(
                         content: Text('تم نسخ بيانات الطلب 📋'),
                         duration: Duration(seconds: 1),

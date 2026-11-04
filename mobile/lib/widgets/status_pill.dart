@@ -42,11 +42,31 @@ class StatusPill extends StatelessWidget {
         break;
       case 'in_progress':
       case 'accepted':
+      case 'info_requested':
+      case 'revision_requested':
         bg = const Color(0xFFE0F2FE);
         fg = const Color(0xFF0284C7);
         if (label == null) {
           if (status == 'in_progress') display = 'قيد التنفيذ';
           if (status == 'accepted') display = 'تم القبول';
+          // الإدارة تطلب بيانات من العميل أو تعديلاً: حالة زرقاء لا خطأ
+          if (status == 'info_requested') display = 'بانتظار بياناتك';
+          if (status == 'revision_requested') display = 'طلب تعديل';
+        }
+        break;
+      case 'refunded':
+        // الإرجاع المالي ليس تنفيذاً ولا فشلاً: ذهب الإرجاع لا أخضر الاستلام
+        bg = const Color(0xFFFEF3C7);
+        fg = const Color(0xFFD97706);
+        if (label == null) display = 'مسترد';
+        break;
+      case 'closed':
+      case 'expired':
+        bg = const Color(0xFFF1F5F9);
+        fg = const Color(0xFF64748B);
+        if (label == null) {
+          if (status == 'closed') display = 'مغلق';
+          if (status == 'expired') display = 'انتهت المهلة';
         }
         break;
       case 'offline':
@@ -56,6 +76,8 @@ class StatusPill extends StatelessWidget {
         break;
       case 'error':
       case 'rejected':
+      case 'cancelled':
+      case 'failed':
       case 'inactive':
       case 'disputed':
       default:
@@ -64,6 +86,8 @@ class StatusPill extends StatelessWidget {
         if (label == null) {
           if (status == 'error') display = 'خطأ';
           if (status == 'rejected') display = 'مرفوض';
+          if (status == 'cancelled') display = 'ملغى';
+          if (status == 'failed') display = 'فشل';
           if (status == 'inactive') display = 'معطل';
           if (status == 'disputed') display = 'اعتراض';
         }

@@ -9,6 +9,7 @@ import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/collapsible_ticket.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 import '../../widgets/virtual_app_ticket_leading.dart';
 import 'providers_management_screen.dart';
 import 'virtual_number_apps_screen.dart';
@@ -77,7 +78,7 @@ class _VirtualNumbersManagementScreenState
     if (!context.mounted) return;
     setState(() => _busy = false);
     if (reloadList) await _reload();
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
@@ -707,7 +708,7 @@ class _VirtualNumbersManagementScreenState
 
   void _copy(String value, String label) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         duration: const Duration(seconds: 2),
         backgroundColor: AppColors.slate800,

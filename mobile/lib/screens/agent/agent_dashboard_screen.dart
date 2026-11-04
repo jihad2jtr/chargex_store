@@ -9,6 +9,7 @@ import '../../models/agent_user_model.dart';
 import '../../models/user_model.dart';
 import '../../providers/agent_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/top_notice.dart';
 import '../user/user_main_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/digital_pass_card.dart';
@@ -1259,7 +1260,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
   /// نسخ آيدي العميل (من الشارة أو من قائمة الإجراءات)
   void _copyClientId(AgentUserModel client) {
     Clipboard.setData(ClipboardData(text: client.displayId));
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(
           'تم نسخ الآيدي: ${client.displayId}',
@@ -1650,7 +1651,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                     onPressed: () async {
                       final amount = double.tryParse(amountController.text);
                       if (amount == null || amount <= 0) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               'الرجاء إدخال مبلغ صحيح أكبر من صفر',
@@ -1662,7 +1663,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                       }
 
                       if (amount > agentBalance) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               'رصيدك غير كافٍ لإتمام التحويل (\$${agentBalance.toStringAsFixed(2)})',
@@ -1683,7 +1684,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                       );
 
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               res['message'] ?? '',
@@ -1940,7 +1941,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                       );
 
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               res['message'] ?? '',
@@ -2038,7 +2039,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
               );
 
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       res['message'] ?? '',
@@ -2228,7 +2229,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                     if (nameCtrl.text.trim().isEmpty ||
                         emailCtrl.text.trim().isEmpty ||
                         passCtrl.text.trim().isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showTopSnackBar(
                         SnackBar(
                           content: Text(
                             'الرجاء تعبئة الاسم والبريد وكلمة المرور',
@@ -2250,7 +2251,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                     );
 
                     if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showTopSnackBar(
                         SnackBar(
                           content: Text(
                             res['message'] ?? '',
@@ -2360,7 +2361,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
               final res = await agentProvider.linkUserToAgent(id);
 
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       res['message'] ?? '',

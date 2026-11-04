@@ -1202,13 +1202,22 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   }
 
   // --- 3. Supervisor Workflows ---
+  // معرّفُ المسندِ إليه: قد يجيء معرّفاً خاماً أو مستنداً بعد populate، ونصُّ
+  // المستند ليس معرّفه، فالمقارنة المباشرة بـtoString() ترمي «هذا الطلب غير مسند
+  // إليك» على صاحبه حقّاً — كما وقع في تأكيد الإنهاء وإغلاق الطلب
+  private assignedSupervisorIdOf(order: any): string | undefined {
+    const assigned = order?.assignedSupervisorId;
+    if (!assigned) return undefined;
+    return (assigned._id ?? assigned).toString();
+  }
+
   // Supervisor accepts order
   async supervisorAcceptOrder(orderId: string, supervisor: UserDocument) {
     const order = await this.orderModel.findById(orderId).populate('productId', 'name');
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     if (
-      order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+      this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
       supervisor.role !== 'admin'
     ) {
       throw new ForbiddenException('هذا الطلب غير مسند إليك');
@@ -1254,7 +1263,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     if (
-      order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+      this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
       supervisor.role !== 'admin'
     ) {
       throw new ForbiddenException('هذا الطلب غير مسند إليك');
@@ -1304,7 +1313,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     if (
-      order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+      this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
       supervisor.role !== 'admin'
     ) {
       throw new ForbiddenException('هذا الطلب غير مسند إليك');
@@ -1361,7 +1370,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     if (
-      order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+      this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
       supervisor.role !== 'admin'
     ) {
       throw new ForbiddenException('هذا الطلب غير مسند إليك');
@@ -1405,14 +1414,11 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
   // مقدّم الخدمة وحده من يؤكد إتمام العملية ويغلق الطلب (بعد التسليم) —
   // العميل لم يعد يملك زر تأكيد؛ الإغلاق للموظف المنفّذ أو الإدارة
   async supervisorCompleteOrder(orderId: string, supervisor: UserDocument) {
-    const order = await this.orderModel
-      .findById(orderId)
-      .populate('productId', 'name')
-      .populate('assignedSupervisorId', 'name');
+    const order = await this.orderModel.findById(orderId).populate('productId', 'name');
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     if (
-      order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+      this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
       supervisor.role !== 'admin'
     ) {
       throw new ForbiddenException('هذا الطلب غير مسند إليك');
@@ -1501,9 +1507,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     await order.save();
 
     // Notify supervisor
-    if (order.assignedSupervisorId) {
+    const assignedSupervisorId = this.assignedSupervisorIdOf(order);
+    if (assignedSupervisorId) {
       await this.notificationsService.createNotification({
-        userId: (order.assignedSupervisorId as any)._id?.toString() || order.assignedSupervisorId.toString(),
+        userId: assignedSupervisorId,
         forRole: 'supervisor',
         title: 'طلب تعديل من العميل 🔄',
         body: `طلب العميل تعديلاً على الطلب #${order.orderNumber}: ${revisionNotes}`,
@@ -1562,9 +1569,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       data: { orderId: order._id.toString(), disputeReason },
     });
 
-    if (order.assignedSupervisorId) {
+    const assignedSupervisorId = this.assignedSupervisorIdOf(order);
+    if (assignedSupervisorId) {
       await this.notificationsService.createNotification({
-        userId: order.assignedSupervisorId.toString(),
+        userId: assignedSupervisorId,
         forRole: 'supervisor',
         title: 'تنبيه: العميل فتح اعتراضاً على الطلب 🚨',
         body: `طلب #${order.orderNumber}: ${disputeReason}`,
@@ -1726,7 +1734,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
     // Access check: buyer, assigned supervisor, or admin
     const isBuyer = order.userId.toString() === user._id.toString();
-    const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+    const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
     const isAdmin = user.role === 'admin';
 
     if (!isBuyer && !isSupervisor && !isAdmin) {
@@ -1754,7 +1762,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     const isBuyer = order.userId.toString() === user._id.toString();
-    const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+    const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
     const isAdmin = user.role === 'admin';
 
     if (!isBuyer && !isSupervisor && !isAdmin) {
@@ -1808,9 +1816,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     await order.save();
 
     // Determine recipient for notification
-    if (isBuyer && order.assignedSupervisorId) {
+    const assignedSupervisorId = this.assignedSupervisorIdOf(order);
+    if (isBuyer && assignedSupervisorId) {
       await this.notificationsService.createNotification({
-        userId: order.assignedSupervisorId.toString(),
+        userId: assignedSupervisorId,
         forRole: 'supervisor',
         title: `رسالة جديدة من العميل حول طلب #${order.orderNumber} 💬`,
         body: data.message ? (data.message.length > 80 ? `${data.message.slice(0, 80)}...` : data.message) : 'أرسل العميل مرفقاً',
@@ -1838,7 +1847,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
     const isBuyer = order.userId.toString() === user._id.toString();
-    const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+    const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
     const isAdmin = user.role === 'admin';
 
     if (!isBuyer && !isSupervisor && !isAdmin) {
@@ -1874,7 +1883,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     const order = await this.orderModel.findById(orderId);
     if (!order) throw new NotFoundException('الطلب غير موجود');
 
-    const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+    const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
     const isAdmin = user.role === 'admin';
 
     if (!isSupervisor && !isAdmin) {

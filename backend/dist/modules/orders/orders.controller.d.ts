@@ -33,16 +33,6 @@ export declare class OrdersController {
     } & {
         id: string;
     })[]>;
-    confirmOrder(id: string, user: UserDocument): Promise<{
-        message: string;
-        order: import("mongoose").Document<unknown, {}, import("../../database/schemas/order.schema").OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/order.schema").Order & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-            _id: import("mongoose").Types.ObjectId;
-        }> & {
-            __v: number;
-        } & {
-            id: string;
-        };
-    }>;
     requestRevision(id: string, user: UserDocument, revisionNotes: string): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, import("../../database/schemas/order.schema").OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/order.schema").Order & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
@@ -102,6 +92,7 @@ export declare class OrdersController {
         revisionNotes?: string;
         timeline: import("../../database/schemas/order.schema").OrderTimelineEvent[];
         chatMessages: import("../../database/schemas/order.schema").OrderChatMessage[];
+        pinnedData: import("../../database/schemas/order.schema").OrderPinnedData[];
         _id: import("mongoose").Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
@@ -134,7 +125,7 @@ export declare class OrdersController {
             id: string;
         };
     }>;
-    supervisorStartOrder(id: string, user: UserDocument): Promise<{
+    supervisorCompleteOrder(id: string, user: UserDocument): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, import("../../database/schemas/order.schema").OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/order.schema").Order & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
             _id: import("mongoose").Types.ObjectId;
@@ -178,6 +169,8 @@ export declare class OrdersController {
         attachmentName?: string;
         attachmentType?: string;
         isSensitive?: boolean;
+        isPinned?: boolean;
+        pinLabel?: string;
     }): Promise<import("../../database/schemas/order.schema").OrderChatMessage>;
     getOrderDecryptedCredentials(id: string, user: UserDocument): Promise<{
         isPurged: boolean;

@@ -203,6 +203,36 @@ void main() {
       expect(refunded.refundedAt, isA<DateTime>());
     });
 
+    test('المُرجَع يوصف بـ«مسترد» لا باسم حالته القديمة', () {
+      // المنتهي والملغى والمجهول كلها تُقرأ للعميل إرجاعاً إذا رجع المال
+      for (final String status in const <String>[
+        'expired',
+        'cancelled',
+        'failed',
+      ]) {
+        expect(
+          build(<String, dynamic>{
+            'status': status,
+            'isLive': false,
+            'refundedAt': '2026-10-28T10:20:00.000Z',
+          }).statusLabel,
+          'مسترد',
+          reason: 'حالة $status مع إرجاع',
+        );
+      }
+
+      // الرمز وصل ثم أُرجع المبلغ لاحقاً: الحالة تبقى ما يملكه العميل من رمز
+      expect(
+        build(<String, dynamic>{
+          'status': 'received',
+          'isLive': false,
+          'smsCode': '481920',
+          'refundedAt': '2026-10-28T10:20:00.000Z',
+        }).statusLabel,
+        'وصل الرمز',
+      );
+    });
+
     test('العدّاد يتوقف عند الصفر ويغيب مع رقم غير حيّ', () {
       final now = DateTime.parse('2026-10-28T10:03:30.000Z');
 

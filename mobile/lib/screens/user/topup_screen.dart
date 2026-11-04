@@ -13,6 +13,7 @@ import '../../models/payment_account_model.dart';
 import '../../widgets/balance_badge.dart';
 import '../../widgets/brand_logo.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/top_notice.dart';
 
 /// لوحة ألوان شعار شام كاش نفسه (أزرق ملكي متدرّج + فيروزي) — مقاسة من
 /// بكسلات الشعار في assets/brands/sham_cash.jpg، ويُبنى تبويب شام كاش كاملاً
@@ -102,11 +103,11 @@ class _TopupScreenState extends State<TopupScreen> {
     }
   }
 
-  /// رسالة للمستخدم: SnackBar في الصفحة، أو شريط داخل نافذة طريقة الدفع
-  /// لأن النافذة تغطي الشريط السفلي للصفحة
+  /// رسالة للمستخدم: تنبيهٌ في أعلى الصفحة، أو شريطٌ داخل نافذة طريقة الدفع
+  /// لأن النافذة تغطي الصفحة فلا يبلغها تنبيهها
   void _showMessage(SnackBar snackBar) {
     if (_sheetContext == null) {
-      ScaffoldMessenger.of(context).showSnackBar(snackBar);
+      ScaffoldMessenger.of(context).showTopSnackBar(snackBar);
       return;
     }
 

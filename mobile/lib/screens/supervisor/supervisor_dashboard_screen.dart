@@ -11,6 +11,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/manual_services_provider.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 import '../user/manual_order_details_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
@@ -259,6 +260,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   Widget _ticketShell({
     required Widget child,
     Color borderColor = AppColors.outline,
+    // أرضية التذكرة: بيضاء بطبيعتها، ويُسودّها كرتُ الحالة ليأخذ لون الشريط
+    // العلوي نفسه فلا ينفصل رأسُ الصفحة عن أول ما تحتها
+    Color background = AppColors.surfaceCard,
   }) {
     return CustomPaint(
       painter: TicketPassShadowPainter(
@@ -282,7 +286,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             notchRadius: _notch,
             notchPositionFraction: 0.5,
           ),
-          child: Material(color: AppColors.surfaceCard, child: child),
+          child: Material(color: background, child: child),
         ),
       ),
     );
@@ -301,13 +305,14 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
-  /// خط تثقيب رأسي يفصل جسم التذكرة عن كعبها
+  /// خط تثقيب رأسي يفصل جسم التذكرة عن كعبها — وهو في كرت الحالة الأسود
+  /// رماديٌ وسط لا فاتحاً، وإلا بدت الفواصل خيوطاً بيضاء فوق السواد
   Widget _verticalRule() {
     return SizedBox(
       width: 1,
       child: CustomPaint(
         painter: VerticalDashedLinePainter(
-          color: AppColors.outlineVariant,
+          color: AppColors.slate700,
           dashHeight: 5,
           dashSpace: 4,
         ),
@@ -386,13 +391,19 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   }
 
   /// شارة صغيرة: أيقونة + نص (لا تضايق الاسم أبداً)
-  Widget _chip(IconData icon, String text, Color color) {
+  Widget _chip(
+    IconData icon,
+    String text,
+    Color color, {
+    // على أرضٍ سوداء لا تُقرأ الصبغة الخفيفة (0.08) ولا حدُّها الشبه transparent
+    bool dark = false,
+  }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+        color: color.withValues(alpha: dark ? 0.22 : 0.08),
         borderRadius: BorderRadius.circular(7),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
+        border: Border.all(color: color.withValues(alpha: dark ? 0.5 : 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -455,16 +466,14 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   /// نسخة موحّدة للحافظة مع تأكيد مكتوب باسم العنصر
   void _copyText(String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('تم نسخ $label للحافظة', style: AppTypography.cairo()),
-          backgroundColor: AppColors.slate900,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    ScaffoldMessenger.of(context).showTopSnackBar(
+      SnackBar(
+        content: Text('تم نسخ $label للحافظة', style: AppTypography.cairo()),
+        backgroundColor: AppColors.slate900,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   /// بطاقة واحدة مدمجة: ترحيب المشرف + حالة طلبات الخدمات.
@@ -479,10 +488,13 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     required int delayedCount,
   }) {
     final String name = auth.currentUser?.name ?? 'مشرف العمليات';
+    // كرتٌ أسود بلون الشريط العلوي: رأسُ الصفحة وأول ما تحتها قطعة واحدة،
+    // فكل نصٍّ فيه يُقلب فاتحاً لأن الأرضية داكنة
     return _ticketShell(
+      background: AppColors.darkNav,
       borderColor: delayedCount > 0
-          ? AppColors.rose.withValues(alpha: 0.45)
-          : AppColors.primaryBlue.withValues(alpha: 0.30),
+          ? AppColors.rose.withValues(alpha: 0.65)
+          : AppColors.primaryBlue.withValues(alpha: 0.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -506,7 +518,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
-                          color: AppColors.slate900,
+                          color: Colors.white,
                           fontWeight: FontWeight.w900,
                           fontSize: 13.5,
                         ),
@@ -533,11 +545,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                   Icons.workspace_premium_rounded,
                   'مقدم الخدمة',
                   delayedCount > 0 ? AppColors.rose : AppColors.emerald,
+                  dark: true,
                 ),
               ],
             ),
           ),
-          _dashedRule(color: AppColors.outline),
+          _dashedRule(color: AppColors.slate700),
 
           // شريط المؤشرات المضغوط (النقر يفلتر قائمة الطلبات بالأسفل)
           // IntrinsicHeight: التثقيب الرأسي يحتاج ارتفاعاً محدداً للتمدد
@@ -609,7 +622,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                   setState(() => _selectedFilter = active ? 'all' : filterKey),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          color: active ? color.withValues(alpha: 0.10) : Colors.transparent,
+          color: active ? color.withValues(alpha: 0.22) : Colors.transparent,
           padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -628,7 +641,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       style: AppTypography.plusJakartaSans(
                         fontWeight: FontWeight.w900,
                         fontSize: 13.5,
-                        color: value > 0 ? color : AppColors.slate500,
+                        // المؤشر الصفر لا يُطْفأ إلى slate500 على الأرض السوداء
+                        color: value > 0 ? color : AppColors.slate400,
                       ),
                     ),
                   ],
@@ -643,7 +657,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                   style: AppTypography.cairo(
                     fontSize: 8.5,
                     fontWeight: active ? FontWeight.w900 : FontWeight.w700,
-                    color: active ? color : AppColors.slate500,
+                    color: active ? color : AppColors.slate400,
                   ),
                 ),
               ),
@@ -1386,11 +1400,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     final ok = await provider.supervisorAcceptOrder(order.id);
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         const SnackBar(content: Text('تم قبول الطلب والبدء في تنفيذه')),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(content: Text(provider.errorMessage ?? 'تعذر قبول الطلب')),
       );
     }
@@ -1406,11 +1420,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     final ok = await provider.supervisorCompleteOrder(order.id);
     if (!mounted) return;
     if (ok) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         const SnackBar(content: Text('تم تأكيد الإنهاء وإغلاق الطلب ✅')),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(content: Text(provider.errorMessage ?? 'تعذر إغلاق الطلب')),
       );
     }
@@ -1566,7 +1580,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       onSubmit: (ctx) async {
         final reason = reasonCtrl.text.trim();
         if (reason.isEmpty) {
-          ScaffoldMessenger.of(ctx).showSnackBar(
+          ScaffoldMessenger.of(ctx).showTopSnackBar(
             SnackBar(
               content: Text(
                 'يرجى إدخال سبب الرفض',
@@ -1583,7 +1597,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         );
         final ok = await provider.supervisorRejectOrder(order.id, reason);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showTopSnackBar(
           SnackBar(
             content: Text(
               ok
@@ -1639,7 +1653,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         );
         final ok = await provider.supervisorRequestInfo(order.id, note);
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showTopSnackBar(
           SnackBar(
             content: Text(
               ok
@@ -1799,7 +1813,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         );
 
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showTopSnackBar(
           SnackBar(
             content: Text(
               ok
@@ -1887,7 +1901,7 @@ class _CustomerInputBlockState extends State<_CustomerInputBlock> {
       }
     });
     if (_decrypted == null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(
             provider.errorMessage ?? 'تعذر كشف البيانات',

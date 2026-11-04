@@ -7,6 +7,7 @@ import '../../core/utils/voucher_batches.dart';
 import '../../core/utils/voucher_pdf.dart';
 import '../../models/shipping_code_model.dart';
 import '../../providers/admin_provider.dart';
+import '../../widgets/top_notice.dart';
 import 'generate_voucher_batch_dialog.dart';
 
 class ShippingCodesScreen extends StatefulWidget {
@@ -70,7 +71,7 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
   }
 
   void _snack(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(message, style: AppTypography.cairo()),
         backgroundColor: color,
@@ -906,7 +907,7 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                         child: InkWell(
                           onTap: () {
                             Clipboard.setData(ClipboardData(text: code.code));
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(context).showTopSnackBar(
                               SnackBar(
                                 content: Text(
                                   'تم نسخ كود القسيمة بنجاح',

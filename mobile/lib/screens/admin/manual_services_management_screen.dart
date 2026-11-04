@@ -6,6 +6,7 @@ import '../../core/theme/app_typography.dart';
 import '../../models/order_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 import '../user/manual_order_details_screen.dart';
 import 'users_management_screen.dart';
 
@@ -1257,7 +1258,7 @@ class _ManualServicesManagementScreenState
                       );
                       if (!mounted) return;
                       if (ok) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           const SnackBar(
                             content: Text(
                               'تمت إعادة إسناد الطلب بنجاح وإشعار المشرف الجديد',
@@ -1265,7 +1266,7 @@ class _ManualServicesManagementScreenState
                           ),
                         );
                       } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               admin.errorMessage ?? 'تعذر إعادة الإسناد',
@@ -1339,13 +1340,13 @@ class _ManualServicesManagementScreenState
               );
               if (!mounted) return;
               if (ok) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   const SnackBar(
                     content: Text('تم استرجاع المبلغ بنجاح إلى محفظة العميل'),
                   ),
                 );
               } else {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(admin.errorMessage ?? 'تعذر استرجاع المبلغ'),
                   ),

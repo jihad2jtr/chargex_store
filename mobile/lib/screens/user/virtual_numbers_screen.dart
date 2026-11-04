@@ -12,6 +12,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../providers/wallet_provider.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/top_notice.dart';
 import 'topup_screen.dart';
 import 'virtual_number_wait_screen.dart';
 
@@ -27,13 +28,18 @@ class VirtualNumbersScreen extends StatefulWidget {
   State<VirtualNumbersScreen> createState() => _VirtualNumbersScreenState();
 }
 
+enum VirtualNumberCategory {
+  auto,
+  manual,
+}
+
 class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   final Set<String> _codeAnnounced = {};
   final Set<String> _refundAnnounced = {};
 
-  /// بحث الخدمات: الكتالوج يضم مئات التطبيقات فالبحث يختصر الطريق
-  final TextEditingController _serviceSearch = TextEditingController();
-  String _serviceQuery = '';
+  /// التبديل بين الخدمات التلقائية واليدوية
+  VirtualNumberCategory _selectedCategory = VirtualNumberCategory.auto;
+  bool _categoryManuallySelected = false;
 
   VirtualNumbersProvider? _provider;
   Timer? _ticker;
@@ -65,7 +71,6 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     _provider?.removeListener(_onProviderChanged);
     _provider?.stopPolling();
     _ticker?.cancel();
-    _serviceSearch.dispose();
     super.dispose();
   }
 
@@ -103,39 +108,13 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     _syncTicker();
   }
 
-  /// الرسائل تأجل إلى ما بعد الإطارية: notifyListeners قد يحدث أثناء البناء
+  /// الرسائل تأجل إلى ما بعد الإطارية: notifyListeners قد يحدث أثناء البناء،
+  /// وهي تنبيهٌ في أعلى الشاشة لا شريطٌ أسفلها يغطيه الإصبع أثناء الكتابة
   void _notify(String title, String body, Color tone) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          backgroundColor: tone,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          content: Row(
-            children: [
-              const Icon(
-                Icons.notifications_active_rounded,
-                color: Colors.white,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  '$title — $body',
-                  style: AppTypography.cairo(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
+      // خبرُ الصفحة سطرٌ واحد: عنوانٌ ومضمونُه في نصٍّ كما كان في الشريط
+      TopNotice.show(context, title: '$title — $body', tone: tone);
     });
   }
 
@@ -301,7 +280,9 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   // ---------------------------------------------------------------------------
 
   Widget _buildServicesArea(VirtualNumbersProvider provider) {
-    if (provider.isLoadingOptions && provider.options.services.isEmpty) {
+    if (provider.isLoadingOptions &&
+        provider.options.services.isEmpty &&
+        provider.options.manualServices.isEmpty) {
       return const Padding(
         padding: EdgeInsets.symmetric(vertical: 36),
         child: Center(child: CircularProgressIndicator()),
@@ -314,50 +295,287 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
       return _buildEmptyCatalog(provider);
     }
 
-    final cards = _mergedCards(provider);
+    // توجيه تلقائي للقسم المتاح إذا لم يحدد العميل تبويباً معيناً
+    if (!_categoryManuallySelected) {
+      if (options.isEmpty && manuals.isNotEmpty) {
+        _selectedCategory = VirtualNumberCategory.manual;
+      } else if (manuals.isEmpty && options.isNotEmpty) {
+        _selectedCategory = VirtualNumberCategory.auto;
+      }
+    }
+
+    final isAuto = _selectedCategory == VirtualNumberCategory.auto;
+    final cards = isAuto
+        ? options.map((s) => _NumberCardItem.auto(s)).toList()
+        : manuals.map((s) => _NumberCardItem.manual(s)).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (options.length + manuals.length > 8) ...[
-          _serviceSearchField(),
-          const SizedBox(height: 10),
-        ],
-        if (cards.isEmpty) _buildNoMatch() else _buildCardsGrid(cards),
+        _buildCategoryToggle(options.length, manuals.length),
+        const SizedBox(height: 10),
+        _buildTypeExplanation(),
+        const SizedBox(height: 12),
+        if (cards.isEmpty)
+          _buildEmptySection(isAuto)
+        else
+          _buildCardsGrid(cards),
       ],
     );
   }
 
-  /// كروت موحّدة: اليدوي أولاً لأنه الأعلى قيمة والأقل عدداً فيبقى أول ما
-  /// تراه العين، ثم كتالوج المزود. البحث يسري على النوعين معاً.
-  List<_NumberCardItem> _mergedCards(VirtualNumbersProvider provider) {
-    final q = _serviceQuery.trim().toLowerCase();
-    final cards = <_NumberCardItem>[];
-    for (final s in provider.options.manualServices) {
-      if (q.isEmpty ||
-          _matchesQuery(q, '${s.name} ${s.appName} ${s.appServiceCode}')) {
-        cards.add(_NumberCardItem.manual(s));
-      }
-    }
-    for (final s in provider.options.services) {
-      if (q.isEmpty ||
-          _matchesQuery(q, '${s.nameAr} ${s.nameEn} ${s.name} ${s.code}')) {
-        cards.add(_NumberCardItem.auto(s));
-      }
-    }
-    return cards;
+  Widget _buildCategoryToggle(int autoCount, int manualCount) {
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF1F5F9),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.outlineVariant.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildToggleButton(
+              category: VirtualNumberCategory.auto,
+              title: 'الخدمات التلقائية',
+              badge: autoCount > 0 ? '$autoCount' : null,
+              icon: Icons.bolt_rounded,
+              activeColor: AppColors.ticketAmber,
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _buildToggleButton(
+              category: VirtualNumberCategory.manual,
+              title: 'الخدمات اليدوية',
+              badge: manualCount > 0 ? '$manualCount' : null,
+              icon: Icons.verified_user_rounded,
+              activeColor: AppColors.emerald,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
-  bool _matchesQuery(String q, String haystack) =>
-      haystack.toLowerCase().contains(q);
+  Widget _buildToggleButton({
+    required VirtualNumberCategory category,
+    required String title,
+    required String? badge,
+    required IconData icon,
+    required Color activeColor,
+  }) {
+    final isSelected = _selectedCategory == category;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (_selectedCategory != category) {
+            setState(() {
+              _selectedCategory = category;
+              _categoryManuallySelected = true;
+            });
+          }
+        },
+        borderRadius: BorderRadius.circular(10),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+          decoration: BoxDecoration(
+            color: isSelected ? Colors.white : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: isSelected
+                ? Border.all(
+                    color: activeColor.withValues(alpha: 0.4),
+                    width: 1.2,
+                  )
+                : null,
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.06),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: isSelected ? activeColor : AppColors.slate500,
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.cairo(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+                    color: isSelected ? AppColors.slate900 : AppColors.slate600,
+                  ),
+                ),
+              ),
+              if (badge != null) ...[
+                const SizedBox(width: 5),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? activeColor.withValues(alpha: 0.15)
+                        : AppColors.slate200,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    badge,
+                    style: AppTypography.plusJakartaSans(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w700,
+                      color: isSelected ? activeColor : AppColors.slate600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypeExplanation() {
+    final isAuto = _selectedCategory == VirtualNumberCategory.auto;
+    final tone = isAuto ? AppColors.ticketAmber : AppColors.emerald;
+    final title = isAuto
+        ? 'الخدمات التلقائية (أرقام فورية)'
+        : 'الخدمات اليدوية (تفعيل مضمون)';
+    final badgeText = isAuto ? 'فوري وتلقائي' : 'إشراف ومتابعة';
+    final description = isAuto
+        ? 'أرقام سحابية مؤتمتة من عدة دول ومزودين، يصلك رمز التفعيل تلقائياً في ثوانٍ. وفي حال عدم وصول الرسالة خلال المهلة، يُعاد المبلغ تلقائياً وفورياً إلى محفظتك.'
+        : 'تفعيل يدوي ومضمون بواسطة فريق الدعم المختص لضمان استقرار حسابك وتجنب الحظر، مع متابعة مباشرة لطلبك حتى وصول الرمز وإتمام التفعيل بنجاح.';
+    final icon = isAuto ? Icons.bolt_rounded : Icons.verified_user_rounded;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: tone.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: tone.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: tone.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 18, color: tone),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        title,
+                        style: AppTypography.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.slate900,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 1.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: tone.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        badgeText,
+                        style: AppTypography.cairo(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w800,
+                          color: tone,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  style: AppTypography.cairo(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.slate700,
+                    height: 1.4,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptySection(bool isAuto) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outlineVariant),
+      ),
+      child: Column(
+        children: [
+          Icon(
+            isAuto ? Icons.numbers_rounded : Icons.handshake_outlined,
+            size: 34,
+            color: AppColors.slate400,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isAuto
+                ? 'لا توجد أرقام تلقائية متاحة حالياً'
+                : 'لا توجد خدمات يدوية متاحة حالياً',
+            style: AppTypography.cairo(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w700,
+              color: AppColors.slate600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// ثلاثة كروت في الصف ثابتة: على الشاشة العريضة يكبر الكرت ولا يقلّ عدد
   /// الكروت، والفراغ بين الكروت متساوٍ في الاتجاهين لأنها كروت لا أيقونات
   Widget _buildCardsGrid(List<_NumberCardItem> cards) {
     const double spacing = 8;
     const int columns = 3;
-    // الكرت أطول من مربّع صورته بقدر تبويبي الاسم والسعر (42) وفراغ الأسطر
-    // الصغيرة فوقهما، وإلا رَمى RenderFlex overflow عند ظهور سطر الدول
     const double infoHeight = 52;
 
     return LayoutBuilder(
@@ -387,94 +605,6 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
           },
         );
       },
-    );
-  }
-
-  Widget _serviceSearchField() {
-    return TextField(
-      controller: _serviceSearch,
-      onChanged: (v) => setState(() => _serviceQuery = v),
-      textInputAction: TextInputAction.search,
-      style: AppTypography.cairo(fontSize: 12.5, color: AppColors.slate900),
-      decoration: InputDecoration(
-        isDense: true,
-        hintText: 'ابحث عن تطبيق أو خدمة',
-        hintStyle: AppTypography.cairo(
-          fontSize: 11.5,
-          color: AppColors.slate400,
-        ),
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-          size: 18,
-          color: AppColors.slate400,
-        ),
-        prefixIconConstraints: const BoxConstraints(minWidth: 38),
-        suffixIcon: _serviceQuery.isEmpty
-            ? null
-            : IconButton(
-                tooltip: 'مسح',
-                onPressed: () {
-                  _serviceSearch.clear();
-                  setState(() => _serviceQuery = '');
-                },
-                icon: const Icon(
-                  Icons.close_rounded,
-                  size: 16,
-                  color: AppColors.slate400,
-                ),
-              ),
-        filled: true,
-        fillColor: Colors.white,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 10,
-          vertical: 11,
-        ),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.outlineVariant),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(color: AppColors.outlineVariant),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: const BorderSide(
-            color: AppColors.primaryBlue,
-            width: 1.3,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNoMatch() {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 26, horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outlineVariant),
-      ),
-      child: Column(
-        children: [
-          const Icon(
-            Icons.search_off_rounded,
-            size: 34,
-            color: AppColors.slate400,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'لا تطبيق يطابق «$_serviceQuery»',
-            textAlign: TextAlign.center,
-            style: AppTypography.cairo(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.slate500,
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -672,7 +802,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     if (!mounted) return result != null;
 
     if (result == null) {
-      messenger.showSnackBar(
+      messenger.showTopSnackBar(
         SnackBar(
           backgroundColor: AppColors.rose,
           behavior: SnackBarBehavior.floating,
@@ -692,7 +822,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     if (newBalance is num) {
       context.read<AuthProvider>().updateBalanceLocally(newBalance.toDouble());
     }
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         backgroundColor: AppColors.emerald,
         behavior: SnackBarBehavior.floating,
@@ -790,7 +920,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
 
     if (!mounted) return message != null;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
         behavior: SnackBarBehavior.floating,
@@ -936,7 +1066,8 @@ class _NumberServiceCard extends StatelessWidget {
     return null;
   }
 
-  // غلاف التذكرة: فتحتان على الحافتين وحوافة 14، والصورة تملأ الكرت كله
+  // غلاف التذكرة: فتحتان على الحافتين وحوافة 14، والصورة تملأ الكرت إلى خطّ
+  // تبويبي الاسم والسعر لا إلى آخره
   static const double _radius = 14;
   static const double _notch = 6;
 
@@ -988,57 +1119,71 @@ class _NumberServiceCard extends StatelessWidget {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  // الصورة تملأ الكرت: تدرّب وحرف تحتها كي لا تترك الشفافية
-                  // بياضاً على حواف التذكرة، ثم رمز التطبيق ممدوداً إلى كل الخانة
+                  // أرض التذكرة: تدرّج وحرف، كي لا تترك البطاقةُ بلا رمز
+                  // بياضاً على حوافها، ولكي يبقى تحت تبويبي الاسم والسعر ما يسده
                   _letterBackdrop(),
-                  if (iconAsset != null)
-                    Positioned.fill(
-                      child: Image.asset(
-                        iconAsset,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            const SizedBox.shrink(),
-                      ),
-                    ),
-                  // تعتيم أسفل الصورة: الاسم يُقرأ فوق أي رمز ممدود
-                  const Positioned.fill(
-                    child: IgnorePointer(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topCenter,
-                            end: Alignment.bottomCenter,
-                            stops: [0.0, 0.4, 0.66, 0.82],
-                            colors: [
-                              Color(0x00000000),
-                              Color(0x0D000000),
-                              Color(0x66000000),
-                              Color(0xB3000000),
-                            ],
+                  // الصورة وقدرُها ما فوق التبويبين: حدُّها السفلي خطُّ الاسم
+                  // نفسه، فلا اسمَ ولا سعرَ يُقرأ فوق جزء منها
+                  PositionedDirectional(
+                    top: 0,
+                    start: 0,
+                    end: 0,
+                    bottom: _tabsHeight,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (iconAsset != null)
+                          Positioned.fill(
+                            child: Image.asset(
+                              iconAsset,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) =>
+                                  const SizedBox.shrink(),
+                            ),
+                          ),
+                        // تعتيم أسفل الصورة: الأسطر الصغيرة تُقرأ فوق أي رمز
+                        const Positioned.fill(
+                          child: IgnorePointer(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  stops: [0.0, 0.4, 0.7, 0.86],
+                                  colors: [
+                                    Color(0x00000000),
+                                    Color(0x0D000000),
+                                    Color(0x66000000),
+                                    Color(0xB3000000),
+                                  ],
+                                ),
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                        // أعلى الصورة للقفل والشارة، وأسفلها الأسطر الصغيرة
+                        Positioned.fill(
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(7, 20, 7, 4),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                // الاسم الأجنبي وعدد الدول يبقيان على الصورة،
+                                // أما الاسم والسعر فلكلٍّ تبويبه تحتها
+                                if (item.foreign.isNotEmpty)
+                                  _subLine(item.foreign, ltr: true),
+                                if (item.metaText.isNotEmpty)
+                                  _subLine(item.metaText),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  Positioned.fill(
-                    child: Padding(
-                      // أعلى الكرت للنارة والقفل، وأسفلها الأسطر الصغيرة فوق
-                      // تبويبَي الاسم والسعر اللذين يلتصقان بآخر الكرت
-                      padding: EdgeInsets.fromLTRB(7, 20, 7, _tabsHeight + 4),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          // الاسم الأجنبي وعدد الدول يبقيان على الصورة، أما
-                          // الاسم والسعر فلكلٍّ تبويبه في طرف التذكرة
-                          if (item.foreign.isNotEmpty)
-                            _subLine(item.foreign, ltr: true),
-                          if (item.metaText.isNotEmpty) _subLine(item.metaText),
-                        ],
-                      ),
-                    ),
-                  ),
-                  // تبويب الاسم فوق تبويب السعر: شريط فاتح الاسمُ فيه وحده
+                  // تبويب الاسم فوق تبويب السعر: شريطاهما الآن على أرض التذكرة
+                  // لا على الصورة
                   PositionedDirectional(
                     bottom: _stubHeight,
                     start: 0,
@@ -1091,20 +1236,21 @@ class _NumberServiceCard extends StatelessWidget {
     );
   }
 
-  /// تبويب الاسم: شريط فاتح أعلى شريط السعر، الاسمُ فيه وحده بخطّ داكن
-  /// بائن، فلا يقرأه أحد فوق صورة داكنة ولا ينافس السعرَ في طرف الكرت
+  /// تبويب الاسم: شريط متدرّج رأسي من أسفل الكرت إلى أعلاه، الاسمُ فيه وحده
+  /// بخطّ أبيض بائن، فلا يقرأه أحد فوق صورة داكنة
   Widget _nameTab() {
     return Container(
       height: _nameHeight,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.94),
-        border: Border(
-          top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.55),
-            width: 0.8,
-          ),
+      decoration: const BoxDecoration(
+        // التدرّج من أسفل الكرت إلى أعلاه: سواد عند تبويب السعر يفتح شيئاً
+        // فشيئاً نحو الصورة، فالتبويبان طبقة واحدة لا شريطان بنفس اللون
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [Colors.black, AppColors.slate700],
         ),
+        border: Border(top: BorderSide(color: Colors.white38, width: 0.8)),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -1116,7 +1262,7 @@ class _NumberServiceCard extends StatelessWidget {
           style: AppTypography.cairo(
             fontSize: 10.5,
             fontWeight: FontWeight.w900,
-            color: AppColors.slate900,
+            color: Colors.white,
             height: 1.15,
           ),
         ),
@@ -1124,20 +1270,17 @@ class _NumberServiceCard extends StatelessWidget {
     );
   }
 
-  /// شريط السعر أسفل التذكرة: أرضية داكنة وخطّ كبير بلون التطبيق المميز،
+  /// شريط السعر أسفل التذكرة: أرضية داكنة مصمتة وخطّ كبير بلون التطبيق المميز،
   /// فالسعر أول ما تقرأه العين ولا ينافسه سطرُ الدول ولا الاسم
   Widget _priceStub() {
     return Container(
       height: _stubHeight,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.slate900.withValues(alpha: 0.94),
-        border: Border(
-          top: BorderSide(
-            color: Colors.white.withValues(alpha: 0.4),
-            width: 0.8,
-          ),
-        ),
+      decoration: const BoxDecoration(
+        color: AppColors.slate900,
+        // نفس الخيط الأبيض الرفيع الذي فوق تبويب الاسم: خطّان متماثلان
+        // يفصلان الصورة عن الاسم عن السعر
+        border: Border(top: BorderSide(color: Colors.white38, width: 0.8)),
       ),
       child: Text(
         item.priceText,
@@ -1355,7 +1498,7 @@ class _ManualServiceSheetState extends State<_ManualServiceSheet> {
       if (value.isEmpty) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('يرجى إدخال ${entry.key}')));
+        ).showTopSnackBar(SnackBar(content: Text('يرجى إدخال ${entry.key}')));
         return;
       }
       input[entry.key] = value;

@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
+import '../../widgets/top_notice.dart';
 
 /// كتالوج مزود الأرقام في اللوحة: تابين بلا قائمة accordion طويلة:
 /// 1) شبكة التطبيقات المُنتقاة المخزّنة لدى الخادم — تُرسم فوراً من قاعدة
@@ -78,7 +79,7 @@ class _VirtualNumberCatalogScreenState
     final message = await action();
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
@@ -638,7 +639,7 @@ class _VirtualNumberCatalogScreenState
     final error = provider.errorMessage;
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: error == null ? AppColors.slate800 : AppColors.rose,
@@ -745,7 +746,7 @@ class _VirtualNumberCatalogScreenState
     // يُعاد قراءة Messenger بعد التمر (تحديث context عبر await)
     await provider.fetchAdminApps(quiet: true);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
         content: Text(

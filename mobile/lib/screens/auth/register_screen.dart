@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/top_notice.dart';
 import '../user/user_main_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
@@ -35,7 +36,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     final password = _passwordController.text;
 
     if (name.isEmpty || email.isEmpty || password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(
             'يرجى ملء جميع الحقول المطلوبة',
@@ -63,7 +64,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         (route) => false,
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(
             auth.errorMessage ?? 'فشل إنشاء الحساب',

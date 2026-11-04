@@ -8,6 +8,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/margin_provider.dart';
 import '../../widgets/balance_badge.dart';
 import '../../widgets/margin_dialog.dart';
+import '../../widgets/top_notice.dart';
 import '../../widgets/update_check_dialog.dart';
 import '../../widgets/user_avatar.dart';
 import '../auth/login_screen.dart';
@@ -26,7 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   void _toast(String message, bool ok) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(message, style: AppTypography.cairo()),
         backgroundColor: ok ? AppColors.emerald : AppColors.rose,
@@ -577,7 +578,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   text: user?.displayId ?? user?.id ?? '',
                                 ),
                               );
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context).showTopSnackBar(
                                 SnackBar(
                                   content: Text(
                                     'تم نسخ معرف الحساب بنجاح ✅',

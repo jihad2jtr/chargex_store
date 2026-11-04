@@ -37,9 +37,6 @@ let OrdersController = class OrdersController {
     async getMyOrders(user) {
         return this.ordersService.getMyOrders(user._id.toString());
     }
-    async confirmOrder(id, user) {
-        return this.ordersService.customerConfirmOrder(id, user);
-    }
     async requestRevision(id, user, revisionNotes) {
         return this.ordersService.customerRequestRevision(id, user, revisionNotes);
     }
@@ -55,8 +52,8 @@ let OrdersController = class OrdersController {
     async supervisorRejectOrder(id, user, reason) {
         return this.ordersService.supervisorRejectOrder(id, user, reason || 'اعتذار عن التنفيذ');
     }
-    async supervisorStartOrder(id, user) {
-        return this.ordersService.supervisorStartOrder(id, user);
+    async supervisorCompleteOrder(id, user) {
+        return this.ordersService.supervisorCompleteOrder(id, user);
     }
     async supervisorRequestInfo(id, user, body) {
         return this.ordersService.supervisorRequestInfo(id, user, body);
@@ -122,14 +119,6 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OrdersController.prototype, "getMyOrders", null);
 __decorate([
-    (0, common_1.Post)(':id/customer-confirm'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, current_user_decorator_1.CurrentUser)()),
-    __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, Object]),
-    __metadata("design:returntype", Promise)
-], OrdersController.prototype, "confirmOrder", null);
-__decorate([
     (0, common_1.Post)(':id/customer-revision'),
     __param(0, (0, common_1.Param)('id')),
     __param(1, (0, current_user_decorator_1.CurrentUser)()),
@@ -179,7 +168,7 @@ __decorate([
     __metadata("design:returntype", Promise)
 ], OrdersController.prototype, "supervisorRejectOrder", null);
 __decorate([
-    (0, common_1.Post)(':id/supervisor-start'),
+    (0, common_1.Post)(':id/supervisor-complete'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(role_enum_1.Role.SUPERVISOR, role_enum_1.Role.ADMIN),
     __param(0, (0, common_1.Param)('id')),
@@ -187,7 +176,7 @@ __decorate([
     __metadata("design:type", Function),
     __metadata("design:paramtypes", [String, Object]),
     __metadata("design:returntype", Promise)
-], OrdersController.prototype, "supervisorStartOrder", null);
+], OrdersController.prototype, "supervisorCompleteOrder", null);
 __decorate([
     (0, common_1.Post)(':id/supervisor-request-info'),
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),

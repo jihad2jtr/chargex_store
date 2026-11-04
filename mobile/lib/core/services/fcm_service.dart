@@ -10,6 +10,7 @@ import '../../providers/admin_provider.dart';
 import '../../providers/manual_services_provider.dart';
 import '../../providers/app_catalog_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../../widgets/top_notice.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
@@ -140,6 +141,9 @@ class FcmService {
   }
 
   /// Show in-app banner for foreground notifications
+  ///
+  /// الخبر ينزل في أعلى الشاشة حيث يُرفع البصر إلى الإشعارات، لا شريطاً أسفلها
+  /// يغطيه الإصبع أثناء الكتابة فلا يُقرأ
   void _handleForegroundMessage(RemoteMessage message) {
     final notification = message.notification;
     if (notification == null) return;
@@ -150,66 +154,15 @@ class FcmService {
     final title = notification.title ?? 'إشعار جديد';
     final body = notification.body ?? '';
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        margin: const EdgeInsets.all(16),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        backgroundColor: const Color(0xFF034B52), // Deep Petrol Teal
-        duration: const Duration(seconds: 5),
-        content: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: const Color(0xFF00BCD4).withValues(alpha: 0.2),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.notifications_active_rounded,
-                color: Color(0xFF00BCD4),
-                size: 22,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 13,
-                      color: Colors.white,
-                    ),
-                  ),
-                  if (body.isNotEmpty) ...[
-                    const SizedBox(height: 2),
-                    Text(
-                      body,
-                      style: const TextStyle(
-                        fontSize: 11.5,
-                        color: Colors.white70,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ],
-        ),
-        action: SnackBarAction(
-          label: 'عرض',
-          textColor: const Color(0xFF00BCD4),
-          onPressed: () {
-            _handleNotificationNavigation(message.data);
-          },
-        ),
-      ),
+    TopNotice.show(
+      context,
+      title: title,
+      body: body,
+      tone: const Color(0xFF034B52), // Deep Petrol Teal
+      iconColor: const Color(0xFF00BCD4),
+      hold: const Duration(seconds: 5),
+      actionLabel: 'عرض',
+      onAction: () => _handleNotificationNavigation(message.data),
     );
   }
 

@@ -276,6 +276,7 @@ final Finder _coverImages = find.byWidgetPredicate(
 
 /// ترتيب كروت الشبكة: الأول هو الأقرب إلى جهة البداية (RTL: اليمين)،
 /// وحين يختلف الصف فالأعلى أولاً
+// ignore: unused_element
 bool _comesBefore(WidgetTester w, Finder a, Finder b) {
   final TextDirection dir = Directionality.of(
     w.element(find.byType(GridView).first),
@@ -321,31 +322,36 @@ void main() {
     _expectNoOverflow(w);
   });
 
-  testWidgets('اليدوي المضمون والتلقائي في شبكة واحدة واليدوي أولاً', (
+  testWidgets('التبديل بين الخدمات التلقائية واليدوية مع شرح لكل نوع وإزالة شريط البحث', (
     WidgetTester w,
   ) async {
     await _pumpPage(w, options: _catalog, manual: [_manualService()]);
 
-    // لا قسم منعزل: عنوان «تفعيل مضمون» زال وبقي عنوان الشبكة الواحد
-    expect(find.text('تفعيل مضمون'), findsNothing);
-    expect(find.text('اختر الخدمة'), findsOneWidget);
-    expect(w.widgetList<GridView>(find.byType(GridView)).length, 1);
+    // إزالة شريط البحث
+    expect(find.byType(TextField), findsNothing);
 
-    // كرت الخدمة اليدوية: اسمه وسعره وشارة زاويته
-    expect(find.text('تفعيل تيليجرام يدوي'), findsOneWidget);
-    expect(find.text('\$2.50'), findsOneWidget);
-    expect(find.text('يدوي مضمون'), findsOneWidget);
-    // وشارة «تلقائي» على كل كرت من كتالوج المزود، مع سطر الدول وسعره المبين
+    // زرّان للتبديل بين الخدمات التلقائية واليدوية
+    expect(find.text('الخدمات التلقائية'), findsOneWidget);
+    expect(find.text('الخدمات اليدوية'), findsOneWidget);
+
+    // شرح النوع التلقائي ظاهر
+    expect(find.text('الخدمات التلقائية (أرقام فورية)'), findsOneWidget);
     expect(find.text('تلقائي'), findsNWidgets(2));
     expect(find.text('1 دولة'), findsOneWidget);
     expect(find.text('من \$0.60'), findsOneWidget);
+
+    // التبديل إلى الخدمات اليدوية
+    await w.tap(find.text('الخدمات اليدوية'));
+    await w.pump();
+
+    // شرح النوع اليدوي
+    expect(find.text('الخدمات اليدوية (تفعيل مضمون)'), findsOneWidget);
+    expect(find.text('تفعيل تيليجرام يدوي'), findsOneWidget);
+    expect(find.text('\$2.50'), findsOneWidget);
+    expect(find.text('يدوي مضمون'), findsOneWidget);
+
     // الخدمة غير السرية لا قفل على كرتّها
     expect(find.byIcon(Icons.lock_outline_rounded), findsNothing);
-    // اليدوي يسبق التطبيقات في نفس الشبكة
-    expect(
-      _comesBefore(w, find.text('تفعيل تيليجرام يدوي'), find.text('Telegram')),
-      isTrue,
-    );
 
     // النقر على الكرت يفتح نافذة طلب الخدمة اليدوية بحقولها المطلوبة
     await w.tap(find.text('تفعيل تيليجرام يدوي'));
@@ -369,15 +375,14 @@ void main() {
   ) async {
     await _pumpPage(w, options: _catalog, manual: [_manualService()]);
 
-    // الشريط الذي كان يعرض (خدمة متاحة / دولة / دقيقة مهلة) أُلغي: عدّات
-    // المزوّد ليست قراراً يتخذه العميل، والصفحة تبدأ بالشبكة مباشرة
+    // الشريط الذي كان يعرض (خدمة متاحة / دولة / دقيقة مهلة) أُلغي
     expect(find.text('خدمة متاحة'), findsNothing);
     expect(find.text('دقيقة مهلة'), findsNothing);
     expect(find.text('دولة'), findsNothing);
-    // عنوان الشبكة الوحيد، واليدوي كرت فيها بشارة زاويته لا بقسم مستقل
+    // عنوان الشبكة والزرّان
     expect(find.text('اختر الخدمة'), findsOneWidget);
-    expect(find.text('تفعيل مضمون'), findsNothing);
-    expect(find.text('يدوي مضمون'), findsOneWidget);
+    expect(find.text('الخدمات التلقائية'), findsOneWidget);
+    expect(find.text('الخدمات اليدوية'), findsOneWidget);
 
     _expectNoOverflow(w);
   });
@@ -387,18 +392,11 @@ void main() {
   ) async {
     await _pumpPage(w, options: _catalog, manual: [_manualService()]);
 
-    // كل خانة غلاف تذكرة بفتحتين على الحافتين: هوية بطاقات التطبيق
-    expect(_ticketClips(), findsNWidgets(3));
-    // الصورة تملأ الكرت كله (BoxFit.cover) لا أيقونة صغيرة في إطار
-    expect(_coverImages, findsNWidgets(3));
-    // بلا خط تمزّق: الصورة والنص طبقات داخل الغلاف وحده
+    // في التبويب التلقائي: كرتان
+    expect(_ticketClips(), findsNWidgets(2));
+    expect(_coverImages, findsNWidgets(2));
     expect(_horizontalTears(w, find.byType(GridView)), 0);
 
-    // التمييز كله في شارة الزاوية: وسم فوق الصورة، ولون لكل نوع
-    // (أخضر مضمون، كهرماني آلي)
-    final Text manualTag = w.widget<Text>(find.text('يدوي مضمون'));
-    expect(manualTag.style?.color, Colors.white);
-    expect(manualTag.maxLines, 1);
     BoxDecoration tagBox(String label) =>
         w
                 .widget<Container>(
@@ -408,28 +406,35 @@ void main() {
                 )
                 .decoration!
             as BoxDecoration;
-    expect(tagBox('يدوي مضمون').color, AppColors.emerald);
     expect(tagBox('تلقائي').color, AppColors.ticketAmber);
-    // والاسم والسعر في تبويبيهما أسفل الكرت: اسم داكن على شريط فاتح
+    expect(
+      find.ancestor(
+        of: find.text('تلقائي').first,
+        matching: find.byType(PositionedDirectional),
+      ),
+      findsOneWidget,
+    );
+
+    // التبديل إلى التبويب اليدوي
+    await w.tap(find.text('الخدمات اليدوية'));
+    await w.pump();
+
+    expect(_ticketClips(), findsNWidgets(1));
+    final Text manualTag = w.widget<Text>(find.text('يدوي مضمون'));
+    expect(manualTag.style?.color, Colors.white);
+    expect(manualTag.maxLines, 1);
+    expect(tagBox('يدوي مضمون').color, AppColors.emerald);
     expect(
       w.widget<Text>(find.text('تفعيل تيليجرام يدوي')).style?.color,
-      AppColors.slate900,
+      Colors.white,
     );
     expect(
       w.widget<Text>(find.text('\$2.50')).style?.color,
       AppColors.ticketAmber,
     );
-    // والشارات معلّقة في زاوية التذكرة فوق الصورة، لا في سطر أسفلها
     expect(
       find.ancestor(
         of: find.text('يدوي مضمون'),
-        matching: find.byType(PositionedDirectional),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.ancestor(
-        of: find.text('تلقائي').first,
         matching: find.byType(PositionedDirectional),
       ),
       findsOneWidget,
@@ -447,8 +452,11 @@ void main() {
       manual: [_manualService(isSensitive: true)],
     );
 
-    // الدمج حذف الأسطر الوصفية من الكرت، فبقي التحذير رمزاً في الزاوية
-    // المقابلة لشارة النوع (البيانات تُطلب في نافذة الخدمة)
+    // التبديل إلى التبويب اليدوي
+    await w.tap(find.text('الخدمات اليدوية'));
+    await w.pump();
+
+    // التحذير رمزاً في الزاوية
     expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
     expect(find.text('يدوي مضمون'), findsOneWidget);
 
@@ -689,6 +697,8 @@ void main() {
       manual: [_manualService(requiredFields: const [])],
       richWallet: true,
     );
+    await w.tap(find.text('الخدمات اليدوية'));
+    await w.pump();
     await _openSheet(w, 'تفعيل تيليجرام يدوي');
 
     final sheet = find.byType(BottomSheet);

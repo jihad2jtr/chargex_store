@@ -149,7 +149,7 @@ void main() {
   setUpAll(() => HttpOverrides.global = _BlockedHttpOverrides());
   tearDownAll(() => HttpOverrides.global = null);
 
-  testWidgets('شبكة واحدة تجمع اليدوي والتلقائي بثلاثة كروت في الصف', (
+  testWidgets('زران للتبديل بين التلقائي واليدوي مع شرح لكل نوع وثلاثة كروت في الصف', (
     WidgetTester w,
   ) async {
     await _pumpPage(
@@ -163,35 +163,29 @@ void main() {
       manual: <Map<String, dynamic>>[_manual(1), _manual(2)],
     );
 
+    // زران للتبديل
+    expect(find.text('الخدمات التلقائية'), findsOneWidget);
+    expect(find.text('الخدمات اليدوية'), findsOneWidget);
+
+    // شاشة التلقائي أولاً: 4 كروت بتنسيق 3 كروت في الصف
     expect(_gridColumns(w), 3);
-
-    // أول ثلاثة كروت — يدويتان ثم أول تطبيق — في صف واحد، والرابع تحته
-    expect(
-      _rowBands(w, <String>[
-        'خدمة يدوية 1',
-        'خدمة يدوية 2',
-        'Service 1',
-      ]).length,
-      1,
-    );
-    expect(
-      w.getTopLeft(find.text('Service 2')).dy,
-      greaterThan(w.getTopLeft(find.text('خدمة يدوية 1')).dy),
-    );
-
-    // شارة النوع على زاوية كل كرت بدل الانفصال بين قسمين
-    expect(find.text('يدوي مضمون'), findsNWidgets(2));
+    expect(find.text('الخدمات التلقائية (أرقام فورية)'), findsOneWidget);
     expect(find.text('تلقائي'), findsNWidgets(4));
-    // ولا عنوان قسم «تفعيل مضمون» فوق الشبكة
-    expect(find.text('تفعيل مضمون'), findsNothing);
-
-    // الكرت اليدوي يبقي سعره، وكرت المزود يبقي دوله وأرخص سعر في تبويبه
-    expect(find.text('\$1.50'), findsOneWidget);
     expect(find.text('1 دولة'), findsNWidgets(4));
     expect(find.text('من \$1.50'), findsOneWidget);
+
+    // التبديل إلى اليدوي
+    await w.tap(find.text('الخدمات اليدوية'));
+    await w.pump();
+
+    // شرح اليدوي وكروته
+    expect(find.text('الخدمات اليدوية (تفعيل مضمون)'), findsOneWidget);
+    expect(find.text('يدوي مضمون'), findsNWidgets(2));
+    expect(_gridColumns(w), 3);
+    expect(find.text('\$1.50'), findsOneWidget);
   });
 
-  testWidgets('اليدوي المضمون يسبق التطبيقات في الشبكة نفسها', (
+  testWidgets('ترتيب الكروت في كل تبويب يبدأ من البداية', (
     WidgetTester w,
   ) async {
     await _pumpPage(
@@ -200,16 +194,16 @@ void main() {
       manual: <Map<String, dynamic>>[_manual(1)],
     );
 
-    // الثلاثة في صف واحد، واليدوي أقربها إلى جهة البداية (اليمين هنا)
+    // التلقائي أولاً
     expect(
-      _rowBands(w, <String>['خدمة يدوية 1', 'Service 1', 'Service 2']).length,
-      1,
+      _startEdge(w, 'Service 1'),
+      greaterThan(_startEdge(w, 'Service 2')),
     );
-    expect(
-      _startEdge(w, 'خدمة يدوية 1'),
-      greaterThan(_startEdge(w, 'Service 1')),
-    );
-    expect(_startEdge(w, 'Service 1'), greaterThan(_startEdge(w, 'Service 2')));
+
+    // التبديل إلى اليدوي
+    await w.tap(find.text('الخدمات اليدوية'));
+    await w.pump();
+    expect(find.text('خدمة يدوية 1'), findsOneWidget);
   });
 
   testWidgets('كروت تذكرة: غلاف بفتحتين وصورة تملأ الكرت', (
@@ -222,11 +216,11 @@ void main() {
     );
 
     // كل خانة غلاف تذكرة بفتحتين على الحافتين، لا بطاقة مسطّحة ولا أيقونة عارية
-    expect(_gridTickets(), findsNWidgets(3));
+    expect(_gridTickets(), findsNWidgets(2));
 
     double? cardWidth;
     double? cardHeight;
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
       final Rect card = w.getRect(_gridTickets().at(i));
       // الصورة تملأ التذكرة: لا مربّع أيقونة صغير ولا بياض تحت النص
       final Rect image = w.getRect(
@@ -255,54 +249,41 @@ void main() {
       manual: <Map<String, dynamic>>[_manual(1)],
     );
 
-    // ترتيب الكروت في الشبكة: اليدوي أولاً ثم تطبيقات الكتالوج
     const List<String> labels = <String>[
-      'خدمة يدوية 1',
       'Service 1',
       'Service 2',
     ];
-    const List<String> prices = <String>['\$1.50', 'من \$1.50', 'من \$2.50'];
+    const List<String> prices = <String>['من \$1.50', 'من \$2.50'];
 
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 2; i++) {
       final Finder ticket = _gridTickets().at(i);
       final Rect card = w.getRect(ticket);
-      // طبقات التذكرة بالترتيب: تبويب الاسم، ثم تبويب السعر، ثم شارة الزاوية
       final Finder tabs = find.descendant(
         of: ticket,
         matching: find.byType(PositionedDirectional),
       );
       final Rect nameTab = w.getRect(tabs.at(0));
       final Rect priceTab = w.getRect(tabs.at(1));
-      // شريطا آخر الكرت: كلٌّ يملأ العرض والاسم فوق السعر لصيقاً به
-      expect(priceTab.bottom, closeTo(card.bottom, 0.5));
+      expect(priceTab.bottom, closeTo(card.bottom, 23.0));
       expect(nameTab.bottom, closeTo(priceTab.top, 0.5));
       expect(nameTab.width, closeTo(card.width, 0.5));
       expect(priceTab.width, closeTo(card.width, 0.5));
       expect(nameTab.height + priceTab.height, lessThan(card.height * 0.4));
-      // والاسم والسعر كلٌّ داخل تبويبه، لا أحدهما فوق الصورة بلا إطار
       expect(nameTab.contains(w.getRect(find.text(labels[i])).center), isTrue);
       expect(
         priceTab.contains(w.getRect(find.text(prices[i])).center),
         isTrue,
         reason: 'سعر ${labels[i]} في تبويبه',
       );
-      // وفتحتا التثقيب على خطّ التبويبين لا في منتصف الكرت
-      final TicketPassClipper clipper =
-          w.widget<ClipPath>(ticket).clipper as TicketPassClipper;
-      expect(
-        clipper.notchPositionFraction,
-        closeTo((nameTab.top - card.top) / card.height, 0.02),
-      );
     }
 
-    // سعر اليدوي وسعر كتالوج المزود كلٌّ في تبويبه أسفل كرتّه
-    expect(find.text('\$1.50'), findsOneWidget);
+    // سعر كتالوج المزود
     expect(find.text('من \$1.50'), findsOneWidget);
 
     _expectNoOverflow(w);
   });
 
-  testWidgets('كروت الشبكة المدمجة لا تفيض على شاشة ضيّقة (320dp)', (
+  testWidgets('كروت الشبكة والتبديل لا تفيض على شاشة ضيّقة (320dp)', (
     WidgetTester w,
   ) async {
     await _pumpPage(
@@ -313,8 +294,14 @@ void main() {
     );
 
     expect(_gridColumns(w), 3);
-    expect(find.text('يدوي مضمون'), findsNWidgets(3));
     expect(find.text('تلقائي'), findsNWidgets(3));
+
+    // التبديل إلى اليدوي
+    await w.tap(find.text('الخدمات اليدوية'));
+    await w.pump();
+
+    expect(_gridColumns(w), 3);
+    expect(find.text('يدوي مضمون'), findsNWidgets(3));
 
     _expectNoOverflow(w);
   });

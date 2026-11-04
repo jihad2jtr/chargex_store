@@ -5,6 +5,7 @@ import '../../core/theme/app_typography.dart';
 import '../../models/service_template_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/top_notice.dart';
 
 /// أنواع الحقول الثابتة المدعومة عند بناء قالب خدمة
 const List<Map<String, String>> kServiceFieldTypes = [
@@ -1654,19 +1655,15 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
   // التأكيدات والتنبيهات
   // ---------------------------------------------------------------------------
   void _notify(String message, {Color color = AppColors.slate900}) {
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(message),
-          backgroundColor: color,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      );
+    ScaffoldMessenger.of(context).showTopSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: color,
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
   }
 
   void _confirmDelete(AdminProvider admin, ServiceTemplateModel template) {

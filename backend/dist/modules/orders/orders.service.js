@@ -991,23 +991,30 @@ let OrdersService = OrdersService_1 = class OrdersService {
             };
         });
     }
+    assignedSupervisorIdOf(order) {
+        const assigned = order?.assignedSupervisorId;
+        if (!assigned)
+            return undefined;
+        return (assigned._id ?? assigned).toString();
+    }
     async supervisorAcceptOrder(orderId, supervisor) {
         const order = await this.orderModel.findById(orderId).populate('productId', 'name');
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
-        if (order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+        if (this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
             supervisor.role !== 'admin') {
             throw new common_1.ForbiddenException('هذا الطلب غير مسند إليك');
         }
         if (order.status !== order_schema_1.OrderStatus.ASSIGNED && order.status !== order_schema_1.OrderStatus.PENDING) {
             throw new common_1.BadRequestException('لا يمكن قبول الطلب في حالته الحالية');
         }
-        order.status = order_schema_1.OrderStatus.ACCEPTED;
+        order.status = order_schema_1.OrderStatus.IN_PROGRESS;
         order.acceptedAt = new Date();
+        order.startedAt = new Date();
         order.timeline.push({
             action: 'accepted',
-            title: 'قبل المشرف الطلب',
-            description: `قام المشرف ${supervisor.name} بقبول الطلب والاستعداد للبدء في تنفيذه`,
+            title: 'قبل مقدّم الخدمة الطلب وشرع في التنفيذ',
+            description: `قام ${supervisor.name} بقبول الطلب والبدء في تنفيذه مباشرة`,
             performerId: supervisor._id,
             performerName: supervisor.name,
             performerRole: 'supervisor',
@@ -1016,18 +1023,18 @@ let OrdersService = OrdersService_1 = class OrdersService {
         await order.save();
         await this.notificationsService.createNotification({
             userId: order.userId.toString(),
-            title: 'تم قبول طلبك من قبل المشرف 👨‍💻',
-            body: `قبل المشرف طلبك #${order.orderNumber} لخدمة ${order.productId?.name || 'الخدمة'} وجاري البدء.`,
+            title: 'تم قبول طلبك وشرع المشرف في التنفيذ 👨‍💻',
+            body: `قبل مقدّم الخدمة طلبك #${order.orderNumber} لخدمة ${order.productId?.name || 'الخدمة'} وجاري التنفيذ.`,
             type: 'order_status',
-            data: { orderId: order._id.toString(), status: 'accepted' },
+            data: { orderId: order._id.toString(), status: 'in_progress' },
         });
-        return { message: 'تم قبول الطلب بنجاح', order };
+        return { message: 'تم قبول الطلب والبدء في تنفيذه', order };
     }
     async supervisorRejectOrder(orderId, supervisor, reason) {
         const order = await this.orderModel.findById(orderId).populate('productId', 'name');
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
-        if (order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+        if (this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
             supervisor.role !== 'admin') {
             throw new common_1.ForbiddenException('هذا الطلب غير مسند إليك');
         }
@@ -1056,40 +1063,11 @@ let OrdersService = OrdersService_1 = class OrdersService {
         });
         return { message: 'تم تسجيل اعتذار المشرف وسيتم إشعار الإدارة لإعادة الإسناد', order };
     }
-    async supervisorStartOrder(orderId, supervisor) {
-        const order = await this.orderModel.findById(orderId).populate('productId', 'name');
-        if (!order)
-            throw new common_1.NotFoundException('الطلب غير موجود');
-        if (order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
-            supervisor.role !== 'admin') {
-            throw new common_1.ForbiddenException('هذا الطلب غير مسند إليك');
-        }
-        order.status = order_schema_1.OrderStatus.IN_PROGRESS;
-        order.startedAt = new Date();
-        order.timeline.push({
-            action: 'started',
-            title: 'بدأ المشرف في تنفيذ الخدمة',
-            description: `بدأ المشرف ${supervisor.name} العمل على الطلب`,
-            performerId: supervisor._id,
-            performerName: supervisor.name,
-            performerRole: 'supervisor',
-            timestamp: new Date(),
-        });
-        await order.save();
-        await this.notificationsService.createNotification({
-            userId: order.userId.toString(),
-            title: 'طلبك قيد التنفيذ الآن ⚙️',
-            body: `بدأ المشرف في تنفيذ وتجهيز طلبك #${order.orderNumber}.`,
-            type: 'order_status',
-            data: { orderId: order._id.toString(), status: 'in_progress' },
-        });
-        return { message: 'تم بدء تنفيذ الطلب بنجاح', order };
-    }
     async supervisorRequestInfo(orderId, supervisor, data) {
         const order = await this.orderModel.findById(orderId).populate('productId', 'name');
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
-        if (order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+        if (this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
             supervisor.role !== 'admin') {
             throw new common_1.ForbiddenException('هذا الطلب غير مسند إليك');
         }
@@ -1126,13 +1104,13 @@ let OrdersService = OrdersService_1 = class OrdersService {
         const order = await this.orderModel.findById(orderId).populate('productId', 'name isSensitive');
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
-        if (order.assignedSupervisorId?.toString() !== supervisor._id.toString() &&
+        if (this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
             supervisor.role !== 'admin') {
             throw new common_1.ForbiddenException('هذا الطلب غير مسند إليك');
         }
         order.status = order_schema_1.OrderStatus.DELIVERED;
         order.deliveredAt = new Date();
-        order.resultNotes = data.resultNotes || 'تم تنفيذ الخدمة بنجاح، يرجى مراجعة التفاصيل وتأكيد الاستلام';
+        order.resultNotes = data.resultNotes || 'تم تنفيذ الخدمة بنجاح، يرجى مراجعة النتيجة؛ تأكيد الإنهاء وإغلاق الطلب يتمان من مقدّم الخدمة';
         order.resultAttachments = data.attachments || [];
         if (data.credentials && Object.keys(data.credentials).length > 0) {
             order.encryptedResultData = crypto_util_1.CryptoUtil.encrypt(data.credentials);
@@ -1140,7 +1118,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
         order.timeline.push({
             action: 'delivered',
             title: 'تم تسليم نتيجة الخدمة إلى العميل',
-            description: 'أنهى المشرف العمل وسلّم تفاصيل النتيجة وبانتظار تأكيد العميل وإغلاق الطلب',
+            description: 'أنهى المشرف العمل وسلّم تفاصيل النتيجة، وبانتظار تأكيد الإنهاء من مقدّم الخدمة لإغلاق الطلب',
             performerId: supervisor._id,
             performerName: supervisor.name,
             performerRole: 'supervisor',
@@ -1149,25 +1127,23 @@ let OrdersService = OrdersService_1 = class OrdersService {
         await order.save();
         await this.notificationsService.createNotification({
             userId: order.userId.toString(),
-            title: 'تم تسليم طلبك بنجاح! يرجى المراجعة والتأكيد 🎉',
-            body: `انتهى المشرف من تنفيذ طلبك #${order.orderNumber}. يرجى الدخول لمراجعة تفاصيل النتيجة وتأكيد الاستلام.`,
+            title: 'تم تسليم نتيجة طلبك! يرجى المراجعة 🎉',
+            body: `انتهى المشرف من تنفيذ طلبك #${order.orderNumber}. راجع النتيجة، وإن يلزمك طلب تعديل أو اعتراض؛ أما إغلاق الطلب فيتم بعد تأكيد مقدّم الخدمة.`,
             type: 'order_delivered',
             data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
         });
-        return { message: 'تم تسليم النتيجة للعميل بنجاح وبانتظار تأكيده', order };
+        return { message: 'تم تسليم النتيجة للعميل', order };
     }
-    async customerConfirmOrder(orderId, user) {
-        const order = await this.orderModel
-            .findById(orderId)
-            .populate('productId', 'name')
-            .populate('assignedSupervisorId', 'name');
+    async supervisorCompleteOrder(orderId, supervisor) {
+        const order = await this.orderModel.findById(orderId).populate('productId', 'name');
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
-        if (order.userId.toString() !== user._id.toString()) {
-            throw new common_1.ForbiddenException('لا تملك صلاحية تأكيد هذا الطلب');
+        if (this.assignedSupervisorIdOf(order) !== supervisor._id.toString() &&
+            supervisor.role !== 'admin') {
+            throw new common_1.ForbiddenException('هذا الطلب غير مسند إليك');
         }
         if (order.status !== order_schema_1.OrderStatus.DELIVERED) {
-            throw new common_1.BadRequestException('لا يمكن تأكيد الطلب قبل تسليمه من المشرف');
+            throw new common_1.BadRequestException('لا يمكن تأكيد إتمام الطلب قبل تسليم النتيجة');
         }
         order.status = order_schema_1.OrderStatus.COMPLETED;
         order.completedAt = new Date();
@@ -1178,25 +1154,23 @@ let OrdersService = OrdersService_1 = class OrdersService {
         }
         order.timeline.push({
             action: 'confirmed',
-            title: 'أكد العميل استلام الخدمة ورضاه عنها',
-            description: 'تم إغلاق الطلب بنجاح بعد موافقة العميل وتأكيد استلامه',
-            performerId: user._id,
-            performerName: user.name,
-            performerRole: 'customer',
+            title: 'أكد مقدّم الخدمة إتمام الطلب وأغلقه',
+            description: 'تم إغلاق الطلب بنجاح بعد تأكيد مقدّم الخدمة على إنجاز العملية',
+            performerId: supervisor._id,
+            performerName: supervisor.name,
+            performerRole: 'supervisor',
             timestamp: new Date(),
         });
         await order.save();
-        if (order.assignedSupervisorId) {
-            await this.notificationsService.createNotification({
-                userId: order.assignedSupervisorId._id?.toString() || order.assignedSupervisorId.toString(),
-                forRole: 'supervisor',
-                title: 'تم تأكيد استلام الطلب من العميل ✅',
-                body: `قام العميل بتأكيد استلام الطلب #${order.orderNumber} لخدمة ${order.productId?.name} وتم إغلاق الطلب بنجاح.`,
-                type: 'order_confirmed',
-                data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
-            });
-        }
-        return { message: 'شكراً لك! تم تأكيد استلام الخدمة وإغلاق الطلب بنجاح', order };
+        await this.notificationsService.createNotification({
+            userId: order.userId.toString(),
+            title: 'تم إغلاق طلبك بعد تأكيد الإنهاء ✅',
+            body: `أكد مقدّم الخدمة إتمام الطلب #${order.orderNumber} لخدمة ${order.productId?.name} وتم إغلاقه بنجاح.`,
+            type: 'order_confirmed',
+            data: { orderId: order._id.toString(), orderNumber: order.orderNumber },
+        });
+        await this.usersService.reconcileSupervisorRole(supervisor._id);
+        return { message: 'تم تأكيد إتمام الطلب وإغلاقه بنجاح', order };
     }
     async customerRequestRevision(orderId, user, revisionNotes) {
         const order = await this.orderModel
@@ -1231,9 +1205,10 @@ let OrdersService = OrdersService_1 = class OrdersService {
             createdAt: new Date(),
         });
         await order.save();
-        if (order.assignedSupervisorId) {
+        const assignedSupervisorId = this.assignedSupervisorIdOf(order);
+        if (assignedSupervisorId) {
             await this.notificationsService.createNotification({
-                userId: order.assignedSupervisorId._id?.toString() || order.assignedSupervisorId.toString(),
+                userId: assignedSupervisorId,
                 forRole: 'supervisor',
                 title: 'طلب تعديل من العميل 🔄',
                 body: `طلب العميل تعديلاً على الطلب #${order.orderNumber}: ${revisionNotes}`,
@@ -1280,9 +1255,10 @@ let OrdersService = OrdersService_1 = class OrdersService {
             type: 'order_disputed',
             data: { orderId: order._id.toString(), disputeReason },
         });
-        if (order.assignedSupervisorId) {
+        const assignedSupervisorId = this.assignedSupervisorIdOf(order);
+        if (assignedSupervisorId) {
             await this.notificationsService.createNotification({
-                userId: order.assignedSupervisorId.toString(),
+                userId: assignedSupervisorId,
                 forRole: 'supervisor',
                 title: 'تنبيه: العميل فتح اعتراضاً على الطلب 🚨',
                 body: `طلب #${order.orderNumber}: ${disputeReason}`,
@@ -1397,7 +1373,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
         const isBuyer = order.userId.toString() === user._id.toString();
-        const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+        const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
         const isAdmin = user.role === 'admin';
         if (!isBuyer && !isSupervisor && !isAdmin) {
             throw new common_1.ForbiddenException('لا تملك صلاحية عرض رسائل هذا الطلب');
@@ -1409,12 +1385,24 @@ let OrdersService = OrdersService_1 = class OrdersService {
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
         const isBuyer = order.userId.toString() === user._id.toString();
-        const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+        const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
         const isAdmin = user.role === 'admin';
         if (!isBuyer && !isSupervisor && !isAdmin) {
             throw new common_1.ForbiddenException('لا تملك صلاحية إرسال رسائل في هذا الطلب');
         }
+        const orderEnded = order.status === order_schema_1.OrderStatus.COMPLETED || order.status === order_schema_1.OrderStatus.REFUNDED;
+        if (isBuyer && orderEnded) {
+            throw new common_1.ForbiddenException('انتهى الطلب — الدردشة مغلقة بعد إغلاقه');
+        }
         const senderRole = isAdmin ? 'admin' : isSupervisor ? 'supervisor' : 'user';
+        const pinRequested = data.isPinned === true;
+        if (pinRequested) {
+            if (isBuyer)
+                throw new common_1.BadRequestException('تثبيت الرسائل متاح لمقدّم الخدمة فقط');
+            if (!(data.message || '').trim()) {
+                throw new common_1.BadRequestException('الرسالة المثبتة يجب أن تحمل نصاً (كود أو رقم)');
+            }
+        }
         const newMessage = {
             senderId: user._id,
             senderName: user.name,
@@ -1424,13 +1412,23 @@ let OrdersService = OrdersService_1 = class OrdersService {
             attachmentName: data.attachmentName,
             attachmentType: data.attachmentType,
             isSensitive: data.isSensitive || false,
+            isPinned: pinRequested,
+            pinLabel: pinRequested ? (data.pinLabel || '').trim() || 'بيانات مثبتة' : undefined,
             createdAt: new Date(),
         };
         order.chatMessages.push(newMessage);
+        if (pinRequested) {
+            order.pinnedData.push({
+                label: newMessage.pinLabel,
+                value: newMessage.message.trim(),
+                createdAt: newMessage.createdAt,
+            });
+        }
         await order.save();
-        if (isBuyer && order.assignedSupervisorId) {
+        const assignedSupervisorId = this.assignedSupervisorIdOf(order);
+        if (isBuyer && assignedSupervisorId) {
             await this.notificationsService.createNotification({
-                userId: order.assignedSupervisorId.toString(),
+                userId: assignedSupervisorId,
                 forRole: 'supervisor',
                 title: `رسالة جديدة من العميل حول طلب #${order.orderNumber} 💬`,
                 body: data.message ? (data.message.length > 80 ? `${data.message.slice(0, 80)}...` : data.message) : 'أرسل العميل مرفقاً',
@@ -1441,7 +1439,9 @@ let OrdersService = OrdersService_1 = class OrdersService {
         else if (isSupervisor || isAdmin) {
             await this.notificationsService.createNotification({
                 userId: order.userId.toString(),
-                title: `رسالة جديدة من ${user.name} حول طلبك #${order.orderNumber} 💬`,
+                title: pinRequested
+                    ? `بيانات جديدة لطلبك #${order.orderNumber} 📌`
+                    : `رسالة جديدة من ${user.name} حول طلبك #${order.orderNumber} 💬`,
                 body: data.message ? (data.message.length > 80 ? `${data.message.slice(0, 80)}...` : data.message) : 'تم إرسال مرفق جديد',
                 type: 'order_chat',
                 data: { orderId: order._id.toString() },
@@ -1454,7 +1454,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
         const isBuyer = order.userId.toString() === user._id.toString();
-        const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+        const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
         const isAdmin = user.role === 'admin';
         if (!isBuyer && !isSupervisor && !isAdmin) {
             throw new common_1.ForbiddenException('غير مصرح لك باستعراض بيانات هذا الطلب');
@@ -1463,7 +1463,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
             return {
                 isPurged: true,
                 purgedAt: order.purgedAt,
-                message: 'تم حذف البيانات السرية تلقائياً بعد تأكيد الاستلام لحماية أمان حسابك',
+                message: 'تم حذف البيانات السرية تلقائياً بعد إغلاق الطلب لحماية أمان حسابك',
                 credentials: null,
             };
         }
@@ -1484,7 +1484,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
         const order = await this.orderModel.findById(orderId);
         if (!order)
             throw new common_1.NotFoundException('الطلب غير موجود');
-        const isSupervisor = order.assignedSupervisorId?.toString() === user._id.toString();
+        const isSupervisor = this.assignedSupervisorIdOf(order) === user._id.toString();
         const isAdmin = user.role === 'admin';
         if (!isSupervisor && !isAdmin) {
             throw new common_1.ForbiddenException('غير مصرح لك باستعراض بيانات هذا الطلب');

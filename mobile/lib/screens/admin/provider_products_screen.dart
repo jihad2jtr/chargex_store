@@ -8,6 +8,7 @@ import '../../models/provider_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/app_thumb.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 
 // ==========================================
 class ProviderAppGroup {
@@ -214,7 +215,7 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
     final admin = Provider.of<AdminProvider>(context, listen: false);
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       const SnackBar(
         content: Row(
           children: [
@@ -241,8 +242,8 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
 
     if (mounted) {
       setState(() => _isSyncing = false);
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
+      // خبرُ المزامنة يحلُّ محلَّ تنبيه «جارٍ المزامنة» الذي كان على الشاشة
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(res?['message'] ?? 'تمت المزامنة بنجاح'),
           backgroundColor: res != null ? AppColors.tertiary : AppColors.error,
@@ -904,7 +905,7 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
                                 final nameAr = nameArCtrl.text.trim();
                                 final nameEn = nameEnCtrl.text.trim();
                                 if (nameAr.isEmpty || nameEn.isEmpty) {
-                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                  ScaffoldMessenger.of(ctx).showTopSnackBar(
                                     const SnackBar(
                                       content: Text(
                                         'يرجى إدخال الاسم بالعربية والإنجليزية',
@@ -918,7 +919,7 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
                                 if (useExternalUrl) {
                                   iconUrl = imageUrlCtrl.text.trim();
                                   if (iconUrl.isEmpty) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                    ScaffoldMessenger.of(ctx).showTopSnackBar(
                                       const SnackBar(
                                         content: Text('يرجى إدخال رابط الصورة'),
                                       ),
@@ -927,7 +928,7 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
                                   }
                                 } else {
                                   if (selectedCard == null) {
-                                    ScaffoldMessenger.of(ctx).showSnackBar(
+                                    ScaffoldMessenger.of(ctx).showTopSnackBar(
                                       const SnackBar(
                                         content: Text(
                                           'يرجى اختيار صورة كرت من القائمة',
@@ -957,7 +958,7 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
                                 Navigator.of(ctx).pop();
 
                                 if (!mounted) return;
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                ScaffoldMessenger.of(context).showTopSnackBar(
                                   SnackBar(
                                     content: Text(
                                       ok
@@ -1942,7 +1943,7 @@ class _AppPackagesModalSheetState extends State<_AppPackagesModalSheet> {
                     if (mounted) {
                       setState(() => item['isImported'] = true);
                       widget.onProductImported();
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showTopSnackBar(
                         SnackBar(
                           content: Text(
                             ok
@@ -2280,7 +2281,7 @@ class _AppPackagesModalSheetState extends State<_AppPackagesModalSheet> {
                         .where((id) => id.isNotEmpty)
                         .toList();
 
-                    ScaffoldMessenger.of(context).showSnackBar(
+                    ScaffoldMessenger.of(context).showTopSnackBar(
                       SnackBar(
                         content: Text('جاري استيراد ${ids.length} باقة...'),
                       ),
@@ -2302,7 +2303,7 @@ class _AppPackagesModalSheetState extends State<_AppPackagesModalSheet> {
                         }
                       });
                       widget.onProductImported();
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showTopSnackBar(
                         SnackBar(
                           content: Text(
                             ok

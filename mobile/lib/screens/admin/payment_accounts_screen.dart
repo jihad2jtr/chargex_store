@@ -7,6 +7,7 @@ import '../../core/theme/app_typography.dart';
 import '../../models/payment_account_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/brand_logo.dart';
+import '../../widgets/top_notice.dart';
 
 class PaymentAccountsScreen extends StatefulWidget {
   const PaymentAccountsScreen({super.key});
@@ -101,7 +102,7 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
                 });
 
                 if (url == null && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showTopSnackBar(
                     SnackBar(
                       content: Text(
                         admin.errorMessage ?? 'فشل رفع صورة الباركود',
@@ -115,7 +116,7 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
                 if (!ctx.mounted) return;
                 setSheetState(() => isUploading = false);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showTopSnackBar(
                     SnackBar(
                       content: Text(
                         'تعذر الوصول إلى المعرض',
@@ -133,7 +134,7 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
               final id = idCtrl.text.trim();
 
               if (name.isEmpty || id.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       'يرجى ملء اسم الحساب ورقم الحساب',
@@ -162,7 +163,7 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
               if (ctx.mounted) Navigator.of(ctx).pop();
 
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       ok
@@ -930,7 +931,7 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
                       ),
                       onPressed: () {
                         Clipboard.setData(ClipboardData(text: acc.accountId));
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               'تم نسخ رقم الحساب 📋',
@@ -1124,7 +1125,7 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
               Navigator.of(ctx).pop();
               final ok = await admin.deletePaymentAccount(acc.id);
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       ok

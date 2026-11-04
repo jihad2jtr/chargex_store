@@ -6,6 +6,7 @@ import '../../core/theme/app_typography.dart';
 import '../../models/product_model.dart';
 import '../../providers/manual_services_provider.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/top_notice.dart';
 
 /// هوية الخدمات الحساسة (مشفّرة) — لا يوجد رمز لوني بنفسجي في AppColors
 const Color _violet = Color(0xFF7C3AED);
@@ -320,16 +321,14 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
   /// نسخة موحّدة للحافظة مع تأكيد مكتوب باسم العنصر
   void _copyText(String label, String value) {
     Clipboard.setData(ClipboardData(text: value));
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('تم نسخ $label للحافظة', style: AppTypography.cairo()),
-          backgroundColor: AppColors.slate900,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    ScaffoldMessenger.of(context).showTopSnackBar(
+      SnackBar(
+        content: Text('تم نسخ $label للحافظة', style: AppTypography.cairo()),
+        backgroundColor: AppColors.slate900,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -371,26 +370,22 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
     final wasActive = service.isActive;
     final ok = await provider.toggleServiceActive(service.id);
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text(
-            ok
-                ? (wasActive
-                      ? 'تم إيقاف "${service.name}" مؤقتاً — لا تظهر للعملاء حتى تعيد تفعيلها'
-                      : 'تم تفعيل "${service.name}" وهي متاحة للعملاء الآن ✅')
-                : (provider.errorMessage ?? 'تعذر تعديل حالة الخدمة'),
-            style: AppTypography.cairo(),
-          ),
-          backgroundColor: ok
+    ScaffoldMessenger.of(context).showTopSnackBar(
+      SnackBar(
+        content: Text(
+          ok
               ? (wasActive
-                    ? AppColors.secondaryBright
-                    : AppColors.tertiaryLight)
-              : AppColors.errorLight,
-          behavior: SnackBarBehavior.floating,
+                    ? 'تم إيقاف "${service.name}" مؤقتاً — لا تظهر للعملاء حتى تعيد تفعيلها'
+                    : 'تم تفعيل "${service.name}" وهي متاحة للعملاء الآن ✅')
+              : (provider.errorMessage ?? 'تعذر تعديل حالة الخدمة'),
+          style: AppTypography.cairo(),
         ),
-      );
+        backgroundColor: ok
+            ? (wasActive ? AppColors.secondaryBright : AppColors.tertiaryLight)
+            : AppColors.errorLight,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   /// خانة بيانات صغيرة داخل التذكرة: عنوان + قيمة لا تفيض أبداً

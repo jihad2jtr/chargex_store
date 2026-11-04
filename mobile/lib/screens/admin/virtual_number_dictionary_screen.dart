@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
+import '../../widgets/top_notice.dart';
 import '../../widgets/virtual_number_app_form_dialog.dart';
 
 /// معجم تطبيقات الأرقام: بوابة «متاح للمزودين» الوحيدة في النظام.
@@ -84,7 +85,7 @@ class _VirtualNumberDictionaryScreenState
     final message = await action();
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
@@ -131,7 +132,7 @@ class _VirtualNumberDictionaryScreenState
     final message = await provider.toggleDictionaryOffered(entry.key, value);
     if (!mounted) return;
     setState(() => _togglingKey = null);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
@@ -206,7 +207,7 @@ class _VirtualNumberDictionaryScreenState
     if (!mounted) return;
     setState(() => _busy = false);
     if (report == null) {
-      messenger.showSnackBar(
+      messenger.showTopSnackBar(
         SnackBar(
           behavior: SnackBarBehavior.floating,
           backgroundColor: AppColors.rose,
@@ -273,7 +274,7 @@ class _VirtualNumberDictionaryScreenState
     await provider.patchDictionaryCountry(body);
     if (!mounted) return;
     final err = provider.errorMessage;
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: err == null ? AppColors.slate800 : AppColors.rose,

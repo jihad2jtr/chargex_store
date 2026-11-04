@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.OrderSchema = exports.Order = exports.OrderChatMessageSchema = exports.OrderChatMessage = exports.OrderTimelineEventSchema = exports.OrderTimelineEvent = exports.OrderStatus = void 0;
+exports.OrderSchema = exports.Order = exports.OrderPinnedDataSchema = exports.OrderPinnedData = exports.OrderChatMessageSchema = exports.OrderChatMessage = exports.OrderTimelineEventSchema = exports.OrderTimelineEvent = exports.OrderStatus = void 0;
 const mongoose_1 = require("@nestjs/mongoose");
 const mongoose_2 = require("mongoose");
 const product_schema_1 = require("./product.schema");
@@ -98,6 +98,14 @@ __decorate([
     __metadata("design:type", Boolean)
 ], OrderChatMessage.prototype, "isSensitive", void 0);
 __decorate([
+    (0, mongoose_1.Prop)({ default: false }),
+    __metadata("design:type", Boolean)
+], OrderChatMessage.prototype, "isPinned", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ trim: true }),
+    __metadata("design:type", String)
+], OrderChatMessage.prototype, "pinLabel", void 0);
+__decorate([
     (0, mongoose_1.Prop)({ default: Date.now }),
     __metadata("design:type", Date)
 ], OrderChatMessage.prototype, "createdAt", void 0);
@@ -105,6 +113,25 @@ exports.OrderChatMessage = OrderChatMessage = __decorate([
     (0, mongoose_1.Schema)({ _id: true, timestamps: true })
 ], OrderChatMessage);
 exports.OrderChatMessageSchema = mongoose_1.SchemaFactory.createForClass(OrderChatMessage);
+let OrderPinnedData = class OrderPinnedData {
+};
+exports.OrderPinnedData = OrderPinnedData;
+__decorate([
+    (0, mongoose_1.Prop)({ required: true }),
+    __metadata("design:type", String)
+], OrderPinnedData.prototype, "label", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ required: true }),
+    __metadata("design:type", String)
+], OrderPinnedData.prototype, "value", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ default: Date.now }),
+    __metadata("design:type", Date)
+], OrderPinnedData.prototype, "createdAt", void 0);
+exports.OrderPinnedData = OrderPinnedData = __decorate([
+    (0, mongoose_1.Schema)({ _id: false })
+], OrderPinnedData);
+exports.OrderPinnedDataSchema = mongoose_1.SchemaFactory.createForClass(OrderPinnedData);
 let Order = class Order {
 };
 exports.Order = Order;
@@ -256,6 +283,10 @@ __decorate([
     (0, mongoose_1.Prop)({ type: [exports.OrderChatMessageSchema], default: [] }),
     __metadata("design:type", Array)
 ], Order.prototype, "chatMessages", void 0);
+__decorate([
+    (0, mongoose_1.Prop)({ type: [exports.OrderPinnedDataSchema], default: [] }),
+    __metadata("design:type", Array)
+], Order.prototype, "pinnedData", void 0);
 exports.Order = Order = __decorate([
     (0, mongoose_1.Schema)({ timestamps: true })
 ], Order);

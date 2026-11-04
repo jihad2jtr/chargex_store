@@ -553,6 +553,9 @@ class VirtualNumberRequestModel {
   }
 
   String get statusLabel {
+    // الإرجاع أهم ما يقرأه العميل من حالته: المبلغ رجع لا أن الطلب أُلغي فقط،
+    // ولا يُلبس الحالة عند وصول الرمز فعلياً
+    if (isRefunded && !hasCode) return 'مسترد';
     switch (status) {
       case pending:
         return 'جارٍ التجهيز';

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../providers/admin_provider.dart';
+import '../../widgets/top_notice.dart';
 
 /// نافذة توليد دفعة قسائم شحن رقمية.
 ///
@@ -39,7 +40,7 @@ class _GenerateVoucherBatchDialogState
   }
 
   void _snack(String message, Color color) {
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(message, style: AppTypography.cairo()),
         backgroundColor: color,

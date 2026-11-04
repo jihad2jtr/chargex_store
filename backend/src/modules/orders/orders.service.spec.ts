@@ -35,9 +35,10 @@ function createHarness(props: HarnessOrderProps) {
     save: async () => order,
   };
 
-  // نمط استعلام mongoose: populate قابل للسلسلة ثم يُنتظر كـ thenable
+  // نمط استعلام mongoose: populate/select قابلان للسلسلة ثم يُنتظر كـ thenable
   const query: any = {
     populate: () => query,
+    select: () => query,
     then: (resolve: any) => resolve(order),
   };
   const orderModel: any = {
@@ -68,6 +69,21 @@ function createHarness(props: HarnessOrderProps) {
 const BUYER = { _id: 'user-buyer', name: 'عميل', role: 'user' } as any;
 const SUPERVISOR = { _id: 'sup-1', name: 'مشرف', role: 'supervisor' } as any;
 const ADMIN = { _id: 'admin-1', name: 'أدمن', role: 'admin' } as any;
+
+// =============================================================================
+// الحراسة بمعرّف المسند إليه حين يجيء مستنداً بعد populate.
+// نصُّ المستند في mongoose 9 ليس معرّفه (يرجع تفصيل المستند نفسه)، فأي مقارنة
+// مباشرة بـtoString() تُنكر صلاحية صاحبه وترمي «هذا الطلب غير مسند إليك» على
+// من له الحق — كما وقع لزر «تأكيد الإنهاء وإغلاق الطلب». هذه الاختبارات تُثبِت
+// أن الحراسة تعتمد المعرّف لا نصَّ الحقل، وأنها لم تتراخَ عن الغريب.
+// =============================================================================
+function populatedSupervisor(id = 'sup-1') {
+  return {
+    _id: id,
+    name: 'مشرف',
+    toString: () => `Document { _id: ObjectId('${id}'), name: 'مشرف' }`,
+  } as any;
+}
 
 describe('OrdersService — sendOrderMessage (الرسائل المثبتة)', () => {
   it('المشرف المسند: رسالة عادية تُضاف للدردشة دون pinnedData', async () => {
@@ -290,6 +306,103 @@ describe('OrdersService — supervisorCompleteOrder (الإغلاق من مقد�
 
     await service.supervisorCompleteOrder('order-1', ADMIN);
     expect(order.status).toBe('completed');
+  });
+
+  it('تأكيد الإنهاء والمسند إليه جاء مستنداً بعد populate: صاحبه يغلقه ولا يُردّ', async () => {
+    const { service, order, notificationsService } = createHarness({
+      userId: 'user-buyer',
+      status: 'delivered',
+    });
+    order.assignedSupervisorId = populatedSupervisor();
+
+    await service.supervisorCompleteOrder('order-1', SUPERVISOR);
+
+    expect(order.status).toBe('completed');
+    expect(order.timeline.at(-1)).toMatchObject({ action: 'confirmed' });
+    expect(notificationsService.createNotification).toHaveBeenCalled();
+  });
+
+  it('المستند المعبَّأ لا يُرخي الحراسة: مشرفٌ غير المسند يُردّ بالـ Forbidden', async () => {
+    const { service, order } = createHarness({
+      userId: 'user-buyer',
+      status: 'delivered',
+    });
+    order.assignedSupervisorId = populatedSupervisor('sup-9');
+
+    await expect(service.supervisorCompleteOrder('order-1', SUPERVISOR)).rejects.toThrow(
+      'هذا الطلب غير مسند إليك',
+    );
+    expect(order.status).toBe('delivered');
+  });
+});
+
+describe('OrdersService — بقية مسارات المشرف مع المسند إليه مستنداً', () => {
+  const flows: Array<{ label: string; to: string; run: (service: any) => Promise<any> }> = [
+    {
+      label: 'القبول',
+      to: 'in_progress',
+      run: (service) => service.supervisorAcceptOrder('order-1', SUPERVISOR),
+    },
+    {
+      label: 'طلب معلومات',
+      to: 'info_requested',
+      run: (service) =>
+        service.supervisorRequestInfo('order-1', SUPERVISOR, { note: 'أرسل صورة البطاقة' }),
+    },
+    {
+      label: 'تسليم النتيجة',
+      to: 'delivered',
+      run: (service) =>
+        service.supervisorDeliverOrder('order-1', SUPERVISOR, {
+          resultNotes: 'تم',
+        }),
+    },
+    {
+      label: 'الاعتذار عن التنفيذ',
+      to: 'rejected',
+      run: (service) => service.supervisorRejectOrder('order-1', SUPERVISOR, 'خارج التغطية'),
+    },
+  ];
+
+  for (const flow of flows) {
+    it(`${flow.label}: لا يُنكر حقَّ المسند إليه حين يجيء مستنداً`, async () => {
+      const { service, order } = createHarness({ userId: 'user-buyer', status: 'assigned' });
+      order.assignedSupervisorId = populatedSupervisor();
+
+      await flow.run(service);
+
+      expect(order.status).toBe(flow.to);
+    });
+  }
+
+  it('قراءة الرسائل وكتابتها تجيزان للمسند إليه المستند المعبَّأ', async () => {
+    const { service, order } = createHarness({
+      userId: 'user-buyer',
+      status: 'in_progress',
+      chatMessages: [{ senderName: 'عميل', message: 'متى ينتهي؟' }],
+    });
+    order.assignedSupervisorId = populatedSupervisor();
+
+    await expect(service.getOrderMessages('order-1', SUPERVISOR)).resolves.toHaveLength(1);
+
+    const msg = await service.sendOrderMessage('order-1', SUPERVISOR, {
+      message: 'قارب الانتهاء',
+    });
+    expect(msg.senderRole).toBe('supervisor');
+  });
+
+  it('إشعار طلب التعديل يذهب إلى معرّف المسند إليه لا إلى تفصيل المستند', async () => {
+    const { service, order, notificationsService } = createHarness({
+      userId: 'user-buyer',
+      status: 'delivered',
+    });
+    order.assignedSupervisorId = populatedSupervisor();
+
+    await service.customerRequestRevision('order-1', BUYER, 'الكود لا يعمل');
+
+    const payload = notificationsService.createNotification.mock.calls.at(-1)![0];
+    expect(payload.userId).toBe('sup-1');
+    expect(payload.forRole).toBe('supervisor');
   });
 });
 

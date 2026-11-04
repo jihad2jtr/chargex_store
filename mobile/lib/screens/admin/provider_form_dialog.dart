@@ -7,6 +7,7 @@ import '../../core/theme/app_typography.dart';
 import '../../models/provider_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/top_notice.dart';
 
 /// نافذة إضافة/تعديل مزود الخدمة بهوية التذكرة الفاتحة.
 /// النافذة تملك controllers خاصتها وتصرّفها في `dispose`: تصريفها في
@@ -133,7 +134,7 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
     setState(() => _busy = false);
 
     // الرسالة قبل الإغلاق: بعدها تفقد النافذة سياقها
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(
           ok
@@ -333,7 +334,7 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                             text: ApiConstants.virtualNumbersWebhookUrl,
                           ),
                         );
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        ScaffoldMessenger.of(context).showTopSnackBar(
                           SnackBar(
                             content: Text(
                               'تم نسخ رابط الويب هوك بنجاح ✅',

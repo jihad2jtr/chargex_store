@@ -126,6 +126,7 @@ export declare class OrdersService implements OnModuleInit, OnModuleDestroy {
         revisionNotes?: string;
         timeline: OrderTimelineEvent[];
         chatMessages: OrderChatMessage[];
+        pinnedData: import("../../database/schemas/order.schema").OrderPinnedData[];
         _id: Types.ObjectId;
         $locals: Record<string, unknown>;
         $op: "save" | "validate" | "remove" | null;
@@ -145,6 +146,7 @@ export declare class OrdersService implements OnModuleInit, OnModuleDestroy {
         isDelayed?: boolean;
         search?: string;
     }): Promise<any[]>;
+    private assignedSupervisorIdOf;
     supervisorAcceptOrder(orderId: string, supervisor: UserDocument): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & Order & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
@@ -156,16 +158,6 @@ export declare class OrdersService implements OnModuleInit, OnModuleDestroy {
         };
     }>;
     supervisorRejectOrder(orderId: string, supervisor: UserDocument, reason: string): Promise<{
-        message: string;
-        order: import("mongoose").Document<unknown, {}, OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & Order & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
-            _id: Types.ObjectId;
-        }> & {
-            __v: number;
-        } & {
-            id: string;
-        };
-    }>;
-    supervisorStartOrder(orderId: string, supervisor: UserDocument): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & Order & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
             _id: Types.ObjectId;
@@ -202,7 +194,7 @@ export declare class OrdersService implements OnModuleInit, OnModuleDestroy {
             id: string;
         };
     }>;
-    customerConfirmOrder(orderId: string, user: UserDocument): Promise<{
+    supervisorCompleteOrder(orderId: string, supervisor: UserDocument): Promise<{
         message: string;
         order: import("mongoose").Document<unknown, {}, OrderDocument, {}, import("mongoose").DefaultSchemaOptions> & Order & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
             _id: Types.ObjectId;
@@ -259,6 +251,8 @@ export declare class OrdersService implements OnModuleInit, OnModuleDestroy {
         attachmentName?: string;
         attachmentType?: string;
         isSensitive?: boolean;
+        isPinned?: boolean;
+        pinLabel?: string;
     }): Promise<OrderChatMessage>;
     getOrderDecryptedResult(orderId: string, user: UserDocument): Promise<{
         isPurged: boolean;

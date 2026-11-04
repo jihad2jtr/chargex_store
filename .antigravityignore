@@ -1,0 +1,69 @@
+# ====================================================================
+# Antigravity AI Context Exclusion Configuration
+# Purpose: Stop the AI from indexing heavy, auto-generated, or media files
+# ====================================================================
+
+# 1. Dependency Managers (Heavy local packages)
+node_modules/
+bower_components/
+jspm_packages/
+pnpm-store/
+.yarn/
+
+# 2. Python Virtual Environments & Caches
+venv/
+.venv/
+env/
+.env/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# 3. Build, Bundler & Distribution Outputs
+dist/
+build/
+out/
+.next/
+.nuxt/
+.docusaurus/
+target/
+bin/
+obj/
+
+# 4. Large Media, Assets & Data Dumps
+*.mp4
+*.mp3
+*.mov
+*.wav
+*.zip
+*.tar.gz
+*.rar
+*.7z
+*.iso
+*.csv
+*.json
+*.sqlite3
+public/storage/
+uploads/
+
+# 5. IDE, Editor Caches & System Files
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+.DS_Store
+Thumbs.db
+
+# 6. Logs, Metrics & Temp Files
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.tmp/
+tmp/
+

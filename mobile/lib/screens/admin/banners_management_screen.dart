@@ -7,6 +7,7 @@ import '../../core/theme/app_typography.dart';
 import '../../models/banner_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/app_catalog_provider.dart';
+import '../../widgets/top_notice.dart';
 
 class BannersManagementScreen extends StatefulWidget {
   const BannersManagementScreen({super.key});
@@ -97,7 +98,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                 });
 
                 if (url == null && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showTopSnackBar(
                     SnackBar(
                       content: Text(admin.errorMessage ?? 'فشل رفع الصورة'),
                       backgroundColor: AppColors.error,
@@ -107,7 +108,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
               } catch (e) {
                 setDialogState(() => isUploading = false);
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showTopSnackBar(
                     SnackBar(
                       content: Text('فشل اختيار الصورة: $e'),
                       backgroundColor: AppColors.error,
@@ -452,7 +453,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                               0;
 
                           if (title.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(context).showTopSnackBar(
                               const SnackBar(
                                 content: Text('يرجى إدخال عنوان الإعلان'),
                                 backgroundColor: AppColors.error,
@@ -462,7 +463,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                           }
 
                           if (imageUrl.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(context).showTopSnackBar(
                               const SnackBar(
                                 content: Text(
                                   'يرجى اختيار صورة للإعلان أو إدخال رابطها',
@@ -477,7 +478,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                           final rawLink = linkController.text.trim();
 
                           if (!noLink && rawLink.isEmpty) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(context).showTopSnackBar(
                               const SnackBar(
                                 content: Text(
                                   'يرجى إدخال رابط الإعلان أو تفعيل خيار "بدون رابط"',
@@ -491,7 +492,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                           if (!noLink &&
                               (rawLink.contains(' ') ||
                                   !rawLink.contains('.'))) {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(context).showTopSnackBar(
                               const SnackBar(
                                 content: Text('رابط الإعلان غير صالح'),
                                 backgroundColor: AppColors.error,
@@ -540,7 +541,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
 
                           if (mounted) {
                             if (success) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context).showTopSnackBar(
                                 SnackBar(
                                   content: Text(
                                     isEditing
@@ -553,7 +554,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                               // Refresh client catalog banners too
                               catalog.fetchBanners();
                             } else {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context).showTopSnackBar(
                                 SnackBar(
                                   content: Text(
                                     admin.errorMessage ?? 'فشلت العملية',
@@ -631,7 +632,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
               final success = await admin.deleteBanner(banner.id);
               if (mounted) {
                 if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showTopSnackBar(
                     const SnackBar(
                       content: Text('تم حذف الإعلان بنجاح'),
                       backgroundColor: AppColors.success,
@@ -639,7 +640,7 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                   );
                   catalog.fetchBanners();
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  ScaffoldMessenger.of(context).showTopSnackBar(
                     SnackBar(
                       content: Text(admin.errorMessage ?? 'فشل الحذف'),
                       backgroundColor: AppColors.error,

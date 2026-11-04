@@ -8,6 +8,7 @@ import '../../models/provider_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/status_pill.dart';
+import '../../widgets/top_notice.dart';
 import '../../widgets/virtual_app_ticket_leading.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import 'provider_form_dialog.dart';
@@ -65,7 +66,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     }
     if (mounted) {
       setState(() => _isCheckingAll = false);
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(
             _virtualOnly
@@ -657,7 +658,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                     borderRadius: BorderRadius.circular(6),
                     onTap: () {
                       Clipboard.setData(ClipboardData(text: webhookUrl));
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showTopSnackBar(
                         SnackBar(
                           content: Text(
                             'تم نسخ رابط الويب هوك بنجاح ✅',
@@ -1110,7 +1111,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                           icon: Icons.sync_rounded,
                           color: accent,
                           onPressed: () async {
-                            ScaffoldMessenger.of(context).showSnackBar(
+                            ScaffoldMessenger.of(context).showTopSnackBar(
                               const SnackBar(
                                 content: Text(
                                   'جاري مزامنة المنتجات والأسعار من المزود...',
@@ -1122,7 +1123,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
                               provider.id,
                             );
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              ScaffoldMessenger.of(context).showTopSnackBar(
                                 SnackBar(
                                   content: Text(
                                     res?['message'] ?? 'تمت المزامنة بنجاح ✅',
@@ -1207,7 +1208,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     return InkWell(
       onTap: () {
         Clipboard.setData(ClipboardData(text: provider.baseUrl));
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showTopSnackBar(
           SnackBar(
             content: Text(
               'تم نسخ رابط المزود: ${provider.baseUrl}',
@@ -1563,7 +1564,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     final ok = await admin.toggleProviderActive(provider.id);
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(
           ok

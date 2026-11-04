@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/digital_pass_card.dart';
+import '../../widgets/top_notice.dart';
 
 /// صفحة إدارة المستخدمين: عرض كل الحسابات، البحث، الترقية إلى وكيل أو مشرف،
 /// الإرجاع إلى عميل، تفعيل/تعطيل الحسابات، وشحن/خصم رصيد العميل مباشرة.
@@ -845,7 +846,7 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
 
   void _snack(String msg, {bool ok = true}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(msg),
         backgroundColor: ok ? AppColors.tertiary : AppColors.error,
@@ -1492,7 +1493,7 @@ class _BalanceSheetState extends State<_BalanceSheet> {
 
   void _snack(String msg, {bool ok = true}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(
         content: Text(msg),
         backgroundColor: ok ? AppColors.tertiary : AppColors.error,

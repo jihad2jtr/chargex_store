@@ -117,8 +117,8 @@ Future<void> _settle(WidgetTester w, {int ms = 500}) async {
   _drain(w);
 }
 
-/// يغلق أي SnackBar ناجح حتى لا يبقى مؤقّت معلّق عند نهاية الاختبار
-Future<void> _flushSnackBars(WidgetTester w) async {
+/// يُنحّي أي تنبيهٍ ناجح حتى لا يبقى مؤقّت معلّق عند نهاية الاختبار
+Future<void> _flushNotices(WidgetTester w) async {
   await w.pump(const Duration(seconds: 5));
   await w.pump();
   _drain(w);
@@ -280,7 +280,7 @@ void main() {
     // الشيت أُغلق بعد النجاح وظهر تنبيه الحفظ
     expect(_sheet(), findsNothing);
     expect(find.text('تم إنشاء القالب ✅'), findsOneWidget);
-    await _flushSnackBars(w);
+    await _flushNotices(w);
   });
 
   testWidgets('التعديل يفتح معبّأً ويستدعي updateServiceTemplate', (w) async {
@@ -311,7 +311,7 @@ void main() {
     expect((fake.updatePayload!['fields'] as List<dynamic>), hasLength(3));
     expect(_sheet(), findsNothing);
     expect(find.text('تم تحديث القالب ✅'), findsOneWidget);
-    await _flushSnackBars(w);
+    await _flushNotices(w);
   });
 
   testWidgets('الحذف يطلب تأكيداً مثقّباً ثم يستدعي deleteServiceTemplate', (

@@ -7,6 +7,7 @@ import '../../models/virtual_number_model.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/ops_ticket_card.dart';
 import '../../widgets/collapsible_ticket.dart';
+import '../../widgets/top_notice.dart';
 import '../../widgets/virtual_app_ticket_leading.dart';
 import '../../widgets/virtual_number_app_form_dialog.dart';
 import 'virtual_number_catalog_screen.dart';
@@ -61,7 +62,7 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     final message = await action();
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,
@@ -826,7 +827,7 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     final message = await vn.requestNumber(productId: country.id);
     if (!mounted) return;
     setState(() => _busy = false);
-    messenger.showSnackBar(
+    messenger.showTopSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
         backgroundColor: message != null ? AppColors.slate800 : AppColors.rose,

@@ -10,6 +10,7 @@ import '../../models/app_model.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/app_asset_picker.dart';
 import '../../widgets/app_thumb.dart';
+import '../../widgets/top_notice.dart';
 import 'app_products_management_screen.dart';
 
 class AppsAndProductsManagementScreen extends StatefulWidget {
@@ -70,7 +71,7 @@ class _AppsAndProductsManagementScreenState
           .where((p) => p.appId == app.id && p.isActive)
           .length;
       if (activeProducts == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context).showTopSnackBar(
           SnackBar(
             content: Text(
               'لا يمكن تفعيل "${app.name}": أضف منتجاً مفعّلاً واحداً على الأقل أولاً ⚠️',
@@ -95,7 +96,7 @@ class _AppsAndProductsManagementScreenState
     final ok = await admin.toggleAppActive(app.id);
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      ScaffoldMessenger.of(context).showTopSnackBar(
         SnackBar(
           content: Text(
             ok
@@ -166,7 +167,7 @@ class _AppsAndProductsManagementScreenState
                 if (url != null) iconCtrl.text = url;
               });
               if (url == null && mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       admin.errorMessage ?? 'تعذّر رفع الصورة',
@@ -695,7 +696,7 @@ class _AppsAndProductsManagementScreenState
                                     int.tryParse(orderCtrl.text.trim()) ?? 0;
 
                                 if (name.isEmpty) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(context).showTopSnackBar(
                                     SnackBar(
                                       content: Text(
                                         'اسم التطبيق مطلوب',
@@ -726,7 +727,7 @@ class _AppsAndProductsManagementScreenState
                                           normalizedName,
                                 );
                                 if (isDuplicate) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(context).showTopSnackBar(
                                     SnackBar(
                                       content: Text(
                                         'يوجد تطبيق مسجّل بنفس الاسم "$name" بالفعل — لا يُسمح بالتكرار',
@@ -764,7 +765,7 @@ class _AppsAndProductsManagementScreenState
                                 if (ctx.mounted) Navigator.of(ctx).pop();
 
                                 if (mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
+                                  ScaffoldMessenger.of(context).showTopSnackBar(
                                     SnackBar(
                                       content: Text(
                                         ok
@@ -1035,7 +1036,7 @@ class _AppsAndProductsManagementScreenState
               if (ctx.mounted) Navigator.of(ctx).pop();
 
               if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
+                ScaffoldMessenger.of(context).showTopSnackBar(
                   SnackBar(
                     content: Text(
                       ok ? 'تم حذف التطبيق بنجاح' : 'فشل حذف التطبيق',
