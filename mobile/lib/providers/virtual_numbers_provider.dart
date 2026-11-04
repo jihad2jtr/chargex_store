@@ -390,6 +390,7 @@ class VirtualNumbersProvider extends ChangeNotifier {
     'operator': r.operator,
     'amount': r.amount,
     'phoneNumber': r.phoneNumber,
+    'callingCode': r.callingCode,
     'smsCode': r.smsCode,
     'smsText': r.smsText,
     'status': r.status,

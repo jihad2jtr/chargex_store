@@ -417,6 +417,10 @@ class VirtualNumberRequestModel {
   final String operator;
   final double amount;
   final String? phoneNumber;
+
+  /// نداء الدولة كما أرسله الخادم (+963 لسوريا): يُعرض فوق الرقم كي لا
+  /// يذوب النداء في الرقم الدولي الكامل ويختلط على العميل
+  final String? callingCode;
   final String? smsCode;
   final String? smsText;
   final String status;
@@ -458,6 +462,7 @@ class VirtualNumberRequestModel {
     this.operator = '',
     this.amount = 0,
     this.phoneNumber,
+    this.callingCode,
     this.smsCode,
     this.smsText,
     this.status = 'pending',
@@ -495,6 +500,7 @@ class VirtualNumberRequestModel {
       operator: (json['operator'] ?? '').toString(),
       amount: _num(json['amount']),
       phoneNumber: _text(json['phoneNumber']),
+      callingCode: _text(json['callingCode']),
       smsCode: _text(json['smsCode']),
       smsText: _text(json['smsText']),
       status: (json['status'] ?? 'pending').toString(),

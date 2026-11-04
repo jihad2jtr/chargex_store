@@ -327,6 +327,9 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
   Widget _heroCard(VirtualNumberRequestModel request, bool waiting) {
     final hasCode = request.hasCode;
     final tone = hasCode ? AppColors.emerald : AppColors.ticketAmber;
+    // النداء يُفصل عن الرقم للعرض: لا يتوفر حين لا يرسل الخادم نداء الدولة
+    // أو لا يطابق بداية الرقم، فيبقى الرقم كاملاً كما كان
+    final split = hasCode ? null : _splitDial(request);
 
     return Container(
       decoration: BoxDecoration(
@@ -399,10 +402,38 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
                         ),
                       ),
                       const SizedBox(height: 4),
+                      // نداء الدولة فوق الرقم: في الرقم الدولي الكامل
+                      // (+963999…) يذوب النداء فيصعب تمييزه عمن يملأ التطبيق
+                      if (split != null) ...[
+                        Row(
+                          children: [
+                            Text(
+                              'النداء:',
+                              style: AppTypography.cairo(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white70,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              split.dial,
+                              style: AppTypography.technicalCode(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w900,
+                                color: AppColors.ticketAmberLight,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                      ],
                       SelectableText(
                         hasCode
                             ? request.smsCode!
-                            : (request.phoneNumber ?? '— — — —'),
+                            : (split?.local ??
+                                  request.phoneNumber ??
+                                  '— — — —'),
                         style: AppTypography.technicalCode(
                           color: hasCode
                               ? const Color(0xFF6EE7B7)
@@ -464,6 +495,20 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
         ],
       ),
     );
+  }
+
+  /// فصل نداء الدولة عن الرقم المحلي: الخادم يرسل النداء (+963) وحده
+  /// والرقم الدولي كاملًا، فإذا طابق النداءُ بدايةَ الرقم عُرِض مفصولًا،
+  /// وإلا أُعيد null وبقي الرقم معروضًا كما هو (خادم قديم أو دولة مجهولة)
+  ({String dial, String local})? _splitDial(VirtualNumberRequestModel request) {
+    final digits = (request.phoneNumber ?? '').replaceFirst('+', '');
+    final dial = (request.callingCode ?? '').replaceAll(RegExp(r'[^\d]'), '');
+    if (digits.isEmpty || dial.isEmpty || !digits.startsWith(dial)) {
+      return null;
+    }
+    final local = digits.substring(dial.length);
+    if (local.isEmpty) return null;
+    return (dial: '+$dial', local: local);
   }
 
   Widget _pulseDot(Color tone, int index) {
@@ -562,8 +607,9 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
   // ===========================================================================
   Widget _smsTextCard(VirtualNumberRequestModel request) {
     final smsText = request.smsText;
-    if (smsText == null || smsText.trim().isEmpty)
+    if (smsText == null || smsText.trim().isEmpty) {
       return const SizedBox.shrink();
+    }
 
     return Container(
       padding: const EdgeInsets.all(12),

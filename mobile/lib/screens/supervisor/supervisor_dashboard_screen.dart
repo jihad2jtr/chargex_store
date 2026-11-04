@@ -1285,12 +1285,10 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           child: const Text('قبول الطلب'),
         ),
       );
-    } else if (
-      status == 'in_progress' ||
-      status == 'revision_requested' ||
-      // القبول الآن يبدأ التنفيذ مباشرة؛ يبقى «accepted» لطلبات قديمة في القاعدة
-      status == 'accepted'
-    ) {
+    } else if (status == 'in_progress' ||
+        status == 'revision_requested' ||
+        // القبول الآن يبدأ التنفيذ مباشرة؛ يبقى «accepted» لطلبات قديمة في القاعدة
+        status == 'accepted') {
       actions.add(
         OutlinedButton(
           onPressed: () => _showRequestInfoDialog(order),
@@ -1389,9 +1387,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     if (!mounted) return;
     if (ok) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('تم قبول الطلب والبدء في تنفيذه'),
-        ),
+        const SnackBar(content: Text('تم قبول الطلب والبدء في تنفيذه')),
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(

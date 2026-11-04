@@ -144,7 +144,11 @@ void main() {
   testWidgets('تسليم النتيجة: للعميل تعديل/اعتراض فقط — لا زر تأكيد استلام', (
     w,
   ) async {
-    await _pump(w, order: _order(status: 'delivered'), user: _user());
+    await _pump(
+      w,
+      order: _order(status: 'delivered'),
+      user: _user(),
+    );
 
     expect(find.textContaining('تأكيد الاستلام'), findsNothing);
     expect(find.text('طلب تعديل'), findsOneWidget);
@@ -152,7 +156,11 @@ void main() {
   });
 
   testWidgets('الطلب المكتمل يقفل الدردشة في وجه العميل', (w) async {
-    await _pump(w, order: _order(status: 'completed'), user: _user());
+    await _pump(
+      w,
+      order: _order(status: 'completed'),
+      user: _user(),
+    );
 
     expect(
       find.text('انتهى الطلب وأغلقه مقدّم الخدمة — الدردشة مغلقة.'),

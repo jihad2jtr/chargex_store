@@ -1914,93 +1914,93 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
           _buildClosedChatBar()
         else
           Container(
-          padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: AppColors.outline)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (_canPin) _buildPinComposer(),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageCtrl,
-                      maxLines: 4,
-                      minLines: 1,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _sendMessage(),
-                      textAlignVertical: TextAlignVertical.center,
-                      style: AppTypography.cairo(
-                        fontSize: 13.5,
-                        color: AppColors.slate900,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'اكتب رسالة...',
-                        hintStyle: AppTypography.cairo(
-                          color: AppColors.slate400,
-                          fontSize: 13,
+            padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: AppColors.outline)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (_canPin) _buildPinComposer(),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _messageCtrl,
+                        maxLines: 4,
+                        minLines: 1,
+                        textInputAction: TextInputAction.send,
+                        onSubmitted: (_) => _sendMessage(),
+                        textAlignVertical: TextAlignVertical.center,
+                        style: AppTypography.cairo(
+                          fontSize: 13.5,
+                          color: AppColors.slate900,
                         ),
-                        filled: true,
-                        fillColor: AppColors.surfaceContainerLow,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(22),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(22),
-                          borderSide: const BorderSide(
-                            color: AppColors.outline,
+                        decoration: InputDecoration(
+                          hintText: 'اكتب رسالة...',
+                          hintStyle: AppTypography.cairo(
+                            color: AppColors.slate400,
+                            fontSize: 13,
                           ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(22),
-                          borderSide: const BorderSide(
-                            color: AppColors.primaryBlue,
-                            width: 1.2,
+                          filled: true,
+                          fillColor: AppColors.surfaceContainerLow,
+                          isDense: true,
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
                           ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  // زر الإرسال الدائري
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 1),
-                    child: SizedBox(
-                      width: 44,
-                      height: 44,
-                      child: Material(
-                        color: AppColors.primaryBlue,
-                        shape: const CircleBorder(),
-                        elevation: 2,
-                        shadowColor: AppColors.primaryBlue.withValues(
-                          alpha: 0.4,
-                        ),
-                        child: InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: _sendMessage,
-                          child: const Icon(
-                            Icons.send_rounded,
-                            color: Colors.white,
-                            size: 20,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                          ),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: const BorderSide(
+                              color: AppColors.outline,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(22),
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryBlue,
+                              width: 1.2,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-            ],
+                    const SizedBox(width: 8),
+                    // زر الإرسال الدائري
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 1),
+                      child: SizedBox(
+                        width: 44,
+                        height: 44,
+                        child: Material(
+                          color: AppColors.primaryBlue,
+                          shape: const CircleBorder(),
+                          elevation: 2,
+                          shadowColor: AppColors.primaryBlue.withValues(
+                            alpha: 0.4,
+                          ),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: _sendMessage,
+                            child: const Icon(
+                              Icons.send_rounded,
+                              color: Colors.white,
+                              size: 20,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }

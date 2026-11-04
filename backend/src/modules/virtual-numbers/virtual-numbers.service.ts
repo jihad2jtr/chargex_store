@@ -104,6 +104,7 @@ import {
   resolveAppMeta,
   resolveCountryMeta,
 } from './virtual-numbers-dictionary';
+import { dialCodeForIso } from './country-dial-codes';
 import {
   classifyOutcome,
   resolveFailThreshold,
@@ -4647,6 +4648,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const raw = (request as any).toObject?.() ?? request;
     const appMeta = this.appMeta(request.service);
     const countryMeta = this.countryMeta(request.country);
+    // نداء الدولة من ISO المعجم: قد يخلو المعجم عن دولة مستوردة حديثة
+    const dial = dialCodeForIso(countryMeta.iso || countryMeta.code);
     return {
       id: request._id.toString(),
       requestNumber: request.requestNumber,
@@ -4660,6 +4663,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       country: request.country,
       countryName: request.countryName || countryMeta.name,
       flag: countryMeta.flag,
+      // نداء الدولة (+963 لسوريا مثلاً) مُرسَل وحده: الرقم الدولي الكامل
+      // يذوب فيه النداء فلا يميّزه العميل، والواجهة تعرضه فوق الرقم
+      callingCode: dial ? `+${dial}` : null,
       // اسم المشغّل المعروض أولاً: رمزه التقني (fr-lycamobile) لا يصل للعميل
       operator: request.operatorName
         ? request.operatorName
