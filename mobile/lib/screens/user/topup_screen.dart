@@ -1543,9 +1543,12 @@ class _TopupScreenState extends State<TopupScreen> {
           TextField(
             controller: _shamAmountController,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            // technicalCode الافتراضي أبيض: على خلفية الحقل الفاتحة لا تُقرأ
+            // الأرقام، فيُصاغ النص بأزرق هوية شام كاش نفسه
             style: AppTypography.technicalCode(
               fontSize: 16,
               fontWeight: FontWeight.bold,
+              color: _shamBlue,
             ),
             decoration: InputDecoration(
               labelText: 'المبلغ المحول بالدولار (\$ USD)',

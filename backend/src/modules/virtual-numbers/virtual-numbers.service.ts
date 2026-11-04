@@ -133,6 +133,9 @@ function visibleOperators(
 
 // كم من الوقت يبقى الكتالوج المخزّن صالحاً قبل إعادة جلبه من المزود
 const CATALOG_TTL_MS = 6 * 60 * 60 * 1000;
+// نافذة الثقة في لقطة المخزون: نفادٌ أحدث منها يُرفض الشراء قبل لمس محفظة
+// العميل، وأقدم تُؤكَّد بمزامنة حيّة أولاً قبل الرفض (النفاد قد امتلأ من ساعة)
+const STOCK_TRUST_WINDOW_MS = 30 * 60 * 1000;
 // مهلة انتظار رمز التحقق: بعدها يُلغى الرقم ويُرجع المبلغ تلقائياً
 const DEFAULT_WAIT_TTL_MINUTES = 15;
 // أقل مدة انتظار قبل إلغاء العميل المسموح: قبلها يبقى الرقم محجوزاً لدى المزود
@@ -524,9 +527,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       waitMinutes: this.waitTtlMinutes(),
       // الكتالوج مُنتقًى: تُبلغ الصفحة الإدارةَ بعدّة تطبيقات المعجم المتاحة
       // كي تعرف إن كان عليها تنسيق المنتجات قبل أن تظهر أي أرقام للعملاء
-      curated: (
-        await this.appModel.find().select('serviceCode appKey')
-      ).filter((a: any) => this.isOfferedApp(a, offered)).length,
+      curated: (await this.appModel.find().select('serviceCode appKey')).filter(
+        (a: any) => this.isOfferedApp(a, offered),
+      ).length,
       // الهامش لم يعد واحداً: كل عرض يحمل سعره المحسوب بهامش مزوده، وهذا الحقل
       // يبقى للعرض فقط (مزود واحد على الأقل) كي لا تنكسر واجهات قديمة تقرأه
       margin: {
@@ -764,7 +767,6 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     return keys;
   }
 
-
   /** إبطال كاش المتاح بعد تغيير البوابة من صفحة المعجم */
   private invalidateOfferedCache() {
     this.offeredCache = null;
@@ -810,7 +812,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const appByKey = new Map<string, any>();
     for (const app of apps) {
       const key = (
-        app.appKey || this.appMeta(app.serviceCode, '').key || app.serviceCode
+        app.appKey ||
+        this.appMeta(app.serviceCode, '').key ||
+        app.serviceCode
       ).toLowerCase();
       if (!appByKey.has(key)) appByKey.set(key, app);
     }
@@ -867,7 +871,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
   /** تفعيل/إيقاف توفر مفتاح من المعجم — البوابة الوحيدة لما يظهر للمزودين */
   async patchDictionaryOffered(key: string, offered: boolean) {
-    const appKey = String(key || '').trim().toLowerCase();
+    const appKey = String(key || '')
+      .trim()
+      .toLowerCase();
     // يُقبل أي مفتاح موجود في كيانات المعجم (ثابتة كانت أو مستوردة)
     const existing = await this.dictionaryModel.findOne({ appKey });
     if (!existing && !VIRTUAL_NUMBER_APPS.some((a) => a.key === appKey)) {
@@ -928,11 +934,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       for (const svc of services) {
         const rawCode = String(svc.code ?? '');
         const rawName = String(svc.name ?? '');
-        const decision = this.decideApp(
-          rawCode,
-          rawName,
-          localAppTokens,
-        );
+        const decision = this.decideApp(rawCode, rawName, localAppTokens);
         if (decision.status === 'link') {
           await this.linkDictApp(decision.key, pkey, rawCode, rawName, at);
           appsLinked.add(decision.key);
@@ -971,13 +973,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
             localCountryTokens,
           );
           if (cDecision.status === 'link') {
-            await this.linkDictCountry(
-              cDecision.key,
-              pkey,
-              cCode,
-              cName,
-              at,
-            );
+            await this.linkDictCountry(cDecision.key, pkey, cCode, cName, at);
             countriesLinked.add(cDecision.key);
           } else if (cDecision.status === 'review') {
             const id = await this.ensureReviewOpen(
@@ -1089,12 +1085,14 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
   /** يُدرج/يُحدّث سجل مصدر حسب (مزود،رمز) فلا يتكرر مع إعادة الاستيراد */
   private mergeSource(
-    sources: Array<{
-      providerType: string;
-      rawCode: string;
-      rawName: string;
-      syncedAt: Date;
-    }> | undefined,
+    sources:
+      | Array<{
+          providerType: string;
+          rawCode: string;
+          rawName: string;
+          syncedAt: Date;
+        }>
+      | undefined,
     pkey: string,
     rawCode: string,
     rawName: string,
@@ -1249,7 +1247,10 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         origin: d.origin ?? 'seed',
         reviewStatus: d.reviewStatus ?? 'ok',
       }))
-      .sort((a, b) => a.nameEn.localeCompare(b.nameEn) || a.code.localeCompare(b.code));
+      .sort(
+        (a, b) =>
+          a.nameEn.localeCompare(b.nameEn) || a.code.localeCompare(b.code),
+      );
   }
 
   /**
@@ -1265,15 +1266,21 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     aliases?: string[];
     mergeInto?: string;
   }) {
-    const code = String(body.code ?? '').trim().toUpperCase();
+    const code = String(body.code ?? '')
+      .trim()
+      .toUpperCase();
     if (!code) throw new BadRequestException('رمز الدولة مطلوب');
     const doc = await this.dictCountryModel.findOne({ code });
-    if (!doc) throw new NotFoundException(`الدولة غير موجودة في المعجم: ${code}`);
+    if (!doc)
+      throw new NotFoundException(`الدولة غير موجودة في المعجم: ${code}`);
 
-    const target = String(body.mergeInto ?? '').trim().toUpperCase();
+    const target = String(body.mergeInto ?? '')
+      .trim()
+      .toUpperCase();
     if (target && target !== code) {
       const dest = await this.dictCountryModel.findOne({ code: target });
-      if (!dest) throw new NotFoundException(`دمج إلى دولة غير موجودة: ${target}`);
+      if (!dest)
+        throw new NotFoundException(`دمج إلى دولة غير موجودة: ${target}`);
       // الرموز: الهدف أبقى عند التعارض، والمصدَر يُنقل ما ليس موجوداً
       dest.codes = dest.codes ?? {};
       for (const [k, v] of Object.entries(doc.codes ?? {}))
@@ -1361,7 +1368,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (action === 'link') {
-      const key = String(targetKey ?? '').trim().toLowerCase();
+      const key = String(targetKey ?? '')
+        .trim()
+        .toLowerCase();
       if (!key) throw new BadRequestException('يجب تحديد كيان للربط');
       if (review.kind === 'country') {
         await this.linkDictCountry(
@@ -1400,8 +1409,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         at,
       );
     }
-    if (!newKey)
-      throw new BadRequestException('تعذّر إنشاء كيان من هذا البند');
+    if (!newKey) throw new BadRequestException('تعذّر إنشاء كيان من هذا البند');
     review.status = 'created';
     review.resolvedKey = newKey;
     await review.save();
@@ -1486,9 +1494,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         // اسم بطاقة العميل: المشغّل («سيرفر») إن كان المنتج لمشغّل بعينه، وإلا
         // وسم المزود — فكل منتج هنا سيرفر قائم بذاته بسعره
         label:
-          product.operatorName ||
-          (provider as any).serverLabel ||
-          'Server',
+          product.operatorName || (provider as any).serverLabel || 'Server',
         operator: product.operator || '',
         operatorName: product.operatorName || '',
         operatorType: product.operatorType || '',
@@ -1521,10 +1527,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       const app = group.apps[0];
       const repProvider =
         providersById.get(String(app.providerId)) ?? providers[0];
-      const appMeta = this.appMeta(
-        app.serviceCode,
-        repProvider?.providerType,
-      );
+      const appMeta = this.appMeta(app.serviceCode, repProvider?.providerType);
 
       const countries = [...group.countries.entries()]
         .map(([code, offers]) => {
@@ -1667,6 +1670,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         () => undefined,
       );
 
+      // لقطة المخزون على منتجات هذا المزود تُحدَّث من الكتالوج المزامَن الآن
+      await this.syncProductStock(provider, services).catch(() => undefined);
+
       // رصيد المزود يُحدَّث مع المزامنة كي يظهر في اللوحة ويُتحقق منه قبل الطلب
       await this.refreshProviderBalance(provider).catch(() => undefined);
 
@@ -1758,6 +1764,148 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           updateOne: {
             filter: { _id: p._id },
             update: { $set: { serviceCode: want } },
+          },
+        };
+      })
+      .filter(Boolean) as Parameters<typeof this.productModel.bulkWrite>[0];
+    if (ops.length > 0) await this.productModel.bulkWrite(ops);
+  }
+
+  /**
+   * عدد الأرقام المتاحة لخدمة/دولة/مشغّل في لقطة كتالوج مخزّنة؛ null يعني
+   * مجهولاً (قيد غائب عن اللقطة) ولا يجوز البناء عليه للرفض.
+   */
+  private stockCountIn(
+    services: any[],
+    service: string,
+    country: string,
+    operator: string,
+  ): number | null {
+    const svc = (services ?? []).find(
+      (s: any) => String(s?.code || '').toLowerCase() === service.toLowerCase(),
+    );
+    const countryEntry = (svc?.countries ?? []).find(
+      (c: any) => String(c?.code || '').toLowerCase() === country.toLowerCase(),
+    );
+    if (!countryEntry) return null;
+    if (operator) {
+      // المشغّل المحدد له مخزونه: نفاده يُرفض ولو امتلأ البلد من مشغّل آخر
+      const op = (countryEntry.operators ?? []).find(
+        (o: any) =>
+          String(o?.code || '').toLowerCase() === operator.toLowerCase(),
+      );
+      if (!op) return null;
+      return Number.isFinite(op.count) ? Number(op.count) : null;
+    }
+    return Number.isFinite(countryEntry.count)
+      ? Number(countryEntry.count)
+      : null;
+  }
+
+  /**
+   * رفض الشراء قبل الخصم حين تُصرّح لقطة الكتالوج بنفاد هذا المنتج بعينه:
+   * كان العميل أحياناً يرى «تعذر تجهيز الرقم وتم إرجاع المبلغ» لأن المخزون
+   * يُكتشف بعد الخصم لدى المزود. المجهول يُسام ما لم يصرّح بالنفاد، ونفادٌ
+   * قديم يُؤكَّد بمزامنة حيّة قبل الرفض حتى لا يُحرم العميل من مخزون امتلأ.
+   */
+  private async assertStockAvailable(
+    provider: ProviderDocument,
+    service: string,
+    country: string,
+    operator: string,
+  ) {
+    const outOfStockMsg =
+      'أرقام هذا السيرفر نفدت حالياً؛ اختر سيرفاً أو دولة أخرى متاحة — لم يُخصم من رصيدك شيء';
+    const catalog = await this.catalogModel
+      .findOne({ providerId: provider._id })
+      .catch(() => null);
+    const services = (catalog?.services ?? []) as any[];
+    const count = this.stockCountIn(services, service, country, operator);
+    if (count === null || count > 0) return;
+    const fresh =
+      catalog?.fetchedAt &&
+      Date.now() - new Date(catalog.fetchedAt).getTime() <=
+        STOCK_TRUST_WINDOW_MS;
+    if (fresh) {
+      throw new BadRequestException(outOfStockMsg);
+    }
+    // لقطة قديمة: تُؤكَّد حياً قبل الرفض — فشل المزامنة لا يبيع ولا يمنع،
+    // فالمسار الأصلي لدى المزود هو الحكم النهائي
+    await this.syncCatalog(provider).catch((err: any) =>
+      this.logger.warn(`Stock confirmation sync failed: ${err?.message}`),
+    );
+    const after = await this.catalogModel
+      .findOne({ providerId: provider._id })
+      .catch(() => null);
+    const recheck = this.stockCountIn(
+      (after?.services ?? []) as any[],
+      service,
+      country,
+      operator,
+    );
+    if (recheck !== null && recheck <= 0) {
+      throw new BadRequestException(outOfStockMsg);
+    }
+  }
+
+  /**
+   * مخزون المنتجات (count) يُحدَّث مع كل مزامنة كتالوج: بلا هذا التحديث تبقى
+   * اللقطة مجمّدة عند الاستيراد فتُسيء بوابةَ النفاد وتقديرَ اللوحة.
+   * التكلفة لا تُلمس — تسعير المنتج قرار إداري.
+   */
+  private async syncProductStock(
+    provider: ProviderDocument,
+    services: VirtualNumberService[],
+  ) {
+    const products = await this.productModel.find(
+      { providerId: provider._id },
+      'appId serviceCode countryCode operator count',
+    );
+    if (products.length === 0) return;
+
+    const appIds = [...new Set(products.map((p) => String(p.appId)))];
+    const apps = await this.appModel.find({ _id: { $in: appIds } }, 'appKey');
+    const appById = new Map(apps.map((a) => [String(a._id), a]));
+
+    const ops = products
+      .map((p) => {
+        const app = appById.get(String(p.appId));
+        if (!app) return null;
+        // مطابقة المنتج بكتالوج مزوده عبر مفتاح التطبيق الموحّد (كالتصحيح في
+        // healProviderProductCodes): رمز المنتج قد يكون من مزوّد آخر
+        const appKey =
+          app.appKey || this.appMeta(p.serviceCode, provider.providerType).key;
+        const svc =
+          services.find((s) => s.code === p.serviceCode) ||
+          (appKey
+            ? services.find(
+                (s) =>
+                  this.appMeta(s.code, provider.providerType).key === appKey,
+              )
+            : undefined);
+        const countryEntry = svc?.countries?.find(
+          (c) =>
+            String(c.code).toLowerCase() ===
+            String(p.countryCode).toLowerCase(),
+        );
+        if (!countryEntry) return null;
+        const op = p.operator
+          ? countryEntry.operators?.find(
+              (o) => String(o.code).toLowerCase() === p.operator.toLowerCase(),
+            )
+          : undefined;
+        // count المشغّل أدقّ إن وُجد؛ وإلا فعدد الدولة (بما فيه مشغّل any)
+        const want =
+          op && Number.isFinite((op as any).count)
+            ? Number((op as any).count)
+            : Number.isFinite((countryEntry as any).count)
+              ? Number((countryEntry as any).count)
+              : null;
+        if (want === null || want === p.count) return null;
+        return {
+          updateOne: {
+            filter: { _id: p._id },
+            update: { $set: { count: want } },
           },
         };
       })
@@ -1920,6 +2068,15 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
 
     // رصيد المزود يجب أن يغطي التكلفة قبل المساس بمحفظة العميل
     await this.ensureProviderFunded(provider, cost);
+
+    // بوابة النفاد قبل الخصم: إن كانت لقطة الكتالوج تُصرّح بنفاد هذا المنتج
+    // بعينه فلا يُفتح حساب ولا يُلمس رصيد — الشراء لا يبدأ مع مشكلة معروفة
+    await this.assertStockAvailable(
+      provider,
+      service,
+      country,
+      (product?.operator || params.operator || '').trim(),
+    );
 
     const requestNumber = this.generateRequestNumber();
     const cleanRequestId =
@@ -3360,7 +3517,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       if (have.has(svc.code)) continue;
       // الاستيراد الجماعي يحترم بوابة المعجم: الموقوف لا يُنشى تطبيقه
       if (
-        !this.isOfferedApp({ serviceCode: svc.code }, offered, provider?.providerType)
+        !this.isOfferedApp(
+          { serviceCode: svc.code },
+          offered,
+          provider?.providerType,
+        )
       )
         continue;
       const appMeta = this.appMeta(svc.code, provider?.providerType);
@@ -3390,7 +3551,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const offered = await this.getOfferedSet();
     const services = (await this.ensureFreshCatalog(provider)).filter((svc) =>
       // اللوحة لا تُغرق بمئات خدمات الكتالوج: تطبيقات المعجم المتاحة فقط
-      this.isOfferedApp({ serviceCode: svc.code }, offered, provider.providerType),
+      this.isOfferedApp(
+        { serviceCode: svc.code },
+        offered,
+        provider.providerType,
+      ),
     );
     return this.buildAdminCatalogView(provider, services);
   }
@@ -3492,9 +3657,8 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
           appActive: app ? app.isActive !== false : false,
           countries: (svc.countries ?? []).map((c) => {
             const existing =
-              productsByCountry.get(
-                `${providerKey}|${svc.code}|${c.code}`,
-              ) ?? [];
+              productsByCountry.get(`${providerKey}|${svc.code}|${c.code}`) ??
+              [];
             const byOperator = new Map(
               existing.map((p) => [(p.operator || '').trim(), p]),
             );
@@ -3594,7 +3758,9 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
               added: Boolean(addedOp),
               productId: addedOp ? addedOp.productId : null,
               productActive: addedOp ? addedOp.productActive : false,
-              productAutoDisabled: addedOp ? addedOp.productAutoDisabled : false,
+              productAutoDisabled: addedOp
+                ? addedOp.productAutoDisabled
+                : false,
               productConsecutiveFailures: addedOp
                 ? addedOp.productConsecutiveFailures
                 : 0,
@@ -3629,11 +3795,12 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       appKey || app.serviceCode,
       provider?.providerType,
     );
-    const fromStatic = pkey === 'fivesim'
-      ? staticMeta.fivesimCode
-      : pkey === 'herosms'
-        ? staticMeta.herosmsCode
-        : '';
+    const fromStatic =
+      pkey === 'fivesim'
+        ? staticMeta.fivesimCode
+        : pkey === 'herosms'
+          ? staticMeta.herosmsCode
+          : '';
     return fromStatic || app.serviceCode;
   }
 
@@ -3717,9 +3884,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
                 // «any» ليس مشغّلاً بعينه بل «أي مشغّل»: يبقى بلا اسم فيُعرض
                 // باسم السيرفر الوهمي بدل ظهور الرمز التقني للعميل
                 operatorName:
-                  opCode === 'any'
-                    ? ''
-                    : (o.name || '').trim() || opCode,
+                  opCode === 'any' ? '' : (o.name || '').trim() || opCode,
                 operatorType: (o.type || '').trim(),
                 cost: opPrice > 0 ? opPrice : countryCost,
                 count:
@@ -4301,9 +4466,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     const derived = await this.deriveTemplateFields(dto.serviceTemplateId);
     const requiredFields = derived
       ? derived.requiredFields
-      : (dto.requiredFields ?? [])
-          .map((f) => String(f).trim())
-          .filter(Boolean);
+      : (dto.requiredFields ?? []).map((f) => String(f).trim()).filter(Boolean);
     const sensitiveFields = derived
       ? derived.sensitiveFields
       : dto.isSensitive === true

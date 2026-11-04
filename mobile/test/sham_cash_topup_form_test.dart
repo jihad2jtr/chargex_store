@@ -185,6 +185,20 @@ void main() {
     expect(find.textContaining('إيصال'), findsWidgets);
   });
 
+  testWidgets('نص مبلغ شام كاش غير أبيض: يُقرأ على خلفية الحقل الفاتحة', (
+    w,
+  ) async {
+    await _pumpTopup(w);
+    await _openShamSheet(w);
+
+    // العلة الأصلية: technicalCode الافتراضي أبيض فغابت الأرقام عن الخلفية
+    // الفاتحة؛ اليوم يُصاغ بأزرق هوية الشعار فيكون مقروءاً ومنسجماً
+    await w.enterText(_shamAmountField, '10');
+    await w.pump();
+    final field = w.widget<TextField>(_shamAmountField);
+    expect(field.style?.color, const Color(0xFF4E67C3));
+  });
+
   testWidgets('المبلغ وحده يكفي لإرسال طلب الشحن بتفاصيل فارغة', (w) async {
     final wallet = await _pumpTopup(w);
     await _openShamSheet(w);

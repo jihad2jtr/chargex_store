@@ -308,7 +308,11 @@ const makeCatalogModelFor = (catalogs: FakeDoc[]) => ({
     catalogs.find((c) => matches(c, filter)) ?? null,
   findOneAndUpdate: async (filter: any, update: any) => {
     const doc = catalogs.find((c) => matches(c, filter));
-    return doc ? applyUpdate(doc, update) : null;
+    if (!doc) return null;
+    // مزامنة الكتالوج تكتب جسم Update كاملاً بلا $set (upsert): النموذج
+    // الوهمي يسريه كما تسريه Mongo — الحقول العلنية فوق الوثاق
+    const ops = update.$set || update.$inc ? update : { $set: update };
+    return applyUpdate(doc, ops);
   },
 });
 
@@ -911,9 +915,12 @@ describe('VirtualNumbersService.manualServices (تفعيل مضمون)', () => {
       isActive: true,
     });
     const manual = makeManualServiceDoc(app, { requiredFields: ['قديم'] });
-    const { service, templateDocs } = makeManualHarness([manual], [], [], [
-      app,
-    ]);
+    const { service, templateDocs } = makeManualHarness(
+      [manual],
+      [],
+      [],
+      [app],
+    );
     const tpl = makeDoc({
       name: 'قالب جديد',
       operationType: 'manual',
@@ -1711,6 +1718,8 @@ const makeCuratedHarness = (
       number: '15550001111',
       raw: {},
     })),
+    // فارغ افتراضاً: بوابة النفاد تختبر التأكيد الحيّ، والاختبار يسند جوابه الخاص
+    getCatalog: vi.fn(async () => [] as any),
     fetchStatus: vi.fn(async () => ({
       state: 'waiting',
       smsText: undefined,
@@ -2427,6 +2436,93 @@ describe('الشراء بمنتج محدد (productId)', () => {
   });
 });
 
+describe('بوابة النفاد قبل الخصم (طلب رقم)', () => {
+  /** وثاق كتالوج السيرفر الثاني في النموذج الوهمي */
+  const catDocOf = (service: any, secondId: any) =>
+    (service as any).catalogModel.docs.find(
+      (c: any) => String(c.providerId) === String(secondId),
+    );
+
+  it('نفاد صريح في لقطة طرية: رفض قبل الخصم بلا طلب ولا دفتر ولا مكالمة المزود', async () => {
+    const { service, user, requests, ledger, clients, secondId, serverTwo } =
+      makeTwoServers();
+    const doc = catDocOf(service, secondId);
+    doc.services[0].countries[0].count = 0;
+    doc.services[0].countries[0].operators[0].count = 0;
+    // fetchedAt حديث (من makeTwoServers): اللقطة موثوقة فلا حاجة لمزامنة حيّة
+
+    await expect(
+      service.requestNumber({
+        userId: user._id.toString(),
+        productId: serverTwo._id.toString(),
+      }),
+    ).rejects.toThrow(/نفدت/);
+
+    expect(requests).toHaveLength(0);
+    expect(ledger).toHaveLength(0);
+    expect(user.balance).toBe(5); // لم يُمسَّ رصيد العميل من الأساس
+    expect(clients[String(secondId)].requestNumber).not.toHaveBeenCalled();
+  });
+
+  it('نفاد قديم يؤكَّد بمزامنة حيّة: المخزون امتلأ فيُشترى عادياً', async () => {
+    const { service, user, requests, clients, secondId, serverTwo } =
+      makeTwoServers();
+    const doc = catDocOf(service, secondId);
+    doc.services[0].countries[0].count = 0;
+    doc.fetchedAt = new Date(Date.now() - 60 * 60 * 1000); // أقدم من نافذة الثقة
+    // موصّل السيرفر الثاني يُجيب بالكتالوج الحيّ وفيه ستة أرقام متاحة
+    clients[String(secondId)].getCatalog.mockResolvedValue([
+      {
+        code: 'tg',
+        name: 'TG',
+        countries: [
+          {
+            code: '1',
+            name: 'كندا',
+            cost: 0.5,
+            count: 6,
+            operators: [{ code: 'tf', name: 'T-Mobile', count: 6 }],
+          },
+        ],
+      },
+    ] as any);
+
+    const res: any = await service.requestNumber({
+      userId: user._id.toString(),
+      productId: serverTwo._id.toString(),
+    });
+
+    expect(clients[String(secondId)].getCatalog).toHaveBeenCalled();
+    expect(requests).toHaveLength(1);
+    expect(res.request.serverLabel).toBe('Server 2');
+    expect(user.balance).toBeCloseTo(4.2, 2); // 0.5 + 0.3 هامش ثابت
+  });
+
+  it('المجهول لا يُرفض: بلد بغير مشغّليه — نفاد مشغّل منتج آخر لا يمسّه', async () => {
+    const { service, user, requests, clients, provider, serverOne } =
+      makeTwoServers();
+    // منتج السيرفر الأول بلا مشغّل: يُقاس بعدد الدولة (٤٠) مهما نفد مشغّل آخر
+    const doc = (service as any).catalogModel.docs.find(
+      (c: any) => String(c.providerId) === String(provider._id),
+    );
+    doc.services[0].countries[0].operators = [
+      { code: 'ro', name: 'Other', count: 0 },
+    ];
+
+    const res: any = await service.requestNumber({
+      userId: user._id.toString(),
+      productId: serverOne._id.toString(),
+    });
+
+    expect(requests).toHaveLength(1);
+    expect(user.balance).toBeCloseTo(4, 2); // 0.8 × 1.25 = 1.00
+    expect(clients[String(provider._id)].requestNumber).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(res).toBeTruthy();
+  });
+});
+
 describe('تسجيل الجودة على وثيقة المنتج', () => {
   it('ثلاثة فشل متتالٍ مؤكدة تُوقف منتج هذا السيرفر وحده وتُشعر الإدارة', async () => {
     const h = makeTwoServers();
@@ -2784,8 +2880,9 @@ describe('getAppCountries: دول تطبيق واحد من اللقطة المخ
       { name: 'Telegram', serviceCode: 'telegram' },
     ]);
 
-    await expect(h.service.getAppCountries(new Types.ObjectId().toString()))
-      .rejects.toThrow(NotFoundException);
+    await expect(
+      h.service.getAppCountries(new Types.ObjectId().toString()),
+    ).rejects.toThrow(NotFoundException);
     expect.assertions(1);
   });
 
@@ -3036,7 +3133,16 @@ describe('معجم التطبيقات (بوابة المتاح)', () => {
 
     const byKey = new Map(VIRTUAL_NUMBER_APPS.map((a) => [a.key, a]));
     // أصول الموبايل بجانب مجلد الباك إند: ../../../../mobile/assets/icons
-    const iconsDir = join(__dirname, '..', '..', '..', '..', 'mobile', 'assets', 'icons');
+    const iconsDir = join(
+      __dirname,
+      '..',
+      '..',
+      '..',
+      '..',
+      'mobile',
+      'assets',
+      'icons',
+    );
 
     for (const key of POPULAR_APP_KEYS) {
       const meta = byKey.get(key);
@@ -3101,7 +3207,13 @@ describe('Central Dictionary Registry (معجم مركزي موحّد)', () => {
       { createNotification: async () => undefined } as any,
       { get: () => undefined } as any,
     );
-    return { service, dictionaryModel, dictCountryModel, dictReviewModel, provider };
+    return {
+      service,
+      dictionaryModel,
+      dictCountryModel,
+      dictReviewModel,
+      provider,
+    };
   };
 
   it('يبذر الدول مدمجاً تصادم الرموز إلى ISO قياسي مع حفظ القديم alias', async () => {
@@ -3157,9 +3269,7 @@ describe('Central Dictionary Registry (معجم مركزي موحّد)', () => {
   });
 
   it('ينشئ كياناً مستورداً جديداً غير متاح ثم idempotent عند إعادة التشغيل', async () => {
-    const h = makeDictHarness([
-      { code: 'Z1', name: 'Zzqqsvc', countries: [] },
-    ]);
+    const h = makeDictHarness([{ code: 'Z1', name: 'Zzqqsvc', countries: [] }]);
 
     const r1: any = await h.service.importDictionaryFromProviders();
     expect(r1.appsCreated).toBe(1);
@@ -3217,7 +3327,9 @@ describe('Central Dictionary Registry (معجم مركزي موحّد)', () => {
       codes: { dogesms: '900' },
       aliases: [],
       origin: 'import',
-      sources: [{ providerType: 'dogesms', rawCode: '900', rawName: 'Egyptia' }],
+      sources: [
+        { providerType: 'dogesms', rawCode: '900', rawName: 'Egyptia' },
+      ],
       reviewStatus: 'ok',
     });
 
@@ -3230,4 +3342,3 @@ describe('Central Dictionary Registry (معجم مركزي موحّد)', () => {
     expect(eg.aliases).toContain('EGX');
   });
 });
-
