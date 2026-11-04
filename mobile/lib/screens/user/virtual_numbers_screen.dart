@@ -203,10 +203,9 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
             ),
             const SizedBox(height: 14),
           ],
-          // بلا شريط علوي: الصفحة تبدأ مباشرة بـ«تفعيل مضمون» ثم التطبيقات —
-          // عدّات الخدمات والدول والمهلة ليست قراراً يتخذه العميل
-          // القسم الأول: خدمة يدوية يُنفّذها مشرف مقابل تفعيل مضمون
-          ..._buildGuaranteedSection(provider),
+          // بلا شريط علوي: الصفحة تبدأ مباشرة بشبكة الخدمات — عدّات الخدمات
+          // والدول والمهلة ليست قراراً يتخذه العميل. الشبكة واحدة تجمع اليدوي
+          // المضمون والتلقائي بشارة نوع على زاوية كل كرت
           _buildSectionHeader('اختر الخدمة', 'ACTIVATE', AppColors.ticketAmber),
           const SizedBox(height: 10),
           _buildServicesArea(provider),
@@ -297,31 +296,8 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // القسم الأول: «تفعيل مضمون» — خدمة يدوية على شكل كرت تذكرة
-  // ---------------------------------------------------------------------------
-
-  /// تُعرض فقط حين توجد خدمة يدوية فعّالة، فلا تتغير الصفحة بدونها
-  List<Widget> _buildGuaranteedSection(VirtualNumbersProvider provider) {
-    final services = provider.options.manualServices;
-    if (services.isEmpty) return const [];
-    return [
-      _buildSectionHeader('تفعيل مضمون', 'GUARANTEED', AppColors.emerald),
-      const SizedBox(height: 10),
-      ...services.map(
-        (service) => Padding(
-          padding: const EdgeInsets.only(bottom: 9),
-          child: _ManualServiceCard(
-            service: service,
-            onTap: () => _openManualSheet(service),
-          ),
-        ),
-      ),
-      const SizedBox(height: 8),
-    ];
-  }
-
-  // ---------------------------------------------------------------------------
-  // القسم الثاني: تطبيقات مزوّدي الأرقام — أيقونات كبيرة كنمط صفحة التطبيقات
+  // شبكة واحدة: التفعيل المضمون (يدوي) وشراء الأرقام (تلقائي) معاً — لا
+  // قسمين منعزلين، والفرق يُقرأ من شارة زاوية كل كرت
   // ---------------------------------------------------------------------------
 
   Widget _buildServicesArea(VirtualNumbersProvider provider) {
@@ -332,81 +308,86 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
       );
     }
 
-    final all = provider.options.services;
-    if (all.isEmpty) {
+    final options = provider.options.services;
+    final manuals = provider.options.manualServices;
+    if (options.isEmpty && manuals.isEmpty) {
       return _buildEmptyCatalog(provider);
     }
 
-    final services = _filteredServices(all);
+    final cards = _mergedCards(provider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (all.length > 8) ...[
+        if (options.length + manuals.length > 8) ...[
           _serviceSearchField(),
           const SizedBox(height: 10),
         ],
-        if (services.isEmpty) _buildNoMatch() else _buildAppIconsGrid(services),
+        if (cards.isEmpty) _buildNoMatch() else _buildCardsGrid(cards),
       ],
     );
   }
 
-  /// شبكة أيقونات بنفس قياسات «صفحة التطبيقات»: مربّع بحواف دائرية وتحتَه
-  /// سطر اسمه + سطر الدول والسعر ابتداءً من أرخص دولة.
-  Widget _buildAppIconsGrid(List<VirtualNumberServiceOption> services) {
-    const double spacing = 10;
-    const double targetCell = 84;
-    // ثلاث سطور تحت الأيقونة: الاسم العربي (13) + فراغ 3 + الاسم الأجنبي (10)
-    // + سطر الدول والسعر (10)، وإلا رَمي RenderFlex overflow عند ظهور السطر الثاني
-    const double infoHeight = 36;
+  /// كروت موحّدة: اليدوي أولاً لأنه الأعلى قيمة والأقل عدداً فيبقى أول ما
+  /// تراه العين، ثم كتالوج المزود. البحث يسري على النوعين معاً.
+  List<_NumberCardItem> _mergedCards(VirtualNumbersProvider provider) {
+    final q = _serviceQuery.trim().toLowerCase();
+    final cards = <_NumberCardItem>[];
+    for (final s in provider.options.manualServices) {
+      if (q.isEmpty ||
+          _matchesQuery(q, '${s.name} ${s.appName} ${s.appServiceCode}')) {
+        cards.add(_NumberCardItem.manual(s));
+      }
+    }
+    for (final s in provider.options.services) {
+      if (q.isEmpty ||
+          _matchesQuery(q, '${s.nameAr} ${s.nameEn} ${s.name} ${s.code}')) {
+        cards.add(_NumberCardItem.auto(s));
+      }
+    }
+    return cards;
+  }
+
+  bool _matchesQuery(String q, String haystack) =>
+      haystack.toLowerCase().contains(q);
+
+  /// ثلاثة كروت في الصف ثابتة: على الشاشة العريضة يكبر الكرت ولا يقلّ عدد
+  /// الكروت، والفراغ بين الكروت متساوٍ في الاتجاهين لأنها كروت لا أيقونات
+  Widget _buildCardsGrid(List<_NumberCardItem> cards) {
+    const double spacing = 8;
+    const int columns = 3;
+    // الكرت أطول من مربّع صورته بقدر تبويبي الاسم والسعر (42) وفراغ الأسطر
+    // الصغيرة فوقهما، وإلا رَمى RenderFlex overflow عند ظهور سطر الدول
+    const double infoHeight = 52;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final availableWidth = constraints.maxWidth;
-        final crossAxisCount =
-            ((availableWidth + spacing) / (targetCell + spacing))
-                .round()
-                .clamp(3, 8)
-                .toInt();
         final cellWidth =
-            (availableWidth - spacing * (crossAxisCount - 1)) / crossAxisCount;
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
 
         return GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
           padding: EdgeInsets.zero,
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
+            crossAxisCount: columns,
             crossAxisSpacing: spacing,
-            mainAxisSpacing: spacing + 4,
-            mainAxisExtent: cellWidth + 6 + infoHeight,
+            mainAxisSpacing: spacing,
+            mainAxisExtent: cellWidth + infoHeight,
           ),
-          itemCount: services.length,
+          itemCount: cards.length,
           itemBuilder: (context, index) {
-            final service = services[index];
-            return _ServiceIconTile(
-              service: service,
-              onTap: () => _openCountrySheet(service),
+            final card = cards[index];
+            return _NumberServiceCard(
+              item: card,
+              onTap: () => card.isManual
+                  ? _openManualSheet(card.manual!)
+                  : _openCountrySheet(card.option!),
             );
           },
         );
       },
     );
-  }
-
-  /// ترشيح الخدمات بالاسم العربي أو الإنجليزي أو الرمز
-  List<VirtualNumberServiceOption> _filteredServices(
-    List<VirtualNumberServiceOption> all,
-  ) {
-    final q = _serviceQuery.trim().toLowerCase();
-    if (q.isEmpty) return all;
-    return all
-        .where(
-          (s) => '${s.nameAr} ${s.nameEn} ${s.name} ${s.code}'
-              .toLowerCase()
-              .contains(q),
-        )
-        .toList();
   }
 
   Widget _serviceSearchField() {
@@ -928,18 +909,18 @@ class _ActiveNumberStrip extends StatelessWidget {
 }
 
 // =============================================================================
-// أيقونة خدمة كبيرة في الشبكة (نمط صفحة التطبيقات)
+// كرت خدمة في شبكة الأرقام: تذكرة صورتها تملؤها، ووسم النوع في زاويتها
 // =============================================================================
 
-class _ServiceIconTile extends StatelessWidget {
-  final VirtualNumberServiceOption service;
+class _NumberServiceCard extends StatelessWidget {
+  final _NumberCardItem item;
   final VoidCallback onTap;
 
-  const _ServiceIconTile({required this.service, required this.onTap});
+  const _NumberServiceCard({required this.item, required this.onTap});
 
-  /// الأيقونة المربعة: رمز التطبيق المخزّن ثم اسم الخدمة ثم الأسماء الأجنبية
+  /// رمز التطبيق الذي يملأ الكرت: الرمز المخزّن ثم الأسماء العربي والأجنبي ورمز الخدمة
   String? _findIconAsset() {
-    final cleanIcon = service.icon.trim();
+    final cleanIcon = item.iconRaw.trim();
     if (cleanIcon.isNotEmpty) {
       if (cleanIcon.startsWith('assets/')) return cleanIcon;
       final direct = builtinIconAssetExact(cleanIcon);
@@ -947,141 +928,142 @@ class _ServiceIconTile extends StatelessWidget {
       final byQuery = builtinIconAssetForQuery(cleanIcon);
       if (byQuery != null) return byQuery;
     }
-    for (final q in [service.nameAr, service.nameEn, service.name]) {
-      if (q.trim().isEmpty) continue;
-      final found = iconAssetForApp(iconUrl: service.icon, name: q.trim());
+    for (final seed in item.iconSeeds) {
+      if (seed.trim().isEmpty) continue;
+      final found = iconAssetForApp(iconUrl: cleanIcon, name: seed.trim());
       if (found != null) return found;
     }
     return null;
   }
 
+  // غلاف التذكرة: فتحتان على الحافتين وحوافة 14، والصورة تملأ الكرت كله
+  static const double _radius = 14;
+  static const double _notch = 6;
+
+  // تبويبا الكرت: شريط الاسم وشريط السعر أسفل التذكرة، والفتحتان على خطّهما
+  static const double _stubHeight = 22;
+  static const double _nameHeight = 20;
+  static const double _tabsHeight = _stubHeight + _nameHeight;
+
   @override
   Widget build(BuildContext context) {
     final String? iconAsset = _findIconAsset();
-    final displayName = service.nameAr.isNotEmpty
-        ? service.nameAr
-        : service.name;
-    // سطر أجنبي تحت الاسم العربي فقط (اتفاقية شبكة الرئيسية): إن كان الظاهر
-    // لاتينياً أصلاً فلا يُكرر في سطر ثانٍ، وإن طابق الأجنبي العربي يُحجب
-    final foreign = service.nameEn.trim();
-    final showEn =
-        _hasArabic(displayName) && foreign.isNotEmpty && foreign != displayName;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Expanded(child: _iconSquare(iconAsset, displayName)),
-          const SizedBox(height: 6),
-          Text(
-            displayName,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: AppTypography.cairo(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.slate900,
-              height: 1.2,
-            ),
-          ),
-          if (showEn) ...[
-            const SizedBox(height: 3),
-            Text(
-              foreign,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-              textDirection: TextDirection.ltr,
-              style: AppTypography.cairo(
-                fontSize: 8.5,
-                fontWeight: FontWeight.w600,
-                color: AppColors.slate400,
-                height: 1.15,
-              ),
-            ),
-          ],
-          Text(
-            '${service.countries.length} دولة • من \$${service.bestPrice.toStringAsFixed(2)}',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: AppTypography.cairo(
-              fontSize: 8.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.ticketAmber,
-              height: 1.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static bool _hasArabic(String value) =>
-      RegExp(r'[\u0600-\u06FF]').hasMatch(value);
-
-  /// مربّع بحواف دائرية (squircle) بلمعة زجاجية مثل أيقونات شاشة الهاتف
-  Widget _iconSquare(String? iconAsset, String displayName) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final size = constraints.maxWidth;
-        final radius = (size * 0.27).clamp(14.0, 30.0);
-        return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(radius),
-            gradient: const LinearGradient(
-              colors: [Color(0xFFF8FAFC), Color(0xFFE9EFF7)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+        // الفتحتان تنزلان إلى خطّ القصّ فوق تبويبي الاسم والسعر، فتنقسم
+        // التذكرة إلى صورةٍ أعلى وجنبٍ مقصوصٍ أسفل لا إلى كرتٍ بفتحةٍ في وسطه
+        final double height = constraints.maxHeight;
+        final double ceiling = (height - _radius - _notch) / height;
+        final double upper = ceiling > 0.55 ? ceiling : 0.55;
+        final double notchFraction = ((height - _tabsHeight) / height)
+            .clamp(0.55, upper)
+            .toDouble();
+
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: CustomPaint(
+            painter: TicketPassShadowPainter(
+              cornerRadius: _radius,
+              notchRadius: _notch,
+              notchPositionFraction: notchFraction,
+              // ظلّ بلون النوع: أخضر خلف المضمون وكهرماني خلف الآلي
+              shadowColor: item.tagColor,
+              elevation: 5,
             ),
-            border: Border.all(color: AppColors.outlineVariant),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.07),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+            foregroundPainter: TicketPassBorderPainter(
+              cornerRadius: _radius,
+              notchRadius: _notch,
+              notchPositionFraction: notchFraction,
+              borderColor: Colors.white.withValues(alpha: 0.75),
+              borderWidth: 1,
+            ),
+            child: ClipPath(
+              clipper: TicketPassClipper(
+                cornerRadius: _radius,
+                notchRadius: _notch,
+                notchPositionFraction: notchFraction,
               ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(radius - 1),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (iconAsset != null)
-                  Image.asset(
-                    iconAsset,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) =>
-                        _letterFallback(displayName),
-                  )
-                else
-                  _letterFallback(displayName),
-                // لمعة علوية خفيفة
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  height: size * 0.4,
-                  child: IgnorePointer(
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.white.withValues(alpha: 0.28),
-                            Colors.white.withValues(alpha: 0.0),
-                          ],
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  // الصورة تملأ الكرت: تدرّب وحرف تحتها كي لا تترك الشفافية
+                  // بياضاً على حواف التذكرة، ثم رمز التطبيق ممدوداً إلى كل الخانة
+                  _letterBackdrop(),
+                  if (iconAsset != null)
+                    Positioned.fill(
+                      child: Image.asset(
+                        iconAsset,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const SizedBox.shrink(),
+                      ),
+                    ),
+                  // تعتيم أسفل الصورة: الاسم يُقرأ فوق أي رمز ممدود
+                  const Positioned.fill(
+                    child: IgnorePointer(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            stops: [0.0, 0.4, 0.66, 0.82],
+                            colors: [
+                              Color(0x00000000),
+                              Color(0x0D000000),
+                              Color(0x66000000),
+                              Color(0xB3000000),
+                            ],
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Positioned.fill(
+                    child: Padding(
+                      // أعلى الكرت للنارة والقفل، وأسفلها الأسطر الصغيرة فوق
+                      // تبويبَي الاسم والسعر اللذين يلتصقان بآخر الكرت
+                      padding: EdgeInsets.fromLTRB(7, 20, 7, _tabsHeight + 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          // الاسم الأجنبي وعدد الدول يبقيان على الصورة، أما
+                          // الاسم والسعر فلكلٍّ تبويبه في طرف التذكرة
+                          if (item.foreign.isNotEmpty)
+                            _subLine(item.foreign, ltr: true),
+                          if (item.metaText.isNotEmpty) _subLine(item.metaText),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // تبويب الاسم فوق تبويب السعر: شريط فاتح الاسمُ فيه وحده
+                  PositionedDirectional(
+                    bottom: _stubHeight,
+                    start: 0,
+                    end: 0,
+                    child: _nameTab(),
+                  ),
+                  // تبويب السعر أسفل الكرت: السعر وحده، أكبر وأبين من قبل
+                  PositionedDirectional(
+                    bottom: 0,
+                    start: 0,
+                    end: 0,
+                    child: _priceStub(),
+                  ),
+                  // شارة النوع في زاوية الكرت: هي وحدها ما يفرّق خدمةَ مشرف
+                  // مضمونة عن رقم مزود آلي، بعد أن ادمجت الشبكة الواحدة القسمين
+                  PositionedDirectional(top: 4, start: 4, child: _typeTag()),
+                  if (item.sensitive)
+                    // قفل صغير في الزاوية المقابلة: الخدمة تطلب بيانات سرية
+                    PositionedDirectional(
+                      top: 4,
+                      end: 4,
+                      child: _sensitiveLock(),
+                    ),
+                ],
+              ),
             ),
           ),
         );
@@ -1089,248 +1071,236 @@ class _ServiceIconTile extends StatelessWidget {
     );
   }
 
-  Widget _letterFallback(String displayName) {
-    final letter = displayName.isNotEmpty
-        ? displayName.substring(0, 1)
-        : (service.code.isEmpty
-              ? '#'
-              : service.code.substring(0, 1).toUpperCase());
-    return Center(
+  /// سطر مساعد فوق الاسم: الاسم الأجنبي أو عدد الدول، بخطّ خافت صغير
+  Widget _subLine(String text, {bool ltr = false}) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 2),
       child: Text(
-        letter,
-        style: AppTypography.fintechBadge(
-          color: AppColors.slate800,
-          fontSize: 20,
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// بطاقة خدمة يدوية — القسم الأول «تفعيل مضمون»
-// =============================================================================
-
-class _ManualServiceCard extends StatelessWidget {
-  final VirtualNumberManualServiceModel service;
-  final VoidCallback onTap;
-
-  const _ManualServiceCard({required this.service, required this.onTap});
-
-  // هوية التذكرة كما في بقية بطاقات التطبيق: شقّان في المنتصف على الحافتين،
-  // وحشو أفقي (14) أعمق من الشقّ (8) حتى لا يلمسه النص
-  static const double _radius = 16;
-  static const double _notch = 8;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      painter: TicketPassShadowPainter(
-        cornerRadius: _radius,
-        notchRadius: _notch,
-        notchPositionFraction: 0.5,
-        shadowColor: AppColors.emerald,
-        elevation: 6,
-      ),
-      foregroundPainter: TicketPassBorderPainter(
-        cornerRadius: _radius,
-        notchRadius: _notch,
-        notchPositionFraction: 0.5,
-        borderColor: AppColors.outlineVariant,
-        borderWidth: 1,
-      ),
-      child: ClipPath(
-        clipper: TicketPassClipper(
-          cornerRadius: _radius,
-          notchRadius: _notch,
-          notchPositionFraction: 0.5,
-        ),
-        child: Material(
-          color: Colors.white,
-          child: InkWell(
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _appBadge(),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              service.name,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.cairo(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w900,
-                                color: AppColors.slate900,
-                                height: 1.25,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              service.description.isNotEmpty
-                                  ? service.description
-                                  : 'تفعيل على يد مختص برسم مُخصم من رصيدك',
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTypography.cairo(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.slate500,
-                                height: 1.3,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppColors.slate900,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          '\$${service.price.toStringAsFixed(2)}',
-                          style: AppTypography.cairo(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w900,
-                            color: const Color(0xFFFDE047),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  // خطّ التمزّق بين نصفي التذكرة
-                  SizedBox(
-                    height: 2,
-                    child: CustomPaint(
-                      painter: DashedLinePainter(
-                        color: AppColors.outlineVariant,
-                        dashWidth: 4,
-                        dashSpace: 4,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
-                    children: [
-                      _chip(Icons.verified_user_rounded, 'تنفيذ يدوي مضمون'),
-                      if (service.etaLabel.isNotEmpty)
-                        _chip(Icons.schedule_rounded, service.etaLabel),
-                      if (service.appName.isNotEmpty)
-                        _chip(Icons.apps_rounded, service.appName),
-                      if (service.isSensitive)
-                        _chip(Icons.lock_outline_rounded, 'بيانات سرية'),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        textDirection: ltr ? TextDirection.ltr : null,
+        style: AppTypography.cairo(
+          fontSize: 8.5,
+          fontWeight: FontWeight.w700,
+          color: Colors.white70,
+          height: 1.15,
         ),
       ),
     );
   }
 
-  /// أيقونة التطبيق المرتبط بالخدمة، وحرف اسم الخدمة بديلاً عنها
-  Widget _appBadge() {
-    final asset = _resolveAppIcon();
+  /// تبويب الاسم: شريط فاتح أعلى شريط السعر، الاسمُ فيه وحده بخطّ داكن
+  /// بائن، فلا يقرأه أحد فوق صورة داكنة ولا ينافس السعرَ في طرف الكرت
+  Widget _nameTab() {
     return Container(
-      width: 44,
-      height: 44,
+      height: _nameHeight,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFF8FAFC), Color(0xFFEDF2F7)],
+        color: Colors.white.withValues(alpha: 0.94),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.55),
+            width: 0.8,
+          ),
         ),
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
-      child: asset != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: Image.asset(
-                asset,
-                width: 32,
-                height: 32,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) => _letter(),
-              ),
-            )
-          : _letter(),
-    );
-  }
-
-  String? _resolveAppIcon() {
-    final raw = service.appIcon.trim();
-    if (raw.isNotEmpty) {
-      if (raw.startsWith('assets/')) return raw;
-      final direct = builtinIconAssetExact(raw);
-      if (direct != null) return direct;
-      final byQuery = builtinIconAssetForQuery(raw);
-      if (byQuery != null) return byQuery;
-    }
-    for (final name in [service.appName, service.name]) {
-      if (name.trim().isEmpty) continue;
-      final found = iconAssetForApp(iconUrl: raw, name: name.trim());
-      if (found != null) return found;
-    }
-    return null;
-  }
-
-  Widget _letter() {
-    final source = service.appName.isNotEmpty ? service.appName : service.name;
-    return Text(
-      source.isEmpty ? '#' : source.substring(0, 1),
-      style: AppTypography.fintechBadge(
-        color: AppColors.slate800,
-        fontSize: 15,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text(
+          item.name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: AppTypography.cairo(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w900,
+            color: AppColors.slate900,
+            height: 1.15,
+          ),
+        ),
       ),
     );
   }
 
-  Widget _chip(IconData icon, String label) {
+  /// شريط السعر أسفل التذكرة: أرضية داكنة وخطّ كبير بلون التطبيق المميز،
+  /// فالسعر أول ما تقرأه العين ولا ينافسه سطرُ الدول ولا الاسم
+  Widget _priceStub() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      height: _stubHeight,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.slate900.withValues(alpha: 0.94),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withValues(alpha: 0.4),
+            width: 0.8,
+          ),
+        ),
+      ),
+      child: Text(
+        item.priceText,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        textAlign: TextAlign.center,
+        style: AppTypography.cairo(
+          fontSize: 11.5,
+          fontWeight: FontWeight.w900,
+          color: AppColors.ticketAmber,
+          height: 1.15,
+        ),
+      ),
+    );
+  }
+
+  /// قفل على زاوية كرت الخدمة التي تطلب بيانات سرية
+  Widget _sensitiveLock() {
+    return Container(
+      padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: AppColors.slate100,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(5),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: AppColors.slate600),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: AppTypography.cairo(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              color: AppColors.slate600,
-            ),
-          ),
-        ],
+      child: const Icon(
+        Icons.lock_outline_rounded,
+        size: 9,
+        color: AppColors.rose,
+      ),
+    );
+  }
+
+  /// وسم صغير أعلى الكرت: أخضر للتفعيل المضمون، كهرماني للرقم الآلي
+  Widget _typeTag() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: item.tagColor,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        item.tag,
+        maxLines: 1,
+        style: AppTypography.cairo(
+          fontSize: 7,
+          fontWeight: FontWeight.w900,
+          color: Colors.white,
+          height: 1.2,
+        ),
+      ),
+    );
+  }
+
+  /// خلفية التذكرة: تدرّج بحرف كبير من اسم الخدمة، تُمدّ فوقها الصورة عند وجودها
+  Widget _letterBackdrop() {
+    final letter = item.name.isNotEmpty
+        ? item.name.substring(0, 1)
+        : (item.letterSeed.isEmpty
+              ? '#'
+              : item.letterSeed.substring(0, 1).toUpperCase());
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF1E293B), Color(0xFF475569)],
+        ),
+      ),
+      child: Center(
+        child: Text(
+          letter,
+          style: AppTypography.fintechBadge(color: Colors.white, fontSize: 30),
+        ),
       ),
     );
   }
 }
+
+// =============================================================================
+// عنصر شبكة الأرقام: خدمة يدوية مضمونة أو رقم مزود تلقائي في قالب واحد
+// =============================================================================
+
+/// بيانات جاهزة للرسم تجمع النوعين، فتُرسم الشبكة الواحدة بكروت متطابقة لا
+/// تتفرّع إلا في النص وشارة الزاوية ونافذة الطلب التي يفتحها النقر
+class _NumberCardItem {
+  const _NumberCardItem({
+    required this.isManual,
+    required this.name,
+    required this.iconRaw,
+    required this.iconSeeds,
+    required this.letterSeed,
+    required this.priceText,
+    required this.tag,
+    required this.tagColor,
+    this.foreign = '',
+    this.metaText = '',
+    this.sensitive = false,
+    this.manual,
+    this.option,
+  });
+
+  /// خدمة يدوية: اسمها العربي وحده في السطر الأول، وتبويب السعر أسفل الكرت
+  factory _NumberCardItem.manual(VirtualNumberManualServiceModel s) {
+    return _NumberCardItem(
+      isManual: true,
+      name: s.name,
+      iconRaw: s.appIcon,
+      // أيقونة التطبيق المرتبط ثم اسم الخدمة: «تفعيل تيليجرام يدوي» يدلّ على
+      // تيليجرام، فتبقى الأيقونة مطابقة لبقية الكروت حتى بلا رمز مخزّن
+      iconSeeds: <String>[s.appName, s.name, s.appServiceCode],
+      letterSeed: s.appName.isNotEmpty ? s.appName : s.name,
+      priceText: '\$${s.price.toStringAsFixed(2)}',
+      tag: 'يدوي مضمون',
+      tagColor: AppColors.emerald,
+      // الخدمة التي تطلب بيانات سرية تُنبَّه بقفل على الكرت، لا بنص يقرأه المار
+      sensitive: s.isSensitive,
+      manual: s,
+    );
+  }
+
+  /// رقم مزود: الاسم العربي وتحته الأجنبي، والدول سطرٌ والسعر في تبويبه
+  factory _NumberCardItem.auto(VirtualNumberServiceOption s) {
+    final displayName = s.nameAr.isNotEmpty ? s.nameAr : s.name;
+    final foreign = s.nameEn.trim();
+    // السطر الأجنبي لا يظهر إلا تحت اسم عربي: إن كان الظاهر لاتينياً أصلاً
+    // فلا يُكرر، وإن طابق الأجنبي العربي يُحجب
+    final showForeign =
+        _hasArabicText(displayName) &&
+        foreign.isNotEmpty &&
+        foreign != displayName;
+    return _NumberCardItem(
+      isManual: false,
+      name: displayName,
+      iconRaw: s.icon,
+      iconSeeds: <String>[s.nameAr, s.nameEn, s.name],
+      letterSeed: s.code,
+      priceText: 'من \$${s.bestPrice.toStringAsFixed(2)}',
+      metaText: '${s.countries.length} دولة',
+      tag: 'تلقائي',
+      tagColor: AppColors.ticketAmber,
+      foreign: showForeign ? foreign : '',
+      option: s,
+    );
+  }
+
+  final bool isManual;
+  final String name;
+  final String foreign;
+  final String iconRaw;
+  final List<String> iconSeeds;
+  final String letterSeed;
+
+  /// السعر وحده: يُرسم في تبويب أسفل الكرت لا مختلطاً بغيره
+  final String priceText;
+  final String metaText;
+  final String tag;
+  final Color tagColor;
+  final bool sensitive;
+  final VirtualNumberManualServiceModel? manual;
+  final VirtualNumberServiceOption? option;
+}
+
+bool _hasArabicText(String value) => RegExp(r'[\u0600-\u06FF]').hasMatch(value);
 
 // =============================================================================
 // نافذة طلب خدمة يدوية (تفعيل مضمون)

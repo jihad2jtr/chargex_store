@@ -238,6 +238,13 @@ class OrderModel {
     String? supName;
     String? supPhone;
 
+    // خدمات الأرقام اليدوية لا ترتبط بتطبيق متجر: هويتها (اسمها وأيقونتها) في
+    // «تطبيق الأرقام» populate من الخادم. إغفال هذا المرجع يترك التذكرة بلا
+    // أيقونة وبلا سطر ثانٍ، فيُقرأ منه كبديل عند غياب تطبيق المتجر.
+    final Map vnApp = json['virtualNumberAppId'] is Map
+        ? json['virtualNumberAppId'] as Map
+        : const <dynamic, dynamic>{};
+
     if (json['assignedSupervisorId'] is Map) {
       supId =
           (json['assignedSupervisorId']['_id'] ??
@@ -278,10 +285,12 @@ class OrderModel {
           : (json['appId'] ?? ''),
       appName:
           json['appName'] ??
-          (json['appId'] is Map ? json['appId']['name'] : ''),
+          (json['appId'] is Map
+              ? json['appId']['name']
+              : (vnApp['name'] ?? '')),
       appIcon:
           json['appIcon'] ??
-          (json['appId'] is Map ? json['appId']['iconUrl'] : null),
+          (json['appId'] is Map ? json['appId']['iconUrl'] : vnApp['iconUrl']),
       appType: AppItemModel.normalizeAppType(
         json['appId'] is Map
             ? json['appId']['appType']
@@ -386,6 +395,9 @@ class OrderModel {
       'userId': userId,
       'appId': appId,
       'appName': appName,
+      // الأيقونة تُخزَّن مسطّحة كي تصمد إعادة القراءة من الذاكرة المحلية:
+      // بدونها تظهر التذاكر المطمورة بلا أيقونة حتى مع بقاء الاسم
+      'appIcon': appIcon,
       'appType': appType,
       'productId': productId,
       'productName': productName,

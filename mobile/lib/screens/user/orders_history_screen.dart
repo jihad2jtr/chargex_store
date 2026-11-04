@@ -12,7 +12,6 @@ import '../../providers/app_catalog_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../widgets/app_thumb.dart';
 import '../../widgets/status_pill.dart';
-import 'app_products_screen.dart';
 import 'manual_order_details_screen.dart';
 import 'virtual_number_wait_screen.dart';
 
@@ -69,9 +68,15 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   /// مقتطعة في مربّع صغير، وتقع الصورة المخزّنة للمنتجات المجهولة فقط.
   AppItemModel _orderAppItem(OrderModel order) {
     final String stored = (order.appIcon ?? '').trim();
+    // الطلبات اليدوية لا تطبيق متجر لها، فاسم التطبيق قد يظل فارغاً (سجل قديم
+    // أو تطبيق أرقام محذوف): يُشتق الرمز من اسم الخدمة نفسه — «تفعيل
+    // تيليجرام يدوي» يدلّ على تيليجرام — فلا تبقى التذكرة بلا أيقونة
+    final String seed = order.appName.trim().isNotEmpty
+        ? order.appName
+        : order.productName;
     final String? icon =
-        iconAssetForApp(iconUrl: stored, name: order.appName) ??
-        builtinIconAssetForName(order.appName);
+        iconAssetForApp(iconUrl: stored, name: seed) ??
+        builtinIconAssetForName(seed);
     return AppItemModel(
       id: order.appId,
       name: order.appName,
@@ -110,33 +115,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         backgroundColor: const Color(0xFF0F172A),
         behavior: SnackBarBehavior.floating,
       ),
-    );
-  }
-
-  void _reorderApp(OrderModel order, AppCatalogProvider catalog) {
-    AppItemModel? targetApp;
-    try {
-      targetApp = catalog.apps.firstWhere((a) => a.id == order.appId);
-    } catch (_) {
-      try {
-        targetApp = catalog.apps.firstWhere(
-          (a) =>
-              a.name.trim().toLowerCase() ==
-                  order.appName.trim().toLowerCase() ||
-              a.name.contains(order.appName) ||
-              order.appName.contains(a.name),
-        );
-      } catch (_) {
-        targetApp = AppItemModel(
-          id: order.appId,
-          name: order.appName,
-          iconUrl: order.appIcon ?? '',
-        );
-      }
-    }
-
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => AppProductsScreen(app: targetApp!)),
     );
   }
 
@@ -266,7 +244,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                   _OrderHistoryRow(:final order) => _buildOrderTicket(
                     order,
                     dateStr,
-                    catalog,
                   ),
                   _NumberHistoryRow(:final request) => _buildNumberTicket(
                     request,
@@ -824,11 +801,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   // ===========================================================================
   // 4. ORDER TICKET — صف مدمج قابل لفرد التفاصيل
   // ===========================================================================
-  Widget _buildOrderTicket(
-    OrderModel order,
-    String dateStr,
-    AppCatalogProvider catalog,
-  ) {
+  Widget _buildOrderTicket(OrderModel order, String dateStr) {
     final bool open = _isOpen(order);
     final Color borderColor = order.isCompleted
         ? const Color(0xFF10B981).withValues(alpha: 0.25)
@@ -1451,127 +1424,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                   ),
                                 ],
 
-                                // Manual Service Interactive Banner
-                                if (order.isManual) ...[
-                                  const SizedBox(height: 7),
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 9,
-                                      vertical: 7,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: order.isDelivered
-                                          ? const Color(0xFFECFDF5)
-                                          : (order.isDisputed
-                                                ? const Color(0xFFFEF2F2)
-                                                : const Color(0xFFF0FDF4)),
-                                      borderRadius: BorderRadius.circular(10),
-                                      border: Border.all(
-                                        color: order.isDelivered
-                                            ? const Color(
-                                                0xFF10B981,
-                                              ).withValues(alpha: 0.4)
-                                            : (order.isDisputed
-                                                  ? const Color(
-                                                      0xFFEF4444,
-                                                    ).withValues(alpha: 0.35)
-                                                  : const Color(
-                                                      0xFF6366F1,
-                                                    ).withValues(alpha: 0.3)),
-                                      ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(5),
-                                          decoration: BoxDecoration(
-                                            color: order.isDelivered
-                                                ? const Color(
-                                                    0xFF10B981,
-                                                  ).withValues(alpha: 0.15)
-                                                : (order.isDisputed
-                                                      ? const Color(
-                                                          0xFFEF4444,
-                                                        ).withValues(
-                                                          alpha: 0.15,
-                                                        )
-                                                      : const Color(
-                                                          0xFF6366F1,
-                                                        ).withValues(
-                                                          alpha: 0.15,
-                                                        )),
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Icon(
-                                            order.isDelivered
-                                                ? Icons.verified_rounded
-                                                : (order.isDisputed
-                                                      ? Icons
-                                                            .report_problem_rounded
-                                                      : Icons
-                                                            .support_agent_rounded),
-                                            size: 15,
-                                            color: order.isDelivered
-                                                ? const Color(0xFF059669)
-                                                : (order.isDisputed
-                                                      ? const Color(0xFFDC2626)
-                                                      : const Color(
-                                                          0xFF6366F1,
-                                                        )),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                order.isDelivered
-                                                    ? 'تم تسليم النتيجة! اضغط للمراجعة'
-                                                    : (order.isDisputed
-                                                          ? 'اعتراض قيد المعالجة من الإدارة'
-                                                          : 'خدمة يدوية بإشراف مشرف مختص'),
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: AppTypography.cairo(
-                                                  fontSize: 10.5,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: order.isDelivered
-                                                      ? const Color(0xFF059669)
-                                                      : (order.isDisputed
-                                                            ? const Color(
-                                                                0xFFDC2626,
-                                                              )
-                                                            : const Color(
-                                                                0xFF0F172A,
-                                                              )),
-                                                ),
-                                              ),
-                                              Text(
-                                                'المحادثة وبيانات الطلب في اللوحة المثبتة عند فرد التذكرة',
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: AppTypography.cairo(
-                                                  fontSize: 9,
-                                                  color: const Color(
-                                                    0xFF64748B,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        const Icon(
-                                          Icons.arrow_forward_ios_rounded,
-                                          size: 12,
-                                          color: Color(0xFF94A3B8),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-
                                 // Admin Notes (if rejected or notice)
                                 if (order.adminNotes != null &&
                                     order.adminNotes!.isNotEmpty) ...[
@@ -1651,41 +1503,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                         ),
                                         onPressed: () =>
                                             _copyOrderSummary(order),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 7),
-
-                                    // Quick Re-Order Action
-                                    Expanded(
-                                      child: ElevatedButton.icon(
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: const Color(
-                                            0xFF0F172A,
-                                          ),
-                                          foregroundColor: Colors.white,
-                                          elevation: 0,
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          padding: const EdgeInsets.symmetric(
-                                            vertical: 5,
-                                          ),
-                                        ),
-                                        icon: const Icon(
-                                          Icons.replay_rounded,
-                                          size: 13,
-                                        ),
-                                        label: Text(
-                                          'إعادة الطلب',
-                                          style: AppTypography.cairo(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        onPressed: () =>
-                                            _reorderApp(order, catalog),
                                       ),
                                     ),
                                   ],

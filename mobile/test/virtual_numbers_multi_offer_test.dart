@@ -199,9 +199,16 @@ void main() {
 
       await _openSheet(w);
 
-      // صف الدولة: «متاحة من 2 سيرفر» و«من $0.80» بدل سعر واحد
+      // صف الدولة: «متاحة من 2 سيرفر» و«من $0.80» بدل سعر واحد (في النافذة
+      // وحدها، فكرت الشبكة خلفها يعرض أرخص سعر في تبويبه)
       expect(find.text('متاحة من 2 سيرفر'), findsOneWidget);
-      expect(find.text('من \$0.80'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(BottomSheet),
+          matching: find.text('من \$0.80'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('السيرفر'), findsOneWidget);
 
       // بطاقتان مستقلتان: لكل سيرفر اسمه المبهم «سيرفر N» وسعره، ولا يظهر
