@@ -507,12 +507,18 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                 color: AppColors.slate900,
               ),
             ),
-            Text(
-              '#${_currentOrder.orderNumber}',
-              style: AppTypography.spaceMono(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: AppColors.primaryBlue,
+            // رقم الطلب قد يطول: Flexible بلا نص عارٍ وإلا فيض AppBar على
+            // الشاشات الضيقة بدل أن يقُص الرقم المرئي
+            Flexible(
+              child: Text(
+                '#${_currentOrder.orderNumber}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.spaceMono(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primaryBlue,
+                ),
               ),
             ),
           ],

@@ -473,8 +473,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   }
 
   // ===========================================================================
-  // 1.5 MANUAL ORDERS — «بيانات الطلب»: الرسائل المثبتة تظهر على التذكرة
-  // نفسها، والضغط على اللوحة يفتح المحادثة (نظام الشات مع التثبيت)
+  // 1.5 MANUAL ORDERS — «بيانات الطلب»: الرسائل المثبتة داخل التذكرة المفردة،
+  // تظهر بالضغط على الطلب، والضغط على اللوحة يفتح المحادثة (نظام الشات مع التثبيت)
   // ===========================================================================
   Widget _manualPinnedPanel(OrderModel order) {
     Future<void> openChat() async {
@@ -835,8 +835,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         : (order.isRejected
               ? const Color(0xFFEF4444).withValues(alpha: 0.25)
               : const Color(0xFFE2E8F0));
-    // كل التذاكر تفرد/تطوى بالضغط — يدوية كانت أو غيرها: الدخول إلى
-    // محادثة اليدوية صار من لوحة «بيانات الطلب» المثبتة أسفل التذكرة
+    // كل التذاكر تفرد/تطوى بالضغط — يدوية كانت أو غيرها: لوحة «بيانات الطلب»
+    // والمحادثة صارت داخل التذكرة المفردة، لا تظهر وهي مطوية
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1115,10 +1115,6 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                 ),
               ),
 
-              // اليدوية: «بيانات الطلب» (الرسائل المثبتة) ظاهرة دائماً،
-              // والضغط عليها يفتح المحادثة — هيكل الشات بدل شاشة التفاصيل
-              if (order.isManual) _manualPinnedPanel(order),
-
               // التفاصيل تُطوى افتراضياً كي تبقى قائمة السجل قصيرة
               AnimatedSize(
                 duration: const Duration(milliseconds: 180),
@@ -1128,6 +1124,10 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     ? Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          // اليدوية: «بيانات الطلب» (الرسائل المثبتة) أول ما يُفرَد
+                          // مع التذكرة، والضغط على لوحتها يفتح المحادثة
+                          if (order.isManual) _manualPinnedPanel(order),
+
                           // ===============================================================
                           // PASS BOTTOM: بيانات الحساب، الكود، والمُخرجات عند الفرد
                           // ===============================================================
@@ -1549,7 +1549,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                                                 ),
                                               ),
                                               Text(
-                                                'المحادثة وبيانات الطلب من اللوحة المثبتة فوق',
+                                                'المحادثة وبيانات الطلب في اللوحة المثبتة عند فرد التذكرة',
                                                 maxLines: 1,
                                                 overflow: TextOverflow.ellipsis,
                                                 style: AppTypography.cairo(
