@@ -271,9 +271,6 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
             _heroCard(request, waiting),
             const SizedBox(height: 12),
             if (request.hasCode) ...[
-              // للنداء بطاقته المستقلة: لا يحلّ محل الرقم بل يُعرض دونه
-              _codeCard(request),
-              const SizedBox(height: 12),
               _smsTextCard(request),
               const SizedBox(height: 12),
               _successActions(request),
@@ -325,7 +322,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
   }
 
   // ===========================================================================
-  // البطاقة الرئيسية: الرقم (إطاره لا يتغير بوصول النداء) + العدّاد + النبض
+  // البطاقة الرئيسية: الرقم + العدّاد الدائري + نبض الانتظار أو الرمز
   // ===========================================================================
   Widget _heroCard(VirtualNumberRequestModel request, bool waiting) {
     final hasCode = request.hasCode;
@@ -372,8 +369,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
             ],
           ),
           const SizedBox(height: 16),
-          // الرقم يبقى في إطاره دائمًا: حين يصل النداء تُفتح له بطاقة
-          // منفصلة — دمجهما في مكان واحد يُلبس العميل الرقمَ محلَّ الرمز
+          // الرقم للنسخ — أو الرمز نفسه عندما يصل
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
@@ -391,9 +387,11 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        request.phoneNumber == null
+                        hasCode
+                            ? 'رمز التحقق وصل ✅'
+                            : request.phoneNumber == null
                             ? 'جارٍ تجهيز الرقم…'
-                            : 'رقمك — أدخله في التطبيق',
+                            : 'أدخل هذا الرقم في التطبيق',
                         style: AppTypography.cairo(
                           fontSize: 10.5,
                           fontWeight: FontWeight.w700,
@@ -402,12 +400,16 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
                       ),
                       const SizedBox(height: 4),
                       SelectableText(
-                        request.phoneNumber ?? '— — — —',
+                        hasCode
+                            ? request.smsCode!
+                            : (request.phoneNumber ?? '— — — —'),
                         style: AppTypography.technicalCode(
-                          color: Colors.white,
-                          fontSize: 17,
+                          color: hasCode
+                              ? const Color(0xFF6EE7B7)
+                              : Colors.white,
+                          fontSize: hasCode ? 24 : 17,
                           fontWeight: FontWeight.w900,
-                          letterSpacing: 1.1,
+                          letterSpacing: hasCode ? 4 : 1.1,
                         ),
                         maxLines: 2,
                       ),
@@ -416,7 +418,10 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
                 ),
                 InkWell(
                   borderRadius: BorderRadius.circular(10),
-                  onTap: () => _copy(request.phoneNumber ?? '', 'الرقم'),
+                  onTap: () => _copy(
+                    hasCode ? request.smsCode! : (request.phoneNumber ?? ''),
+                    hasCode ? 'الرمز' : 'الرقم',
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(8),
                     child: Icon(
@@ -553,93 +558,12 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
   }
 
   // ===========================================================================
-  // بطاقة النداء: تُفتح وحدها عند وصول الرمز — لا تزاحم الرقم في إطاره
-  // فتتميَّز هوية النداء من أول نظرة
-  // ===========================================================================
-  Widget _codeCard(VirtualNumberRequestModel request) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(14, 12, 12, 14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.emerald.withValues(alpha: 0.5),
-          width: 1.4,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.emerald.withValues(alpha: 0.14),
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.call_received_rounded,
-                size: 16,
-                color: AppColors.emerald,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'وصل نداء إلى الرقم — رمز التحقق',
-                  style: AppTypography.cairo(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                    color: AppColors.slate900,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: SelectableText(
-                  request.smsCode!,
-                  style: AppTypography.technicalCode(
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 4,
-                    color: AppColors.emerald,
-                  ),
-                  maxLines: 2,
-                ),
-              ),
-              InkWell(
-                borderRadius: BorderRadius.circular(10),
-                onTap: () => _copy(request.smsCode!, 'الرمز'),
-                child: const Padding(
-                  padding: EdgeInsets.all(8),
-                  child: Icon(
-                    Icons.copy_rounded,
-                    size: 18,
-                    color: AppColors.emerald,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ===========================================================================
-  // نص نداء كامل كما ورد: يفيد حين يقص الرمز المستخرج أو يريد العميل قراءة
-  // الرسالة — والرمز يُبرز داخلها لئلا يختلط بغيره من الأرقام
+  // نص رسالة SMS الكامل: يفيد حين يقص الرمز المستخرج أو يريد العميل قراءته
   // ===========================================================================
   Widget _smsTextCard(VirtualNumberRequestModel request) {
     final smsText = request.smsText;
-    if (smsText == null || smsText.trim().isEmpty) {
+    if (smsText == null || smsText.trim().isEmpty)
       return const SizedBox.shrink();
-    }
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -648,75 +572,35 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.slate100),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Icon(Icons.sms_rounded, size: 16, color: AppColors.slate600),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'نص النداء الوارد',
-                  style: AppTypography.cairo(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.slate600,
-                  ),
-                ),
-              ),
-              InkWell(
-                borderRadius: BorderRadius.circular(8),
-                onTap: () => _copy(smsText, 'نص الرسالة'),
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
-                  child: Icon(
-                    Icons.copy_rounded,
-                    size: 15,
-                    color: AppColors.slate500,
-                  ),
-                ),
-              ),
-            ],
+          const Icon(Icons.sms_rounded, size: 16, color: AppColors.emerald),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              smsText,
+              style: AppTypography.technicalCode(
+                fontSize: 11.5,
+                color: AppColors.slate700,
+              ).copyWith(height: 1.5),
+            ),
           ),
-          const SizedBox(height: 8),
-          Text.rich(
-            TextSpan(children: _callTextSpans(smsText, request.smsCode)),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () => _copy(smsText, 'نص الرسالة'),
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(
+                Icons.copy_rounded,
+                size: 15,
+                color: AppColors.slate500,
+              ),
+            ),
           ),
         ],
       ),
     );
-  }
-
-  /// تقطيع نص النداء: المقطع المطابق للرمز يُبرز بالأخضر العريض، فيبقى
-  /// بقية النص (ومن فيه أرقام كرقم المرسل) بلون عادي لا يشوّش على الرمز
-  List<InlineSpan> _callTextSpans(String text, String? code) {
-    final base = AppTypography.technicalCode(
-      fontSize: 11.5,
-      color: AppColors.slate700,
-    ).copyWith(height: 1.5);
-    if (code == null || code.isEmpty || !text.contains(code)) {
-      return [TextSpan(text: text, style: base)];
-    }
-    final hot = base.copyWith(
-      color: AppColors.emerald,
-      fontWeight: FontWeight.w900,
-    );
-    final spans = <InlineSpan>[];
-    var cursor = 0;
-    while (true) {
-      final at = text.indexOf(code, cursor);
-      if (at < 0) {
-        spans.add(TextSpan(text: text.substring(cursor), style: base));
-        break;
-      }
-      if (at > cursor) {
-        spans.add(TextSpan(text: text.substring(cursor, at), style: base));
-      }
-      spans.add(TextSpan(text: code, style: hot));
-      cursor = at + code.length;
-    }
-    return spans;
   }
 
   Widget _successActions(VirtualNumberRequestModel request) {
