@@ -30,10 +30,7 @@ class VirtualNumbersScreen extends StatefulWidget {
   State<VirtualNumbersScreen> createState() => _VirtualNumbersScreenState();
 }
 
-enum VirtualNumberCategory {
-  auto,
-  manual,
-}
+enum VirtualNumberCategory { auto, manual }
 
 class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   final Set<String> _codeAnnounced = {};
