@@ -46,6 +46,7 @@ class AppTheme {
       outlineVariant: AppColors.outlineVariant,
       inverseSurface: AppColors.inverseSurface,
       onInverseSurface: AppColors.inverseOnSurface,
+      surfaceTint: Colors.transparent,
     );
 
     return base.copyWith(
@@ -76,7 +77,7 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: AppColors.surfaceContainer,
+        fillColor: AppColors.slate50,
         hintStyle: const TextStyle(
           color: AppColors.onSurfaceVariant,
           fontSize: 14,
@@ -159,9 +160,169 @@ class AppTheme {
       ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: AppColors.surfaceContainer,
+        surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
+      ),
+      dividerTheme: const DividerThemeData(
+        color: AppColors.slate200,
+        thickness: 1,
+        space: 1,
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.slate900,
+        contentTextStyle: GoogleFonts.cairo(
+          color: Colors.white,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+        ),
+        behavior: SnackBarBehavior.floating,
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      progressIndicatorTheme: const ProgressIndicatorThemeData(
+        color: AppColors.primary,
+        linearTrackColor: AppColors.slate200,
+        circularTrackColor: AppColors.slate200,
+      ),
+      textSelectionTheme: const TextSelectionThemeData(
+        cursorColor: AppColors.primary,
+        selectionColor: AppColors.primaryFixed,
+        selectionHandleColor: AppColors.primary,
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          textStyle: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w700),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.primary,
+          side: const BorderSide(color: AppColors.outline),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          foregroundColor: AppColors.onPrimary,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: GoogleFonts.cairo(fontSize: 14, fontWeight: FontWeight.w700),
+        ),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(foregroundColor: AppColors.slate700),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: AppColors.primary,
+        foregroundColor: AppColors.onPrimary,
+        elevation: 0,
+        focusElevation: 0,
+        hoverElevation: 0,
+        highlightElevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(16)),
+        ),
+      ),
+      checkboxTheme: CheckboxThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return AppColors.primary;
+          return Colors.transparent;
+        }),
+        checkColor: const WidgetStatePropertyAll(AppColors.onPrimary),
+        side: const BorderSide(color: AppColors.slate400, width: 1.4),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      ),
+      radioTheme: RadioThemeData(
+        fillColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return AppColors.primary;
+          return AppColors.slate400;
+        }),
+      ),
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return AppColors.onPrimary;
+          return AppColors.slate400;
+        }),
+        trackColor: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) return AppColors.primary;
+          return AppColors.slate200;
+        }),
+      ),
+      chipTheme: ChipThemeData(
+        backgroundColor: AppColors.slate100,
+        selectedColor: AppColors.primaryWash,
+        disabledColor: AppColors.slate100,
+        labelStyle: GoogleFonts.cairo(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: AppColors.slate700,
+        ),
+        secondaryLabelStyle: GoogleFonts.cairo(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: AppColors.primaryDeep,
+        ),
+        side: const BorderSide(color: AppColors.slate200),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      ),
+      tabBarTheme: TabBarThemeData(
+        indicatorColor: AppColors.primary,
+        labelColor: AppColors.primary,
+        unselectedLabelColor: AppColors.slate500,
+        dividerColor: AppColors.slate200,
+        labelStyle: GoogleFonts.cairo(fontSize: 13.5, fontWeight: FontWeight.w800),
+        unselectedLabelStyle: GoogleFonts.cairo(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: AppColors.slate900,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        textStyle: GoogleFonts.cairo(
+          color: Colors.white,
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        iconColor: AppColors.slate600,
+        textColor: AppColors.slate900,
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: AppColors.surfaceBright,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.slate200),
+        ),
+        textStyle: GoogleFonts.cairo(
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
+          color: AppColors.slate900,
+        ),
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: const WidgetStatePropertyAll(AppColors.slate300),
+        radius: const Radius.circular(8),
+        thickness: const WidgetStatePropertyAll(4),
       ),
     );
   }
