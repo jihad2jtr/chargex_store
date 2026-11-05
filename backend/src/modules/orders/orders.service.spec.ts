@@ -446,3 +446,77 @@ describe('OrdersService — قفل الدردشة في وجه العميل بع�
     ).rejects.toThrow(ForbiddenException);
   });
 });
+
+// =============================================================================
+// شراء مقدّم الخدمة من نفسه محظور: الخدمة المسندة إليه ينفذها للغير،
+// فطلبها من حسابه يعني أنه ينفّذ لنفسه ويُلغي فصل الأدوار.
+// الحراسة تُقارن بالمعرّف لا بنصّ الحقل، وتتحمّل أن يجيء المسند مستنداً بعد populate.
+// =============================================================================
+const asQuery = (doc: any) => ({
+  populate: () => asQuery(doc),
+  then: (resolve: any) => Promise.resolve(doc).then(resolve),
+});
+
+function createPurchaseHarness(user: any, product: any) {
+  return new OrdersService(
+    {} as any, // orderModel — الحراسة تسبق أي كتابة
+    { findById: () => asQuery(product) } as any,
+    {} as any, // appModel
+    { findById: () => Promise.resolve(user) } as any,
+    {} as any, // transactionModel
+    {} as any, // notificationsService
+    {} as any, // providersService
+    {} as any, // usersService
+    {} as any, // connection
+  );
+}
+
+describe('OrdersService — مقدّم الخدمة لا يشتري من نفسه', () => {
+  const SUP_USER = { _id: 'sup-1', name: 'مشرف', role: 'supervisor', balance: 100 } as any;
+  const CUSTOMER = { _id: 'user-buyer', name: 'عميل', role: 'user', balance: 100 } as any;
+  const ASSIGNED_PRODUCT = { _id: 'p-1', isActive: true, assignedSupervisorId: 'sup-1', salePrice: 5, costPrice: 3 } as any;
+
+  it('المشرف يشتري خدمة مسندة إليه: Forbidden قبل أي خصم', async () => {
+    const service = createPurchaseHarness(SUP_USER, ASSIGNED_PRODUCT);
+
+    await expect(
+      service.createOrder({ userId: 'sup-1', productId: 'p-1' }),
+    ).rejects.toThrow('لا يمكنك شراء هذه الخدمة، فهي مسندة إليك كمقدّم خدمة');
+  });
+
+  it('الحراسة تعمل والمسند مستند بعد populate: تُقارن بالمعرّف لا بنصّ الحقل', async () => {
+    const service = createPurchaseHarness(SUP_USER, {
+      ...ASSIGNED_PRODUCT,
+      assignedSupervisorId: populatedSupervisor('sup-1'),
+    });
+
+    await expect(
+      service.createOrder({ userId: 'sup-1', productId: 'p-1' }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('مشرف يشتري خدمة مسندة لمشرف آخر: الحراسة لا تعنيه', async () => {
+    const service = createPurchaseHarness(SUP_USER, {
+      ...ASSIGNED_PRODUCT,
+      assignedSupervisorId: 'sup-9',
+    });
+
+    const err: any = await service
+      .createOrder({ userId: 'sup-1', productId: 'p-1' })
+      .catch((e) => e);
+    // المسار يتقدم لاحقاً ويعطب على mocks غير المكتملة — لا على حراسة الشراء من النفس
+    expect(String(err?.message)).not.toContain('مسندة إليك');
+  });
+
+  it('خدمة بلا مسند: لا تُحجب، ويُقارن المعرّف نصياً مهما كانت صورته', async () => {
+    const service = createPurchaseHarness(CUSTOMER, {
+      ...ASSIGNED_PRODUCT,
+      assignedSupervisorId: null,
+    });
+
+    const err: any = await service
+      .createOrder({ userId: 'user-buyer', productId: 'p-1' })
+      .catch((e) => e);
+    expect(String(err?.message)).not.toContain('مسندة إليك');
+  });
+});

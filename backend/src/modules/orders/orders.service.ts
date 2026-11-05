@@ -336,6 +336,14 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException('المنتج غير متاح حالياً');
     }
 
+    // مقدم الخدمة لا يشتري من نفسه: الخدمة المسندة إليه ينفذها للغير،
+    // وشراؤها من حسابه تعني أنه ينفّذ طلباً لنفسه ويُلغي فصل الأدوار
+    const assignedId = (product.assignedSupervisorId as any)?._id?.toString?.() ??
+      product.assignedSupervisorId?.toString?.();
+    if (assignedId && assignedId === params.userId) {
+      throw new ForbiddenException('لا يمكنك شراء هذه الخدمة، فهي مسندة إليك كمقدّم خدمة');
+    }
+
     // التطبيق اختياري: خدمة الأرقام اليدوية بلا تطبيق متجر (لها virtualNumberAppId)
     const app = product.appId
       ? await this.appModel.findById(product.appId)
