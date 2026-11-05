@@ -18,7 +18,7 @@ import 'manual_order_details_screen.dart';
 import 'topup_screen.dart';
 import 'virtual_number_wait_screen.dart';
 
-/// صفحة الأرقام الوهمية: بدل صفحة «شحن الاشتراكات».
+/// خدمات تفعيل الأرقام
 /// الاختلاف الجوهري عن بقية المشتريات أن الرمز يصل بعد ثوانٍ أو دقائق، فالصفحة
 /// تُبقي الرقم الحيّ في الأعلى وتفحصه دورياً، وتُرجع المبلغ تلقائياً عند انتهاء
 /// المهلة بلا رسالة — لذلك تُظهر العدّاد وحالة الإرجاع بوضوح.
@@ -188,7 +188,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
           // بلا شريط علوي: الصفحة تبدأ مباشرة بشبكة الخدمات — عدّات الخدمات
           // والدول والمهلة ليست قراراً يتخذه العميل. الشبكة واحدة تجمع اليدوي
           // المضمون والتلقائي بشارة نوع على زاوية كل كرت
-          _buildSectionHeader('اختر الخدمة', 'ACTIVATE', AppColors.ticketAmber),
+          _buildSectionHeader('خدمات تفعيل الأرقام', 'ACTIVATE', AppColors.ticketAmber),
           const SizedBox(height: 10),
           _buildServicesArea(provider),
           const SizedBox(height: 18),
@@ -342,7 +342,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
           Expanded(
             child: _buildToggleButton(
               category: VirtualNumberCategory.auto,
-              title: 'الخدمات التلقائية',
+              title: 'التفعيلات التلقائية',
               badge: autoCount > 0 ? '$autoCount' : null,
               icon: Icons.bolt_rounded,
               activeColor: AppColors.ticketAmber,
@@ -352,7 +352,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
           Expanded(
             child: _buildToggleButton(
               category: VirtualNumberCategory.manual,
-              title: 'الخدمات اليدوية',
+              title: 'التفعيلات اليدوية',
               badge: manualCount > 0 ? '$manualCount' : null,
               icon: Icons.verified_user_rounded,
               activeColor: AppColors.emerald,
@@ -461,13 +461,11 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   Widget _buildTypeExplanation() {
     final isAuto = _selectedCategory == VirtualNumberCategory.auto;
     final tone = isAuto ? AppColors.ticketAmber : AppColors.emerald;
-    final title = isAuto
-        ? 'الخدمات التلقائية (أرقام فورية)'
-        : 'الخدمات اليدوية (تفعيل مضمون)';
+    final title = isAuto ? 'التفعيلات التلقائية' : 'التفعيلات اليدوية';
     final badgeText = isAuto ? 'فوري وتلقائي' : 'إشراف ومتابعة';
     final description = isAuto
-        ? 'أرقام سحابية مؤتمتة من عدة دول ومزودين، يصلك رمز التفعيل تلقائياً في ثوانٍ. وفي حال عدم وصول الرسالة خلال المهلة، يُعاد المبلغ تلقائياً وفورياً إلى محفظتك.'
-        : 'تفعيل يدوي ومضمون بواسطة فريق الدعم المختص لضمان استقرار حسابك وتجنب الحظر، مع متابعة مباشرة لطلبك حتى وصول الرمز وإتمام التفعيل بنجاح.';
+        ? 'أرقام سحابية مؤتمتة من عدة دول ومزودين، يصلك رمز التفعيل تلقائياً خلال دقائق. وفي حال عدم وصول الرسالة خلال المهلة، يُعاد المبلغ تلقائياً إلى محفظتك.'
+        : 'تفعيل يدوي يتم عنطريق المشرف  يقدم حساب مضمون التفعيل  عند الشراء سيتم نقلك الى شات الطلب لبدء التفعيل الفوري.';
     final icon = isAuto ? Icons.bolt_rounded : Icons.verified_user_rounded;
 
     return Container(

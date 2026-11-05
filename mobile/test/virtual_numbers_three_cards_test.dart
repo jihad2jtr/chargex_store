@@ -108,13 +108,6 @@ int _gridColumns(WidgetTester w) {
   return delegate.crossAxisCount;
 }
 
-/// الصفّ الذي يقع فيه عنصر: قمم متقاربة تعني صفاً واحداً
-Set<int> _rowBands(WidgetTester w, List<String> labels) {
-  return labels
-      .map((l) => (w.getTopLeft(find.text(l)).dy / 10).floor())
-      .toSet();
-}
-
 /// الأقرب إلى بداية الصف (RTL: اليمين) يسبق غيره في ترتيب الكروت
 double _startEdge(WidgetTester w, String label) =>
     w.getTopRight(find.text(label)).dx;
@@ -149,41 +142,42 @@ void main() {
   setUpAll(() => HttpOverrides.global = _BlockedHttpOverrides());
   tearDownAll(() => HttpOverrides.global = null);
 
-  testWidgets('زران للتبديل بين التلقائي واليدوي مع شرح لكل نوع وثلاثة كروت في الصف', (
-    WidgetTester w,
-  ) async {
-    await _pumpPage(
-      w,
-      options: <Map<String, dynamic>>[
-        _service(1),
-        _service(2),
-        _service(3),
-        _service(4),
-      ],
-      manual: <Map<String, dynamic>>[_manual(1), _manual(2)],
-    );
+  testWidgets(
+    'زران للتبديل بين التلقائي واليدوي مع شرح لكل نوع وثلاثة كروت في الصف',
+    (WidgetTester w) async {
+      await _pumpPage(
+        w,
+        options: <Map<String, dynamic>>[
+          _service(1),
+          _service(2),
+          _service(3),
+          _service(4),
+        ],
+        manual: <Map<String, dynamic>>[_manual(1), _manual(2)],
+      );
 
-    // زران للتبديل
-    expect(find.text('الخدمات التلقائية'), findsOneWidget);
-    expect(find.text('الخدمات اليدوية'), findsOneWidget);
+      // زران للتبديل
+      expect(find.text('الخدمات التلقائية'), findsOneWidget);
+      expect(find.text('الخدمات اليدوية'), findsOneWidget);
 
-    // شاشة التلقائي أولاً: 4 كروت بتنسيق 3 كروت في الصف
-    expect(_gridColumns(w), 3);
-    expect(find.text('الخدمات التلقائية (أرقام فورية)'), findsOneWidget);
-    expect(find.text('تلقائي'), findsNWidgets(4));
-    expect(find.text('1 دولة'), findsNWidgets(4));
-    expect(find.text('من \$1.50'), findsOneWidget);
+      // شاشة التلقائي أولاً: 4 كروت بتنسيق 3 كروت في الصف
+      expect(_gridColumns(w), 3);
+      expect(find.text('الخدمات التلقائية (أرقام فورية)'), findsOneWidget);
+      expect(find.text('تلقائي'), findsNWidgets(4));
+      expect(find.text('1 دولة'), findsNWidgets(4));
+      expect(find.text('من \$1.50'), findsOneWidget);
 
-    // التبديل إلى اليدوي
-    await w.tap(find.text('الخدمات اليدوية'));
-    await w.pump();
+      // التبديل إلى اليدوي
+      await w.tap(find.text('الخدمات اليدوية'));
+      await w.pump();
 
-    // شرح اليدوي وكروته
-    expect(find.text('الخدمات اليدوية (تفعيل مضمون)'), findsOneWidget);
-    expect(find.text('يدوي مضمون'), findsNWidgets(2));
-    expect(_gridColumns(w), 3);
-    expect(find.text('\$1.50'), findsOneWidget);
-  });
+      // شرح اليدوي وكروته
+      expect(find.text('الخدمات اليدوية (تفعيل مضمون)'), findsOneWidget);
+      expect(find.text('يدوي مضمون'), findsNWidgets(2));
+      expect(_gridColumns(w), 3);
+      expect(find.text('\$1.50'), findsOneWidget);
+    },
+  );
 
   testWidgets('ترتيب الكروت في كل تبويب يبدأ من البداية', (
     WidgetTester w,
@@ -195,10 +189,7 @@ void main() {
     );
 
     // التلقائي أولاً
-    expect(
-      _startEdge(w, 'Service 1'),
-      greaterThan(_startEdge(w, 'Service 2')),
-    );
+    expect(_startEdge(w, 'Service 1'), greaterThan(_startEdge(w, 'Service 2')));
 
     // التبديل إلى اليدوي
     await w.tap(find.text('الخدمات اليدوية'));
@@ -249,10 +240,7 @@ void main() {
       manual: <Map<String, dynamic>>[_manual(1)],
     );
 
-    const List<String> labels = <String>[
-      'Service 1',
-      'Service 2',
-    ];
+    const List<String> labels = <String>['Service 1', 'Service 2'];
     const List<String> prices = <String>['من \$1.50', 'من \$2.50'];
 
     for (int i = 0; i < 2; i++) {
