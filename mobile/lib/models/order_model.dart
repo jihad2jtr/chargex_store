@@ -250,6 +250,10 @@ class OrderModel {
   bool get isRejected => status == 'rejected';
   bool get isRefunded => status == 'refunded';
 
+  /// حالة نهائية: الطلب أُغلق (مكتمل أو مرفوض أو مُستَرَد) فلا مهلة جارية
+  /// عليه بعد الآن، ولا يجوز أن يستمر عدّاد الوقت المتأخر فيه
+  bool get isTerminal => isCompleted || isRejected || isRefunded;
+
   factory OrderModel.fromJson(Map<String, dynamic> json) {
     String? supId;
     String? supName;
@@ -277,13 +281,12 @@ class OrderModel {
         ? DateTime.tryParse(json['deadlineAt'].toString())
         : null;
     final now = DateTime.now();
-    final st = json['status'] ?? 'pending';
+    final String st = (json['status'] ?? 'pending').toString();
+    // الحالات النهائية لا تأخير عليها: طلبٌ أُغلق لا يُحتسب عليه وقت
+    const Set<String> terminalStatuses = {'completed', 'rejected', 'refunded'};
     final delayed =
         json['isDelayed'] == true ||
-        (dl != null &&
-            now.isAfter(dl) &&
-            st != 'completed' &&
-            st != 'refunded');
+        (dl != null && now.isAfter(dl) && !terminalStatuses.contains(st));
 
     return OrderModel(
       id: json['_id'] ?? json['id'] ?? '',

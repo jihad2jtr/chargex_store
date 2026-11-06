@@ -1,7 +1,6 @@
-// صفحة مقدم الخدمة (المشرف): بطاقة واحدة مدمجة (الترحيب + حالة الطلبات)،
-// والخدمات المسندة صارت بطاقة دخول مضغوطة تفتح شاشة مستقلة
-// (`supervisor_services_screen_test.dart`)، وتذاكر الطلبات مطوية فلا تظهر
-// تفاصيلها وأزرارها إلا عند النقر عليها.
+// صفحة مقدم الخدمة (المشرف): تذكرة واحدة تجمع بوابة «خدماتي المسندة»
+// (محلّ رسالة الترحيب) مع شريط مؤشرات الطلبات الذي يفلتر القائمة،
+// وتذاكر الطلبات مطوية فلا تظهر تفاصيلها وأزرارها إلا عند النقر عليها.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -277,6 +276,33 @@ Finder _foldedHalves() => find.byWidgetPredicate(
       widget.clipper.runtimeType.toString() == '_TicketHalfClipper',
 );
 
+/// ألوان حدود أنصاف تذاكر الطلبات، بترتيب الشجرة: رأسٌ فشريطٌ لكل طلب
+List<Color> _edgeColors(WidgetTester w) => w
+    .widgetList<CustomPaint>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CustomPaint &&
+            widget.foregroundPainter?.runtimeType.toString() ==
+                '_TicketEdgePainter',
+      ),
+    )
+    .map((cp) => (cp.foregroundPainter as dynamic).color as Color)
+    .toList();
+
+/// حدّ التذكرة العلوية (غلافها بحامل حدود التذاكر) — وحيدٌ في اللوحة
+Color _shellBorderColor(WidgetTester w) {
+  final CustomPaint shell = w
+      .widgetList<CustomPaint>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is CustomPaint &&
+              widget.foregroundPainter is TicketPassBorderPainter,
+        ),
+      )
+      .first;
+  return (shell.foregroundPainter as TicketPassBorderPainter).borderColor;
+}
+
 /// يفرد تذاكر الطلبات بالترتيب: كل نقرة تفتح أول تذكرة مطوية
 Future<void> _expandTickets(WidgetTester w, int count) async {
   for (var i = 0; i < count; i++) {
@@ -357,30 +383,29 @@ void main() {
   ) async {
     await _pumpScreen(w);
 
-    // سطر الهوية داخل البطاقة المدمجة
-    expect(find.text('أهلاً بك، مشرف الاختبار'), findsOneWidget);
-    expect(find.text('مقدم الخدمة'), findsOneWidget);
-    expect(find.text('SUPERVISOR · 1 متأخر'), findsOneWidget);
+    // سطر الهوية صار زر «خدماتي المسندة»: لا ترحيب ولا رقاقة دور ولا سطر تقني
+    expect(find.textContaining('أهلاً'), findsNothing);
+    expect(find.text('مقدم الخدمة'), findsNothing);
+    expect(find.textContaining('SUPERVISOR'), findsNothing);
 
-    // المؤشرات الخمسة صارت شريطاً داخل نفس البطاقة بدل كونسول مستقل
+    // المؤشرات صارت شريطاً داخل نفس البطاقة بدل كونسول مستقل
     expect(find.byType(LiveStatusConsole), findsNothing);
-    expect(find.text('جديدة'), findsNWidgets(2)); // الخلية + رقاقة الفلترة
+    expect(find.text('جديدة'), findsOneWidget);
     expect(find.text('قيد التنفيذ'), findsAtLeastNWidgets(1));
     expect(find.text('بانتظار العميل'), findsAtLeastNWidgets(1));
     expect(find.text('اعتراضات'), findsAtLeastNWidgets(1));
     expect(find.text('متأخرة'), findsOneWidget);
 
-    // الخدمات المسندة صارت بطاقة دخول فقط (بلا تذاكر خدمات هنا)
+    // الخدمات المسندة لم تعد بطاقة تحت الكرت: صارت سطره الأول بلمحة حالته
     expect(find.text('خدماتي المسندة'), findsOneWidget);
     expect(find.text('MY SERVICES · 2'), findsOneWidget);
-    expect(find.text('1 متاحة للعملاء'), findsOneWidget);
-    expect(find.text('1 موقوفة مؤقتاً'), findsOneWidget);
+    expect(find.text('1 موقوفة'), findsOneWidget);
     expect(find.text('نسخ بيانات الخدمة'), findsNothing);
     expect(find.text('قائمة الطلبات'), findsOneWidget);
     expect(find.text('ORDERS · 2'), findsOneWidget);
 
-    // هوية التذكرة: بطاقة الحالة المدمجة + بطاقة الدخول = تذاكران فقط
-    expect(_ticketClips(), findsNWidgets(2));
+    // تذكرة واحدة في اللوحة كلها: كرت الحالة (بوابة + مؤشرات)
+    expect(_ticketClips(), findsOneWidget);
     // وتذاكر الطلبات مطوية: نصفان لكل طلب (رأس + شريط)
     expect(_foldedHalves(), findsNWidgets(4));
     // الخطوط الصلبة زالت من الصفحة
@@ -393,27 +418,124 @@ void main() {
     await _dispose(w);
   });
 
+  testWidgets('تذاكر الطلبات تمتاز عن الخلفية الورقية ومتقاربة في القائمة', (
+    w,
+  ) async {
+    await _pumpScreen(w);
+
+    final List<PhysicalShape> halves = w
+        .widgetList<PhysicalShape>(_foldedHalves())
+        .toList(); // رأسٌ فشريطٌ لكل من طلبين
+    expect(halves.length, 4);
+
+    // رأسُ كل تذكرة أرضيةٌ مصمتة مصبوغةٌ بحالة الطلب، لا أبيض على أبيض
+    for (final int head in <int>[0, 2]) {
+      expect(halves[head].color, isNot(AppColors.surfaceCard));
+      expect(halves[head].color.a, 1.0);
+      expect(halves[head].elevation, greaterThan(1.2));
+    }
+    // والمتأخر غيرُ الطابوري في اللون وفي الحدّ
+    expect(halves[0].color, isNot(halves[2].color));
+    final List<Color> edges = _edgeColors(w);
+    expect(edges[0], AppColors.rose.withValues(alpha: 0.75));
+    expect(edges[2], AppColors.outlineVariant);
+
+    // المسافة بين تذكرة وأختها: هامش 4 + فاصل قائمة 2
+    final Rect stripOne = w.getRect(_foldedHalves().at(1));
+    final Rect headTwo = w.getRect(_foldedHalves().at(2));
+    expect(headTwo.bottom - headTwo.top, greaterThan(0));
+    expect(headTwo.top - stripOne.bottom, lessThan(8));
+
+    // والتذكرة المطوية مضغوطة: رأسٌ فشريطٌ في أقل من 90px، لأن لمسة
+    // IconButton المفروضة (48px) كانت تُطيل الشريط بلا سبب بصري
+    final double headH = w.getSize(_foldedHalves().at(0)).height;
+    final double stripH = w.getSize(_foldedHalves().at(1)).height;
+    expect(headH, lessThan(56));
+    expect(stripH, lessThan(36));
+    expect(headH + stripH, lessThan(90));
+
+    await _dispose(w);
+  });
+
+  testWidgets('الطلب المُستَرد أُغلق: لا عدّاد «متأخر» يعمل عليه', (w) async {
+    // خدمةٌ متاحة وحيدة، فلا موقوفة تعلّل الحدّ الأحمر: حدّ التذكرة
+    // العلوية يكشف وحده هل نُحسب الطلبُ المسترد ضمن المتأخرة
+    await _pumpScreen(
+      w,
+      services: [_service(id: 's1', name: 'تعبئة رصيد فري فاير 1000 جمة')],
+      orders: [
+        _order(
+          id: 'o1',
+          orderNumber: 'ORD-4480',
+          status: 'refunded',
+          productId: 's1',
+          productName: 'تعبئة رصيد فري فاير 1000 جمة',
+          amount: 24.75,
+          deadlineAt: DateTime(2000, 1, 1),
+          // وسمٌ متأخر في الاستجابة: الحالة النهائية تبقى هي الحكم
+          isDelayed: true,
+        ),
+      ],
+    );
+
+    // الرأس يقول «مسترد»، والشريط شارةُ إغلاقٍ لا عدّادٌ يتقدّم
+    expect(find.text('مسترد'), findsOneWidget);
+    expect(find.text('مغلق'), findsOneWidget);
+    expect(find.textContaining(RegExp('متأخر ')), findsNothing);
+    expect(_edgeColors(w).first, AppColors.slate500.withValues(alpha: 0.45));
+
+    // والفلترة لم تُحسبه متأخرة: التذكرة العلوية تبقى بحدّ أزرق
+    expect(_shellBorderColor(w), AppColors.primaryBlue.withValues(alpha: 0.5));
+
+    // وعند الفرد: ملاحظةُ إغلاقٍ نهائي بدل صندوق العدّاد
+    await _expandTickets(w, 1);
+    expect(find.textContaining('متأخر عن الوقت المحدد'), findsNothing);
+    expect(find.textContaining('الوقت المتبقي'), findsNothing);
+    expect(find.textContaining('لا يُحتسب عليه وقت'), findsOneWidget);
+
+    await _dispose(w);
+  });
+
+  testWidgets('شريط المؤشرات هو الفلتر الوحيد و«الكل» يعيد القائمة كاملة', (
+    w,
+  ) async {
+    await _pumpScreen(w);
+
+    // شريط الرقائق أُلغي لتكراره مع الشريط: لا عناوينه ولا مفتاح «مكتملة»
+    expect(find.text('اعتراضات وتعديلات'), findsNothing);
+    expect(find.text('مكتملة'), findsNothing);
+    expect(find.text('ORDERS · 2'), findsOneWidget);
+
+    // «جديدة» تترك الطلب الجديد فقط وتُخفي قيد التنفيذ
+    await w.tap(find.text('جديدة'));
+    await _settle(w);
+    expect(find.text('ORDERS · 1'), findsOneWidget);
+    expect(find.text('#ORD-4472'), findsNothing);
+
+    // خلية «الكل» في نفس الشريط — بديل الرقائق — تُظهر الطلبين من جديد
+    expect(find.text('الكل'), findsOneWidget);
+    await w.tap(find.text('الكل'));
+    await _settle(w);
+    expect(find.text('ORDERS · 2'), findsOneWidget);
+    expect(find.text('#ORD-4472'), findsOneWidget);
+
+    await _dispose(w);
+  });
+
   testWidgets('كرت الحالة أسود كلون الشريط العلوي ونصّه فاتح', (w) async {
     await _pumpScreen(w);
 
-    // أرضيةُ التذكرة الأولى (الترحيب والمؤشرات) =darkNav كالشريط العلوي
+    // أرضيةُ التذكرة (بوابة الخدمات والمؤشرات) =darkNav كالشريط العلوي
     final Material queueSurface = w.widget<Material>(
       find
           .descendant(of: _ticketClips().first, matching: find.byType(Material))
           .first,
     );
     expect(queueSurface.color, AppColors.darkNav);
-    // وكرت «خدماتي المسندة» ما زال أبيض: السواد لكرت الحالة وحده
-    final Material servicesSurface = w.widget<Material>(
-      find
-          .descendant(of: _ticketClips().at(1), matching: find.byType(Material))
-          .first,
-    );
-    expect(servicesSurface.color, AppColors.surfaceCard);
 
-    // الاسمُ أبيض على السواد لا أسودٌ فيه فلا يُقرأ
+    // عنوانُ البوابة أبيض على السواد لا أسودٌ فيه فلا يُقرأ
     expect(
-      w.widget<Text>(find.text('أهلاً بك، مشرف الاختبار')).style?.color,
+      w.widget<Text>(find.text('خدماتي المسندة')).style?.color,
       Colors.white,
     );
 

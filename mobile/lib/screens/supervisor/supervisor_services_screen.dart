@@ -121,10 +121,12 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
   // عناصر هوية التذكرة المشتركة (نسخة محلية كما في بقية الصفحات)
   // ---------------------------------------------------------------------------
 
-  /// غلاف التذكرة: ظل + حد + قصّ بفتحتي تثقيب
+  /// غلاف التذكرة: ظل + حد + قصّ بفتحتي تثقيب.
+  /// الحدُّ الافتراضي outlineVariant لأن outline (#E2E8F0) لا يُرى على
+  /// الأرضية الورقية (#F4F6F9) — نفس ما استقرت عليه لوحة الطلبات
   Widget _ticketShell({
     required Widget child,
-    Color borderColor = AppColors.outline,
+    Color borderColor = AppColors.outlineVariant,
   }) {
     return CustomPaint(
       painter: TicketPassShadowPainter(
@@ -254,7 +256,7 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
   /// شارة صغيرة: أيقونة + نص (لا تضايق الاسم أبداً)
   Widget _chip(IconData icon, String text, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(7),
@@ -263,7 +265,7 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: color),
+          Icon(icon, size: 10, color: color),
           const SizedBox(width: 4),
           // Flexible: النص الطويل يُقتطع بدل أن يفيض داخل Wrap التذاكر
           Flexible(
@@ -272,7 +274,7 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
-                fontSize: 9.5,
+                fontSize: 9,
                 fontWeight: FontWeight.w800,
                 color: color,
               ),
@@ -294,7 +296,7 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
   }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         color: background ?? color.withValues(alpha: 0.07),
         borderRadius: BorderRadius.circular(9),
@@ -303,14 +305,14 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: color),
+          Icon(icon, size: 13, color: color),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               text,
               maxLines: maxLines,
               overflow: TextOverflow.ellipsis,
-              style: AppTypography.cairo(fontSize: 11, color: color),
+              style: AppTypography.cairo(fontSize: 10.5, color: color),
             ),
           ),
         ],
@@ -416,14 +418,14 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 3),
+        const SizedBox(height: 2),
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
             value,
             maxLines: 1,
             style: AppTypography.plusJakartaSans(
-              fontSize: 11.5,
+              fontSize: 11,
               fontWeight: FontWeight.w900,
               color: AppColors.slate900,
             ),
@@ -441,226 +443,249 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
     final int openOrders = _openOrdersFor(service.id, provider);
     final Color accent = isActive ? AppColors.primaryBlue : AppColors.rose;
     final bool busy = provider.isTogglingService;
+    // تنسيق لوحة الطلبات نفسه: رأسٌ مصبوغٌ بأرضية مصمتة تميزه عن الورقية،
+    // وشريط إجراءات سفلي على الأبيض النقي، وحدٌّ أقوى للحالة المعطّلة
+    final Color headSurface = Color.alphaBlend(
+      accent.withValues(alpha: 0.06),
+      AppColors.surfaceCard,
+    );
+    final Color stubSurface = Color.alphaBlend(
+      accent.withValues(alpha: 0.13),
+      AppColors.surfaceCard,
+    );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 6),
       child: _ticketShell(
-        borderColor: accent.withValues(alpha: isActive ? 0.30 : 0.45),
+        borderColor: accent.withValues(alpha: isActive ? 0.5 : 0.75),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 10, 12),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _iconChip(
-                                accent,
-                                Icons.construction_rounded,
-                                size: 34,
+            Container(
+              color: headSurface,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(11, 8, 9, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _iconChip(
+                                  accent,
+                                  Icons.construction_rounded,
+                                  size: 26,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        service.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTypography.cairo(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.slate900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 5,
+                                        runSpacing: 3,
+                                        children: [
+                                          _chip(
+                                            isActive
+                                                ? Icons.play_circle_fill_rounded
+                                                : Icons
+                                                      .pause_circle_filled_rounded,
+                                            isActive
+                                                ? 'متاحة للعملاء'
+                                                : 'موقوفة مؤقتاً',
+                                            accent,
+                                          ),
+                                          if (service.quantityLabel.isNotEmpty)
+                                            _chip(
+                                              Icons.local_offer_outlined,
+                                              service.quantityLabel,
+                                              AppColors.slate600,
+                                            ),
+                                          if (service.isSensitive)
+                                            _chip(
+                                              Icons.lock_rounded,
+                                              'بيانات مشفّرة',
+                                              _violet,
+                                            ),
+                                          if (openOrders > 0)
+                                            _chip(
+                                              Icons.pending_actions_rounded,
+                                              '$openOrders طلب نشط',
+                                              AppColors.secondaryBright,
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 7),
+                            _dashedRule(),
+                            const SizedBox(height: 6),
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: _metaCell(
+                                      icon: Icons.sell_outlined,
+                                      label: 'سعر البيع',
+                                      value:
+                                          '\$${service.salePrice.toStringAsFixed(2)}',
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                  ),
+                                  _verticalRule(),
+                                  Expanded(
+                                    child: _metaCell(
+                                      icon: Icons.timer_outlined,
+                                      label: 'مدة التنفيذ',
+                                      value: '${service.estimatedMinutes} د',
+                                      color: AppColors.secondaryBright,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      service.name,
+                            ),
+                            if (service.requiredFields.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'البيانات المطلوبة: ${service.requiredFields.join(' / ')}',
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: AppTypography.cairo(
-                                        fontSize: 14,
-                                        fontWeight: FontWeight.w800,
-                                        color: AppColors.slate900,
+                                        fontSize: 10,
+                                        color: AppColors.slate600,
                                       ),
                                     ),
-                                    const SizedBox(height: 5),
-                                    Wrap(
-                                      spacing: 6,
-                                      runSpacing: 4,
-                                      children: [
-                                        _chip(
-                                          isActive
-                                              ? Icons.play_circle_fill_rounded
-                                              : Icons
-                                                    .pause_circle_filled_rounded,
-                                          isActive
-                                              ? 'متاحة للعملاء'
-                                              : 'موقوفة مؤقتاً',
-                                          accent,
-                                        ),
-                                        if (service.quantityLabel.isNotEmpty)
-                                          _chip(
-                                            Icons.local_offer_outlined,
-                                            service.quantityLabel,
-                                            AppColors.slate600,
-                                          ),
-                                        if (service.isSensitive)
-                                          _chip(
-                                            Icons.lock_rounded,
-                                            'بيانات مشفّرة',
-                                            _violet,
-                                          ),
-                                        if (openOrders > 0)
-                                          _chip(
-                                            Icons.pending_actions_rounded,
-                                            '$openOrders طلب نشط',
-                                            AppColors.secondaryBright,
-                                          ),
-                                      ],
+                                  ),
+                                  IconButton(
+                                    tooltip: 'نسخ البيانات المطلوبة',
+                                    icon: const Icon(
+                                      Icons.copy_rounded,
+                                      size: 13,
+                                      color: AppColors.primaryBlue,
                                     ),
-                                  ],
-                                ),
+                                    padding: EdgeInsets.zero,
+                                    // shrinkWrap + minimumSize: لمسة الـ 48px
+                                    // الافتراضية كانت ستُطيل السطر بلا سبب
+                                    style: const ButtonStyle(
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      minimumSize: WidgetStatePropertyAll(
+                                        Size(26, 26),
+                                      ),
+                                    ),
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 26,
+                                      height: 26,
+                                    ),
+                                    onPressed: () => _copyText(
+                                      'البيانات المطلوبة',
+                                      service.requiredFields.join('\n'),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
-                          ),
-                          const SizedBox(height: 9),
-                          _dashedRule(),
-                          const SizedBox(height: 8),
-                          IntrinsicHeight(
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              children: [
-                                Expanded(
-                                  child: _metaCell(
-                                    icon: Icons.sell_outlined,
-                                    label: 'سعر البيع',
-                                    value:
-                                        '\$${service.salePrice.toStringAsFixed(2)}',
-                                    color: AppColors.primaryBlue,
-                                  ),
-                                ),
-                                _verticalRule(),
-                                Expanded(
-                                  child: _metaCell(
-                                    icon: Icons.timer_outlined,
-                                    label: 'مدة التنفيذ',
-                                    value: '${service.estimatedMinutes} د',
-                                    color: AppColors.secondaryBright,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          if (service.requiredFields.isNotEmpty) ...[
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Text(
-                                    'البيانات المطلوبة: ${service.requiredFields.join(' / ')}',
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTypography.cairo(
-                                      fontSize: 10.5,
-                                      color: AppColors.slate600,
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: 'نسخ البيانات المطلوبة',
-                                  icon: const Icon(
-                                    Icons.copy_rounded,
-                                    size: 15,
-                                    color: AppColors.primaryBlue,
-                                  ),
-                                  visualDensity: VisualDensity.compact,
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints.tightFor(
-                                    width: 32,
-                                    height: 32,
-                                  ),
-                                  onPressed: () => _copyText(
-                                    'البيانات المطلوبة',
-                                    service.requiredFields.join('\n'),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                          if (service.instructions != null &&
-                              service.instructions!.isNotEmpty) ...[
-                            const SizedBox(height: 6),
-                            _note(
-                              icon: Icons.assignment_outlined,
-                              text: 'التعليمات: ${service.instructions}',
-                              color: AppColors.slate600,
-                            ),
-                          ],
-                          if (!isActive) ...[
-                            const SizedBox(height: 6),
-                            _note(
-                              icon: Icons.visibility_off_rounded,
-                              text:
-                                  'الخدمة موقوفة مؤقتاً — لا تظهر في واجهة العملاء ولا تستقبل طلبات جديدة',
-                              color: AppColors.errorLight,
-                              background: AppColors.rose.withValues(
-                                alpha: 0.07,
+                            if (service.instructions != null &&
+                                service.instructions!.isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              _note(
+                                icon: Icons.assignment_outlined,
+                                text: 'التعليمات: ${service.instructions}',
+                                color: AppColors.slate600,
                               ),
-                              border: AppColors.rose.withValues(alpha: 0.35),
-                            ),
+                            ],
+                            if (!isActive) ...[
+                              const SizedBox(height: 5),
+                              _note(
+                                icon: Icons.visibility_off_rounded,
+                                text:
+                                    'الخدمة موقوفة مؤقتاً — لا تظهر في واجهة العملاء ولا تستقبل طلبات جديدة',
+                                color: AppColors.errorLight,
+                                background: AppColors.rose.withValues(
+                                  alpha: 0.07,
+                                ),
+                                border: AppColors.rose.withValues(alpha: 0.35),
+                              ),
+                            ],
                           ],
+                        ),
+                      ),
+                    ),
+                    _verticalRule(),
+                    Container(
+                      width: _serviceStubWidth,
+                      color: stubSurface,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 7,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isActive
+                                ? Icons.storefront_rounded
+                                : Icons.storefront_outlined,
+                            size: 14,
+                            color: accent,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'الحالة',
+                            maxLines: 1,
+                            style: AppTypography.cairo(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.slate500,
+                            ),
+                          ),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              isActive ? 'نشطة' : 'موقوفة',
+                              maxLines: 1,
+                              style: AppTypography.cairo(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w900,
+                                color: accent,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  ),
-                  _verticalRule(),
-                  Container(
-                    width: _serviceStubWidth,
-                    color: accent.withValues(alpha: 0.07),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 10,
-                    ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          isActive
-                              ? Icons.storefront_rounded
-                              : Icons.storefront_outlined,
-                          size: 15,
-                          color: accent,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'الحالة',
-                          maxLines: 1,
-                          style: AppTypography.cairo(
-                            fontSize: 8.5,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.slate500,
-                          ),
-                        ),
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          child: Text(
-                            isActive ? 'نشطة' : 'موقوفة',
-                            maxLines: 1,
-                            style: AppTypography.cairo(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w900,
-                              color: accent,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
-            _dashedRule(color: AppColors.outline),
+            // فاصل مثقّب بحدّ لوحة الطلبات، ثم شريط الإجراءات على الأبيض
+            _dashedRule(color: AppColors.outlineVariant),
             Padding(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+              padding: const EdgeInsets.fromLTRB(11, 6, 11, 8),
               child: Row(
                 children: [
                   Expanded(
@@ -669,13 +694,13 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
                         'بيانات الخدمة',
                         _serviceDataForCopy(service),
                       ),
-                      icon: const Icon(Icons.copy_all_rounded, size: 15),
+                      icon: const Icon(Icons.copy_all_rounded, size: 14),
                       label: Text(
                         'نسخ بيانات الخدمة',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
-                          fontSize: 11.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -690,7 +715,7 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
-                          vertical: 10,
+                          vertical: 7,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(11),
@@ -706,8 +731,8 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
                           : () => _toggleServiceActive(service),
                       icon: busy
                           ? const SizedBox(
-                              width: 14,
-                              height: 14,
+                              width: 13,
+                              height: 13,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
                                 color: Colors.white,
@@ -717,14 +742,14 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
                               isActive
                                   ? Icons.pause_rounded
                                   : Icons.play_arrow_rounded,
-                              size: 16,
+                              size: 15,
                             ),
                       label: Text(
                         isActive ? 'إيقاف مؤقت' : 'إعادة تفعيل',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
-                          fontSize: 11.5,
+                          fontSize: 11,
                           fontWeight: FontWeight.w800,
                         ),
                       ),
@@ -736,7 +761,7 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
                         elevation: 0,
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
-                          vertical: 10,
+                          vertical: 7,
                         ),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(11),
@@ -757,15 +782,15 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
   Widget _buildNoServicesTicket() {
     return _ticketShell(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 22, 16, 20),
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
         child: Column(
           children: [
             _iconChip(
               AppColors.primaryBlue,
               Icons.construction_rounded,
-              size: 46,
+              size: 40,
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Text(
               'لا توجد خدمات مسندة إليك حالياً',
               textAlign: TextAlign.center,

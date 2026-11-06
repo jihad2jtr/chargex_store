@@ -7,7 +7,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/order_model.dart';
 import '../../models/product_model.dart';
-import '../../providers/auth_provider.dart';
 import '../../providers/manual_services_provider.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/status_pill.dart';
@@ -105,7 +104,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final auth = Provider.of<AuthProvider>(context);
     final manualProvider = Provider.of<ManualServicesProvider>(context);
     final allOrders = manualProvider.supervisorOrders;
     final filteredOrders = _filterOrders(allOrders);
@@ -126,8 +124,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           (o) => o.status == 'disputed' || o.status == 'revision_requested',
         )
         .length;
+    // المؤشر النهائي لا يُحسب عليه تأخير: الطلب المُستَرد/المرفوض انتهى
     final delayedCount = allOrders
-        .where((o) => o.isDelayed && !o.isCompleted)
+        .where((o) => o.isDelayed && !o.isTerminal)
         .length;
 
     return Scaffold(
@@ -150,25 +149,18 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     const UnifiedTactileHeader(isDashboard: true),
                     const SizedBox(height: 12),
 
-                    // 1. بطاقة واحدة مدمجة: الترحيب + حالة الطلبات (مساحة صغيرة)
+                    // 1. تذكرة واحدة: بوابة الخدمات المسندة + شريط مؤشرات الطلبات
+                    // شريط المؤشرات هو الفلتر الوحيد، فلا شريط فلاتر أسفله
                     _buildQueueTicket(
-                      auth,
+                      services,
+                      totalCount: allOrders.length,
                       newCount: newCount,
                       inProgressCount: inProgressCount,
                       waitingClientCount: waitingClientCount,
                       issuesCount: issuesCount,
                       delayedCount: delayedCount,
                     ),
-                    const SizedBox(height: 14),
-
-                    // 2. بوابة صفحة الخدمات المسندة (انتقلت لشاشة مستقلة)
-                    _buildServicesEntry(services),
-
                     const SizedBox(height: 18),
-
-                    // Filter Chips
-                    _buildFilterChips(),
-                    const SizedBox(height: 12),
 
                     // Orders List Header
                     _sectionHeader(
@@ -187,7 +179,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                     ),
                     if (filteredOrders.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: 2, bottom: 8),
+                        padding: const EdgeInsets.only(top: 2, bottom: 6),
                         child: Text(
                           'انقر على التذكرة لفرد بيانات العميل وأزرار التنفيذ',
                           maxLines: 1,
@@ -399,7 +391,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     bool dark = false,
   }) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: dark ? 0.22 : 0.08),
         borderRadius: BorderRadius.circular(7),
@@ -408,7 +400,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 11, color: color),
+          Icon(icon, size: 10, color: color),
           const SizedBox(width: 4),
           // Flexible: النص الطويل يُقتطع بدل أن يفيض داخل Wrap التذاكر
           Flexible(
@@ -417,7 +409,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
-                fontSize: 9.5,
+                fontSize: 9,
                 fontWeight: FontWeight.w800,
                 color: color,
               ),
@@ -476,78 +468,107 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
-  /// بطاقة واحدة مدمجة: ترحيب المشرف + حالة طلبات الخدمات.
-  /// اندمج كرت الترحيب والكونسول الكبير في تذكرة واحدة قصيرة:
-  /// سطر هوية + فاصل مثقّب + شريط من 5 مؤشرات قابلة للنقر للفلترة.
+  /// بطاقة واحدة مدمجة: بوابة الخدمات المسندة + حالة طلبات الخدمات.
+  /// سطر الهوية (كان رسالة الترحيب) صار زر فتح شاشة الخدمات المسندة،
+  /// ثم فاصل مثقّب فـشريط من 6 مؤشرات قابلة للنقر للفلترة.
   Widget _buildQueueTicket(
-    AuthProvider auth, {
+    List<ProductModel> services, {
+    required int totalCount,
     required int newCount,
     required int inProgressCount,
     required int waitingClientCount,
     required int issuesCount,
     required int delayedCount,
   }) {
-    final String name = auth.currentUser?.name ?? 'مشرف العمليات';
+    final int activeCount = services.where((s) => s.isActive).length;
+    final int suspendedCount = services.length - activeCount;
     // كرتٌ أسود بلون الشريط العلوي: رأسُ الصفحة وأول ما تحتها قطعة واحدة،
     // فكل نصٍّ فيه يُقلب فاتحاً لأن الأرضية داكنة
     return _ticketShell(
       background: AppColors.darkNav,
-      borderColor: delayedCount > 0
+      borderColor: (suspendedCount > 0 || delayedCount > 0)
           ? AppColors.rose.withValues(alpha: 0.65)
           : AppColors.primaryBlue.withValues(alpha: 0.5),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // سطر الهوية المضغوط
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
-            child: Row(
-              children: [
-                _iconChip(
-                  AppColors.primaryBlue,
-                  Icons.engineering_rounded,
-                  size: 28,
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'أهلاً بك، $name',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.cairo(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 13.5,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        delayedCount > 0
-                            ? 'SUPERVISOR · $delayedCount متأخر'
-                            : 'SUPERVISOR · QUEUE ACTIVE',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.technicalCode(
-                          fontSize: 8,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.textMuted,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
+          // بوابة الخدمات المسندة: لمحة الحالة + فتح الشاشة المستقلة
+          InkWell(
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const SupervisorServicesScreen(),
+              ),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+              child: Row(
+                children: [
+                  _iconChip(
+                    AppColors.primaryBlue,
+                    Icons.construction_rounded,
+                    size: 28,
                   ),
-                ),
-                const SizedBox(width: 8),
-                _chip(
-                  Icons.workspace_premium_rounded,
-                  'مقدم الخدمة',
-                  delayedCount > 0 ? AppColors.rose : AppColors.emerald,
-                  dark: true,
-                ),
-              ],
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'خدماتي المسندة',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.cairo(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w900,
+                            fontSize: 13.5,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'MY SERVICES · ${services.length}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.technicalCode(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.textMuted,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (services.isEmpty)
+                    _chip(
+                      Icons.info_outline_rounded,
+                      'لا خدمة مسندة',
+                      AppColors.slate400,
+                      dark: true,
+                    )
+                  else if (suspendedCount > 0)
+                    _chip(
+                      Icons.pause_circle_filled_rounded,
+                      '$suspendedCount موقوفة',
+                      AppColors.rose,
+                      dark: true,
+                    )
+                  else
+                    _chip(
+                      Icons.play_circle_fill_rounded,
+                      '$activeCount متاحة',
+                      AppColors.emerald,
+                      dark: true,
+                    ),
+                  const SizedBox(width: 4),
+                  // السهم إلى اليسار: علامة «اضغط لفتح الشاشة»
+                  const Icon(
+                    Icons.chevron_left_rounded,
+                    size: 20,
+                    color: AppColors.slate400,
+                  ),
+                ],
+              ),
             ),
           ),
           _dashedRule(color: AppColors.slate700),
@@ -558,6 +579,16 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // «الكل» يعيد القائمة كاملة: هو الفلتر الافتراضي وبديل شريط
+                // الفلاتر الذي أُلغي لتكراره مع هذا الشريط
+                _kpiCell(
+                  label: 'الكل',
+                  value: totalCount,
+                  icon: Icons.layers_rounded,
+                  color: AppColors.primarySky,
+                  filterKey: 'all',
+                ),
+                _verticalRule(),
                 _kpiCell(
                   label: 'جديدة',
                   value: newCount,
@@ -605,7 +636,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
-  /// خلية مؤشر داخل شريط الحالة: أيقونة + رقم + تسمية، وتُظلَّل عند اختيارها
+  /// خلية مؤشر داخل شريط الحالة: أيقونة + رقم + تسمية، وتُظلَّل عند اختيارها.
+  /// «الكل» خلية فلتر عادية: تنقر عليها فتُعرض القائمة كاملة
   Widget _kpiCell({
     required String label,
     required int value,
@@ -668,160 +700,6 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // بوابة الخدمات المسندة: لمحة الحالة + فتح الشاشة المستقلة
-  // ---------------------------------------------------------------------------
-
-  /// بطاقة دخول مضغوطة لصفحة الخدمات المسندة — تذاكرها وأزرار إيقافها
-  /// انتقلت إلى `SupervisorServicesScreen` حتى تبقى اللوحة عن الطلبات.
-  Widget _buildServicesEntry(List<ProductModel> services) {
-    final int activeCount = services.where((s) => s.isActive).length;
-    final int suspendedCount = services.length - activeCount;
-
-    return _ticketShell(
-      borderColor: suspendedCount > 0
-          ? AppColors.rose.withValues(alpha: 0.35)
-          : AppColors.primaryBlue.withValues(alpha: 0.30),
-      child: InkWell(
-        onTap: () => Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const SupervisorServicesScreen()),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 10, 10, 10),
-          child: Row(
-            children: [
-              _iconChip(
-                AppColors.primaryBlue,
-                Icons.construction_rounded,
-                size: 30,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'خدماتي المسندة',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cairo(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.slate900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 4,
-                      children: [
-                        if (services.isEmpty)
-                          _chip(
-                            Icons.info_outline_rounded,
-                            'لم تُسنَّد إليك خدمة بعد',
-                            AppColors.slate500,
-                          )
-                        else ...[
-                          _chip(
-                            Icons.play_circle_fill_rounded,
-                            '$activeCount متاحة للعملاء',
-                            AppColors.emerald,
-                          ),
-                          if (suspendedCount > 0)
-                            _chip(
-                              Icons.pause_circle_filled_rounded,
-                              '$suspendedCount موقوفة مؤقتاً',
-                              AppColors.rose,
-                            ),
-                        ],
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'MY SERVICES · ${services.length}',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.technicalCode(
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textMuted,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(width: 2),
-              const Icon(
-                Icons.chevron_left_rounded,
-                size: 20,
-                color: AppColors.slate400,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterChips() {
-    final filters = [
-      {'key': 'all', 'label': 'الكل'},
-      {'key': 'new', 'label': 'جديدة'},
-      {'key': 'in_progress', 'label': 'قيد التنفيذ'},
-      {'key': 'waiting_client', 'label': 'بانتظار العميل'},
-      {'key': 'issues', 'label': 'اعتراضات وتعديلات'},
-      {'key': 'completed', 'label': 'مكتملة'},
-    ];
-
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: filters.map((f) {
-          final isSelected = _selectedFilter == f['key'];
-          return Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: InkWell(
-              onTap: () => setState(() => _selectedFilter = f['key']!),
-              borderRadius: BorderRadius.circular(11),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 13,
-                  vertical: 7,
-                ),
-                decoration: BoxDecoration(
-                  color: isSelected
-                      ? AppColors.primaryBlue.withValues(alpha: 0.10)
-                      : AppColors.surfaceCard,
-                  borderRadius: BorderRadius.circular(11),
-                  border: Border.all(
-                    color: isSelected
-                        ? AppColors.primaryBlue.withValues(alpha: 0.45)
-                        : AppColors.outline,
-                  ),
-                ),
-                child: Text(
-                  f['label']!,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AppTypography.cairo(
-                    color: isSelected
-                        ? AppColors.primaryBlue
-                        : AppColors.slate600,
-                    fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
-                    fontSize: 11.5,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
   /// نص بيانات الطلب كنسخة جاهزة للحافظة (الحقول المشفّرة تُستثنى)
   String _orderDataForCopy(OrderModel order) {
     final String code =
@@ -851,12 +729,15 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
     });
   }
 
-  /// نصف تذكرة: فتحتا التثقيب مقتطعتان فعلياً على الحافة المشتركة للصف
+  /// نصف تذكرة: فتحتا التثقيب مقتطعتان فعلياً على الحافة المشتركة للصف.
+  /// أرضيةُ النصف تُمرَّر لأن الرأس يُصبغ بصبغة الحالة، فلا يبقى الكرتُ
+  /// أبيضَ فوق خلفية الصفحة الورقية التي تكاد تطابقه
   Widget _ticketSection({
     required bool top,
     required Color borderColor,
     required VoidCallback onTap,
     required List<Widget> children,
+    Color surface = AppColors.surfaceCard,
   }) {
     final _TicketHalfClipper clipper = _TicketHalfClipper(top: top);
     return CustomPaint(
@@ -867,9 +748,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       ),
       child: PhysicalShape(
         clipper: clipper,
-        color: AppColors.surfaceCard,
-        elevation: 1.2,
-        shadowColor: AppColors.slate900.withValues(alpha: 0.08),
+        color: surface,
+        elevation: 1.6,
+        shadowColor: AppColors.slate900.withValues(alpha: 0.14),
         clipBehavior: Clip.antiAlias,
         child: Material(
           color: Colors.transparent,
@@ -890,18 +771,35 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   /// باقي التفاصيل والأزرار لا يُبنى ولا يظهر إلا عند النقر على التذكرة.
   Widget _buildOrderCard(OrderModel order) {
     final bool open = _isOpen(order);
-    final bool isDelayed = order.isDelayed && !order.isCompleted;
-    final Color tint = isDelayed ? AppColors.rose : AppColors.primaryBlue;
+    // الحالة النهائية تُوقِف العدّاد: لا «متأخر» لطلبٍ أُغلق مُستَرداً أو مرفوضاً
+    final bool isDelayed = order.isDelayed && !order.isTerminal;
+    // لونٌ واحد يحدد الأيقونة والحدّ وصبغة الرأس: أحمر للتأخير، أخضر
+    // للاكتمال، رمادي لبقية المغلقة، أزرق لما هو في الطابور
+    final Color tint = isDelayed
+        ? AppColors.rose
+        : order.isCompleted
+        ? AppColors.tertiaryLight
+        : order.isTerminal
+        ? AppColors.slate500
+        : AppColors.primaryBlue;
     final Color borderColor = isDelayed
-        ? AppColors.rose.withValues(alpha: 0.5)
+        ? AppColors.rose.withValues(alpha: 0.75)
         : (order.isCompleted
-              ? AppColors.tertiaryLight.withValues(alpha: 0.4)
-              : AppColors.outline);
+              ? AppColors.tertiaryLight.withValues(alpha: 0.55)
+              : (order.isTerminal
+                    ? AppColors.slate500.withValues(alpha: 0.45)
+                    : AppColors.outlineVariant));
+    // رأسُ التذكرة مصبوغٌ خفيفاً فوق الأبيض لفصلٍ واضح عن الأرضية الورقية
+    // بلا كسرٍ للتنسيق، والشريطُ السفلي يبقى على أبيض نقي
+    final Color headSurface = Color.alphaBlend(
+      tint.withValues(alpha: 0.07),
+      AppColors.surfaceCard,
+    );
     final String code =
         '#${order.orderNumber.isNotEmpty ? order.orderNumber : order.id.substring(order.id.length - 6)}';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -909,10 +807,11 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
           _ticketSection(
             top: true,
             borderColor: borderColor,
+            surface: headSurface,
             onTap: () => _toggleTicket(order),
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(11, 8, 8, 6),
+                padding: const EdgeInsets.fromLTRB(10, 5, 8, 4),
                 child: Row(
                   children: [
                     _iconChip(
@@ -920,9 +819,9 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       order.isSensitive
                           ? Icons.lock_rounded
                           : Icons.receipt_long_rounded,
-                      size: 28,
+                      size: 24,
                     ),
-                    const SizedBox(width: 9),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -932,12 +831,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTypography.cairo(
-                              fontSize: 12.5,
+                              fontSize: 11.5,
                               fontWeight: FontWeight.w900,
                               color: AppColors.slate900,
                             ),
                           ),
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 1),
                           Row(
                             children: [
                               Flexible(
@@ -946,7 +845,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: AppTypography.technicalCode(
-                                    fontSize: 9.5,
+                                    fontSize: 8.5,
                                     color: AppColors.slate500,
                                     fontWeight: FontWeight.w800,
                                     letterSpacing: 0.5,
@@ -972,7 +871,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 88),
+                          constraints: const BoxConstraints(maxWidth: 82),
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(
@@ -980,15 +879,15 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                               maxLines: 1,
                               style: AppTypography.plusJakartaSans(
                                 fontWeight: FontWeight.w900,
-                                fontSize: 12.5,
+                                fontSize: 11.5,
                                 color: AppColors.secondaryBright,
                               ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 3),
+                        const SizedBox(height: 2),
                         ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 88),
+                          constraints: const BoxConstraints(maxWidth: 82),
                           child: StatusPill(status: order.status),
                         ),
                       ],
@@ -1001,7 +900,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         open
                             ? Icons.expand_less_rounded
                             : Icons.expand_more_rounded,
-                        size: 17,
+                        size: 16,
                         color: AppColors.slate400,
                       ),
                     ),
@@ -1018,12 +917,12 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
             onTap: () => _toggleTicket(order),
             children: [
               Padding(
-                padding: EdgeInsets.fromLTRB(11, 6, 4, open ? 3 : 8),
+                padding: EdgeInsets.fromLTRB(10, 3, 4, open ? 3 : 4),
                 child: Row(
                   children: [
                     const Icon(
                       Icons.person_outline_rounded,
-                      size: 13,
+                      size: 12,
                       color: AppColors.slate500,
                     ),
                     const SizedBox(width: 4),
@@ -1034,7 +933,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
-                          fontSize: 10.5,
+                          fontSize: 10,
                           color: AppColors.slate600,
                         ),
                       ),
@@ -1045,16 +944,21 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       tooltip: 'نسخ بيانات الطلب',
                       icon: const Icon(
                         Icons.copy_rounded,
-                        size: 15,
+                        size: 13,
                         color: AppColors.slate500,
                       ),
                       onPressed: () =>
                           _copyText('بيانات الطلب', _orderDataForCopy(order)),
                       padding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
+                      // shrinkWrap + minimumSize: لمسة الـ 48px الافتراضية
+                      // كانت ستُطيل الشريط بلا سبب بصري
+                      style: const ButtonStyle(
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        minimumSize: WidgetStatePropertyAll(Size(26, 26)),
+                      ),
                       constraints: const BoxConstraints.tightFor(
-                        width: 30,
-                        height: 30,
+                        width: 26,
+                        height: 26,
                       ),
                     ),
                   ],
@@ -1078,13 +982,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
 
   /// شارة مهلة مضغوطة لسطر التذكرة المطوي (الصندوق الكامل يظهر عند الفرد)
   Widget _deadlineBadge(OrderModel order) {
-    if (order.isCompleted) {
-      return _chip(
-        Icons.check_circle_rounded,
-        'مكتمل',
-        AppColors.tertiaryLight,
-      );
-    }
+    // المنتهي من الطلبات بلا عدّاد: الوقت يتوقف عند الإغلاق ولا يستمر
+    if (order.isTerminal) return _terminalChip(order);
     final DateTime? deadline = order.deadlineAt;
     if (deadline == null) {
       return _chip(
@@ -1112,6 +1011,23 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       Icons.timer_outlined,
       'متبقي ${diff.inMinutes} د',
       AppColors.tertiaryLight,
+    );
+  }
+
+  /// شارة الحالة النهائية بديلُ العدّاد: يبقى الزمنُ متوقفًا عند الإغلاق.
+  /// تُكتفى بكلمة «مغلق» لأن شارة الحالة في الرأس تقول مكتمل/مسترد/مرفوض
+  Widget _terminalChip(OrderModel order) {
+    if (order.isCompleted) {
+      return _chip(
+        Icons.check_circle_rounded,
+        'مكتمل',
+        AppColors.tertiaryLight,
+      );
+    }
+    return _chip(
+      order.isRefunded ? Icons.assignment_return_rounded : Icons.block_rounded,
+      'مغلق',
+      AppColors.slate500,
     );
   }
 
@@ -1163,13 +1079,27 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
   }
 
   Widget _buildDeadlineIndicator(OrderModel order) {
-    if (order.isCompleted) {
+    // الحالات النهائية تُغلق العدّاد نهائياً: لا «متأخر» على طلبٍ مُستَرد
+    if (order.isTerminal) {
+      final bool done = order.isCompleted;
+      final IconData icon = done
+          ? Icons.check_circle_rounded
+          : order.isRefunded
+          ? Icons.assignment_return_rounded
+          : Icons.block_rounded;
+      final String text = done
+          ? 'تم تأكيد الإنهاء من مقدّم الخدمة وإغلاق الطلب بنجاح.'
+          : order.isRefunded
+          ? 'أُغلق الطلب بالإرجاع المالي: لا يُحتسب عليه وقتٌ بعد الآن.'
+          : 'أُغلق الطلب برفض مقدّم الخدمة: لا يُحتسب عليه وقتٌ بعد الآن.';
       return _note(
-        icon: Icons.check_circle_rounded,
-        text: 'تم تأكيد الإنهاء من مقدّم الخدمة وإغلاق الطلب بنجاح.',
-        color: AppColors.tertiaryLight,
-        background: AppColors.tertiaryContainer,
-        border: AppColors.tertiary.withValues(alpha: 0.3),
+        icon: icon,
+        text: text,
+        color: done ? AppColors.tertiaryLight : AppColors.slate600,
+        background: done ? AppColors.tertiaryContainer : AppColors.surfaceDim,
+        border: done
+            ? AppColors.tertiary.withValues(alpha: 0.3)
+            : AppColors.slate300,
         maxLines: 2,
       );
     }
@@ -1832,6 +1762,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
 
   Widget _buildEmptyState() {
     return _ticketShell(
+      // حدٌّ يُرى على الأرضية الورقية كما في تذاكر الطلبات
+      borderColor: AppColors.outlineVariant,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 26, 16, 22),
         child: Column(

@@ -1,12 +1,14 @@
 // صفحة الخدمات المسندة لمقدم الخدمة (انقلت من اللوحة إلى شاشة مستقلة):
-// تُفتح بلمسة على بطاقة «خدماتي المسندة»، وتحمل تذاكر الخدمات مع
-// الإيقاف المؤقت/إعادة التفعيل وأزرار النسخ، بلا طفو على الشاشات الضيقة.
+// تُفتح بلمسة على سطر «خدماتي المسندة» في كرت الحالة العلوي، وتحمل تذاكر
+// الخدمات مع الإيقاف المؤقت/إعادة التفعيل وأزرار النسخ، بلا طفو على
+// الشاشات الضيقة.
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
+import 'package:layan_chargex/core/theme/app_colors.dart';
 import 'package:layan_chargex/models/order_model.dart';
 import 'package:layan_chargex/models/product_model.dart';
 import 'package:layan_chargex/models/user_model.dart';
@@ -307,16 +309,16 @@ void main() {
     );
     await _settle(w);
 
-    // اللوحة صارت بطاقة دخول مضغوطة بلا تذاكر الخدمات نفسها
-    expect(find.text('خدماتي المسندة'), findsOneWidget); // عنوان بطاقة الدخول
+    // بوابة الخدمات صارت سطر الهوية في كرت الحالة: لا بطاقة مستقلة
+    expect(find.text('خدماتي المسندة'), findsOneWidget); // عنوان البوابة
     expect(find.text('MY SERVICES · 2'), findsOneWidget);
-    expect(find.text('1 متاحة للعملاء'), findsOneWidget);
-    expect(find.text('1 موقوفة مؤقتاً'), findsOneWidget);
+    expect(find.text('1 موقوفة'), findsOneWidget); // رقاقة الحالة على الداكن
+    expect(find.text('1 متاحة للعملاء'), findsNothing);
     expect(find.text('نسخ بيانات الخدمة'), findsNothing);
-    // هوية التذكرة: بطاقة الحالة المدمجة + بطاقة الدخول فقط
-    expect(_ticketClips(), findsNWidgets(2));
+    // تذكرة واحدة في اللوحة: كرت الحالة (بوابة + شريط المؤشرات)
+    expect(_ticketClips(), findsOneWidget);
 
-    await w.tap(find.text('خدماتي المسندة')); // عنوان بطاقة الدخول في اللوحة
+    await w.tap(find.text('خدماتي المسندة')); // البوابة داخل كرت الحالة
     await _settle(w);
 
     expect(find.byType(SupervisorServicesScreen), findsOneWidget);
@@ -359,6 +361,51 @@ void main() {
     expect(manual.servicesFetches, greaterThanOrEqualTo(1));
     expect(manual.ordersFetches, greaterThanOrEqualTo(1));
     expect(find.text('1 طلب نشط'), findsOneWidget);
+
+    await _dispose(w);
+  });
+
+  testWidgets('تذاكر الخدمات تحمل تنسيق اللوحة: صبغةُ رأسٍ وحدّ حالة', (
+    w,
+  ) async {
+    await _pumpServices(w);
+
+    // الرأس أرضيةٌ مصمتة مصبوغة بلمسة الخدمة، لا أبيضُ يذوب في الورقية
+    final List<Container> heads = w
+        .widgetList<Container>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Container &&
+                widget.color != null &&
+                widget.decoration == null &&
+                widget.constraints == null, // الكعب بعرضه الثابت يُستثنى
+          ),
+        )
+        .toList();
+    expect(heads.length, 2);
+    for (final Container head in heads) {
+      expect(head.color!.a, 1.0, reason: 'الصبغة مصمتة لا شفافة');
+      expect(head.color, isNot(AppColors.surfaceCard));
+    }
+    expect(heads[0].color, isNot(heads[1].color));
+
+    // الحدّ بلون الحالة وأقوى، لا outline الذي لا يُرى على الخلفية الورقية
+    final List<Color> borders = w
+        .widgetList<CustomPaint>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is CustomPaint &&
+                widget.foregroundPainter is TicketPassBorderPainter,
+          ),
+        )
+        .map(
+          (cp) => (cp.foregroundPainter as TicketPassBorderPainter).borderColor,
+        )
+        .toList();
+    expect(borders, <Color>[
+      AppColors.primaryBlue.withValues(alpha: 0.5),
+      AppColors.rose.withValues(alpha: 0.75),
+    ]);
 
     await _dispose(w);
   });
