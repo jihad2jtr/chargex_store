@@ -231,11 +231,19 @@ void main() {
   testWidgets('فلتر الحالة يُطبَّق على الطلبات والأرقام معاً', (w) async {
     await _pump(w, orders: orders, numbers: numbers);
 
+    // الفلاتر قائمة منسدلة بجانب مستطيل البحث: تُفتح ثم يُختار منها
+    expect(find.text('الكل'), findsOneWidget);
+    await w.tap(find.byTooltip('فلتر الحالة'));
+    await w.pumpAndSettle();
+
     // كلها مكتملة: «قيد الانتظار» يُخفي الطلبات والأرقام
     await w.tap(find.text('قيد الانتظار'));
-    await w.pump(const Duration(milliseconds: 300));
+    await w.pumpAndSettle();
     expect(find.text('Netflix Monthly'), findsNothing);
     expect(find.text('telegram'), findsNothing);
+
+    // الزر يحمل الفلتر المختار بعد الإغلاق
+    expect(find.text('قيد الانتظار'), findsOneWidget);
 
     expect(w.takeException(), isNull);
   });

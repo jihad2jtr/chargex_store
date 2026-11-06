@@ -219,12 +219,8 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
             ),
             const SizedBox(height: 9),
 
-            // 2. Real-time Search Input
-            _buildSearchBar(),
-            const SizedBox(height: 8),
-
-            // 3. Tactile Filter Pills (الحالة)
-            _buildFilterChips(
+            // 2. البحث + قائمة الفلاتر في صف واحد: القائمة بجانب المستطيل
+            _buildSearchAndFilterRow(
               totalCount: allOrders.length,
               completedCount: completedCount,
               pendingCount: pendingCount,
@@ -670,132 +666,192 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
   }
 
   // ===========================================================================
-  // 3. FILTER CHIPS
+  // 3. FILTER LIST — فلاتر الحالة في قائمة منسدلة بجانب مستطيل البحث
   // ===========================================================================
-  Widget _buildFilterChips({
+
+  /// خيارات الحالة في مصدر واحد يقرأ منه الزر والقائمة معاً، فلا يتفارقان
+  List<_StatusFilter> _statusFilters({
     required int totalCount,
     required int completedCount,
     required int pendingCount,
     required int manualCount,
     required int rejectedCount,
   }) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      physics: const BouncingScrollPhysics(),
-      child: Row(
-        children: [
-          _buildFilterChip('all', 'الكل', totalCount, Icons.dashboard_outlined),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            'pending',
-            'قيد الانتظار',
-            pendingCount,
-            Icons.hourglass_top_rounded,
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            'completed',
-            'مكتملة',
-            completedCount,
-            Icons.check_circle_outline_rounded,
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            'manual',
-            'خدمات يدوية',
-            manualCount,
-            Icons.support_agent_outlined,
-          ),
-          const SizedBox(width: 8),
-          _buildFilterChip(
-            'rejected',
-            'مرفوضة',
-            rejectedCount,
-            Icons.cancel_outlined,
-          ),
+    return <_StatusFilter>[
+      _StatusFilter('all', 'الكل', totalCount, Icons.dashboard_outlined),
+      _StatusFilter(
+        'pending',
+        'قيد الانتظار',
+        pendingCount,
+        Icons.hourglass_top_rounded,
+      ),
+      _StatusFilter(
+        'completed',
+        'مكتملة',
+        completedCount,
+        Icons.check_circle_outline_rounded,
+      ),
+      _StatusFilter(
+        'manual',
+        'خدمات يدوية',
+        manualCount,
+        Icons.support_agent_outlined,
+      ),
+      _StatusFilter('rejected', 'مرفوضة', rejectedCount, Icons.cancel_outlined),
+    ];
+  }
+
+  /// مستطيل البحث يأخذ بقية الصف، وقائمة الفلاتر إلى جانبه (يساره في RTL)
+  Widget _buildSearchAndFilterRow({
+    required int totalCount,
+    required int completedCount,
+    required int pendingCount,
+    required int manualCount,
+    required int rejectedCount,
+  }) {
+    final List<_StatusFilter> filters = _statusFilters(
+      totalCount: totalCount,
+      completedCount: completedCount,
+      pendingCount: pendingCount,
+      manualCount: manualCount,
+      rejectedCount: rejectedCount,
+    );
+    final _StatusFilter current = filters.firstWhere(
+      (_StatusFilter f) => f.key == _selectedFilter,
+      orElse: () => filters.first,
+    );
+
+    return Row(
+      children: [
+        Expanded(child: _buildSearchBar()),
+        const SizedBox(width: 8),
+        _buildFilterMenu(current, filters),
+      ],
+    );
+  }
+
+  Widget _buildFilterMenu(_StatusFilter current, List<_StatusFilter> filters) {
+    // الفلتر النشِط يلوّن الزر ليُرى اختيار العميل من بعيد
+    final bool active = current.key != 'all';
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 168),
+      child: PopupMenuButton<String>(
+        tooltip: 'فلتر الحالة',
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: Color(0xFFE2E8F0)),
+        ),
+        padding: EdgeInsets.zero,
+        onSelected: (String key) => setState(() => _selectedFilter = key),
+        itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+          for (final _StatusFilter f in filters)
+            PopupMenuItem<String>(
+              value: f.key,
+              height: 40,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+              child: _buildFilterRow(f, isSelected: f.key == current.key),
+            ),
         ],
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 9),
+          decoration: BoxDecoration(
+            color: active ? const Color(0xFF0F172A) : Colors.white,
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(
+              color: active ? const Color(0xFF0F172A) : const Color(0xFFE2E8F0),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: active
+                    ? const Color(0xFF0F172A).withValues(alpha: 0.18)
+                    : Colors.black.withValues(alpha: 0.02),
+                blurRadius: active ? 6 : 5,
+                offset: const Offset(0, 1),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.filter_list_rounded,
+                size: 15,
+                color: active
+                    ? const Color(0xFFF59E0B)
+                    : const Color(0xFF64748B),
+              ),
+              const SizedBox(width: 5),
+              Flexible(
+                child: Text(
+                  current.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.cairo(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    color: active ? Colors.white : const Color(0xFF334155),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 3),
+              Icon(
+                Icons.arrow_drop_down_rounded,
+                size: 18,
+                color: active ? Colors.white : const Color(0xFF94A3B8),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  Widget _buildFilterChip(String key, String label, int count, IconData icon) {
-    final isSelected = _selectedFilter == key;
-
-    return InkWell(
-      onTap: () {
-        setState(() {
-          _selectedFilter = key;
-        });
-      },
-      borderRadius: BorderRadius.circular(16),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4.5),
-        decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF0F172A) : Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
+  /// سطر الخيار داخل القائمة: أيقونة ثم عنوان ثم عدّاد، والمختار يبرز بالأسود
+  Widget _buildFilterRow(_StatusFilter f, {required bool isSelected}) {
+    return Row(
+      children: [
+        Icon(
+          f.icon,
+          size: 15,
+          color: isSelected ? const Color(0xFFF59E0B) : const Color(0xFF64748B),
+        ),
+        const SizedBox(width: 7),
+        Expanded(
+          child: Text(
+            f.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTypography.cairo(
+              fontSize: 11,
+              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+              color: isSelected
+                  ? const Color(0xFF0F172A)
+                  : const Color(0xFF334155),
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+          decoration: BoxDecoration(
             color: isSelected
                 ? const Color(0xFF0F172A)
-                : const Color(0xFFE2E8F0),
-            width: 1,
+                : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(9),
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: const Color(0xFF0F172A).withValues(alpha: 0.18),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ]
-              : [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.015),
-                    blurRadius: 3,
-                    offset: const Offset(0, 1),
-                  ),
-                ],
+          child: Text(
+            '${f.count}',
+            style: AppTypography.technicalCode(
+              fontSize: 9.5,
+              fontWeight: FontWeight.bold,
+              color: isSelected ? Colors.white : const Color(0xFF64748B),
+            ),
+          ),
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 11.5,
-              color: isSelected
-                  ? const Color(0xFFF59E0B)
-                  : const Color(0xFF64748B),
-            ),
-            const SizedBox(width: 5),
-            Text(
-              label,
-              style: AppTypography.cairo(
-                fontSize: 10.5,
-                fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-                color: isSelected ? Colors.white : const Color(0xFF334155),
-              ),
-            ),
-            const SizedBox(width: 5),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? Colors.white.withValues(alpha: 0.15)
-                    : const Color(0xFFF1F5F9),
-                borderRadius: BorderRadius.circular(9),
-              ),
-              child: Text(
-                '$count',
-                style: AppTypography.technicalCode(
-                  fontSize: 9.5,
-                  fontWeight: FontWeight.bold,
-                  color: isSelected ? Colors.white : const Color(0xFF64748B),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+      ],
     );
   }
 
@@ -2079,6 +2135,17 @@ class _OrderHistoryRow extends _HistoryRow {
 class _NumberHistoryRow extends _HistoryRow {
   final VirtualNumberRequestModel request;
   const _NumberHistoryRow(this.request, super.at);
+}
+
+// =============================================================================
+// STATUS FILTER — خيار واحد في قائمة الفلاتر بجانب مستطيل البحث
+// =============================================================================
+class _StatusFilter {
+  final String key;
+  final String label;
+  final int count;
+  final IconData icon;
+  const _StatusFilter(this.key, this.label, this.count, this.icon);
 }
 
 // =============================================================================
