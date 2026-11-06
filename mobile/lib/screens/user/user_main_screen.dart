@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/constants/app_icon_assets.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/app_model.dart';
 import '../../models/user_model.dart';
@@ -9,6 +11,7 @@ import '../../providers/exchange_rate_provider.dart';
 import '../../widgets/billboard_ad_carousel.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/app_icon_tile.dart';
+import '../../widgets/service_ticket_card.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 import 'app_products_screen.dart';
@@ -352,25 +355,8 @@ class _UserMainScreenState extends State<UserMainScreen> {
   }
 
   // ---------------------------------------------------------------------------
-  // 7. PERFORATED TICKET PRODUCT CARDS GRID (RESPONSIVE COLUMNS)
+  // 7. CATALOG GRID: phone-style icons or numbers-page tickets
   // ---------------------------------------------------------------------------
-
-  int _getResponsiveCrossAxisCount(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width >= 1600) return 6;
-    if (width >= 1250) return 5;
-    if (width >= 900) return 4;
-    if (width >= 600) return 3;
-    return 2;
-  }
-
-  double _getResponsiveChildAspectRatio(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width >= 1250) return 1.65;
-    if (width >= 900) return 1.60;
-    if (width >= 600) return 1.55;
-    return 1.50;
-  }
 
   Widget _buildDigitalPassesGrid(
     BuildContext context,
@@ -462,42 +448,106 @@ class _UserMainScreenState extends State<UserMainScreen> {
       );
     }
 
-    // الخدمات والاشتراكات تُعرض كبطاقات دائماً
+    // التطبيقات والألعاب تختار العميل بينهما: أيقونات نمط شاشة الهاتف أو
+    // كروت، أما الخدمات والاشتراكات فتُعرض ككروت دائماً
     if (_catalogIconView && !_isCardOnlyCategory(categoryType)) {
       return _buildAppIconsGrid(context, filteredApps);
     }
 
-    final int crossAxisCount = _getResponsiveCrossAxisCount(context);
-    final double childAspectRatio = _getResponsiveChildAspectRatio(context);
-    final double spacing = MediaQuery.of(context).size.width >= 900
-        ? 14
-        : (MediaQuery.of(context).size.width >= 600 ? 12 : 9);
+    // نمط الكروت في الصفحات الثلاث واحد: تذكرة صفحة الأرقام نفسها — ثلاثة
+    // كروت في الصف، صورة تملأ التذكرة وشريط اسم فوق تبويب سعر، ووسم نوع
+    // العنصر في الزاوية يفرّق تطبيق عن لعبة عن خدمة عن اشتراك
+    return _buildTicketGrid(filteredApps);
+  }
 
-    return GridView.builder(
-      physics: const NeverScrollableScrollPhysics(),
-      shrinkWrap: true,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        childAspectRatio: childAspectRatio,
-        crossAxisSpacing: spacing,
-        mainAxisSpacing: spacing,
-      ),
-      itemCount: filteredApps.length,
-      itemBuilder: (context, index) {
-        final app = filteredApps[index];
-        final passItem = DigitalPassItem.fromApp(app);
+  // ---------------------------------------------------------------------------
+  // 7.a1 TICKET GRID (نفس شبكة صفحة الأرقام: ثلاثة كروت في الصف)
+  // ---------------------------------------------------------------------------
 
-        return DigitalPassCardWidget(
-          item: passItem,
-          imageOnly: true,
-          onTapCharge: () {
-            Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => AppProductsScreen(app: app)),
+  /// كروت التطبيقات والألعاب والخدمات والاشتراكات تُرسم بالتصميم نفسه الذي
+  /// ترسم به كروت صفحة الأرقام (ServiceTicketCard): عرض الصف ثابت ثلاثة،
+  /// والارتفاع مربع الصورة زائد شريطي الاسم والتبويب، فلا يختلف الشكل بين
+  /// صفحتين
+  Widget _buildTicketGrid(List<AppItemModel> apps) {
+    const double spacing = 8;
+    const int columns = 3;
+    const double infoHeight = 52;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cellWidth =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+
+        return GridView.builder(
+          physics: const NeverScrollableScrollPhysics(),
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: columns,
+            crossAxisSpacing: spacing,
+            mainAxisSpacing: spacing,
+            mainAxisExtent: cellWidth + infoHeight,
+          ),
+          itemCount: apps.length,
+          itemBuilder: (context, index) {
+            final app = apps[index];
+            // وسم الزاوية ولونه يحدّدان نوع العنصر، والكرت نفسه رسم واحد
+            final (String tag, Color tagColor) = switch (_effectiveAppType(
+              app,
+            )) {
+              'game' => ('لعبة', AppColors.rose),
+              'app' => ('تطبيق', AppColors.emerald),
+              'subscription' => ('اشتراك', AppColors.violet),
+              _ => ('خدمة', AppColors.primaryBlue),
+            };
+            return ServiceTicketCard(
+              name: app.name,
+              // لا سعر واحد للكرت: ما تحت الطلب باقات يختار العميل منها
+              priceText: 'باقات متعددة',
+              tag: tag,
+              tagColor: tagColor,
+              iconRaw: app.iconUrl,
+              iconSeeds: <String>[
+                app.name,
+                app.nameAr ?? '',
+                app.nameEn ?? '',
+                app.category ?? '',
+              ],
+              letterSeed: (app.nameEn ?? '').isNotEmpty
+                  ? app.nameEn!
+                  : app.name,
+              foreign: _foreignNameFor(app),
+              metaText: _cardSubtitle(app),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => AppProductsScreen(app: app),
+                  ),
+                );
+              },
             );
           },
         );
       },
     );
+  }
+
+  /// السطر الأجنبي الخافت فوق الاسم: لا يظهر إذا كان المخزّن لاتينياً أصلاً
+  /// أو مطابِقاً للاسم الأجنبي المعروف من مكتبة المشروع
+  String _foreignNameFor(AppItemModel app) {
+    final stored = app.name.trim();
+    if (stored.isEmpty) return '';
+    if (!RegExp(r'[\u0600-\u06FF]').hasMatch(stored)) return '';
+    final en = englishNameForApp(iconUrl: app.iconUrl, name: stored);
+    if (en == null || en.isEmpty) return '';
+    return en.toLowerCase() == stored.toLowerCase() ? '' : en;
+  }
+
+  /// سطر التفاصيل على الصورة: وصف العنصر من لوحة الإدارة ثم تصنيفه
+  String _cardSubtitle(AppItemModel app) {
+    final desc = (app.description ?? '').trim();
+    if (desc.isNotEmpty) return desc;
+    return (app.category ?? '').trim();
   }
 
   // ---------------------------------------------------------------------------

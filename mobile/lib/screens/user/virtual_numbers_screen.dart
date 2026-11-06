@@ -12,7 +12,7 @@ import '../../providers/app_catalog_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../providers/wallet_provider.dart';
-import '../../widgets/digital_pass_card.dart';
+import '../../widgets/service_ticket_card.dart';
 import '../../widgets/top_notice.dart';
 import 'manual_order_details_screen.dart';
 import 'topup_screen.dart';
@@ -188,7 +188,11 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
           // بلا شريط علوي: الصفحة تبدأ مباشرة بشبكة الخدمات — عدّات الخدمات
           // والدول والمهلة ليست قراراً يتخذه العميل. الشبكة واحدة تجمع اليدوي
           // المضمون والتلقائي بشارة نوع على زاوية كل كرت
-          _buildSectionHeader('خدمات تفعيل الأرقام', 'ACTIVATE', AppColors.ticketAmber),
+          _buildSectionHeader(
+            'خدمات تفعيل الأرقام',
+            'ACTIVATE',
+            AppColors.ticketAmber,
+          ),
           const SizedBox(height: 10),
           _buildServicesArea(provider),
           const SizedBox(height: 18),
@@ -1070,313 +1074,22 @@ class _NumberServiceCard extends StatelessWidget {
 
   const _NumberServiceCard({required this.item, required this.onTap});
 
-  /// رمز التطبيق الذي يملأ الكرت: الرمز المخزّن ثم الأسماء العربي والأجنبي ورمز الخدمة
-  String? _findIconAsset() {
-    final cleanIcon = item.iconRaw.trim();
-    if (cleanIcon.isNotEmpty) {
-      if (cleanIcon.startsWith('assets/')) return cleanIcon;
-      final direct = builtinIconAssetExact(cleanIcon);
-      if (direct != null) return direct;
-      final byQuery = builtinIconAssetForQuery(cleanIcon);
-      if (byQuery != null) return byQuery;
-    }
-    for (final seed in item.iconSeeds) {
-      if (seed.trim().isEmpty) continue;
-      final found = iconAssetForApp(iconUrl: cleanIcon, name: seed.trim());
-      if (found != null) return found;
-    }
-    return null;
-  }
-
-  // غلاف التذكرة: فتحتان على الحافتين وحوافة 14، والصورة تملأ الكرت إلى خطّ
-  // تبويبي الاسم والسعر لا إلى آخره
-  static const double _radius = 14;
-  static const double _notch = 6;
-
-  // تبويبا الكرت: شريط الاسم وشريط السعر أسفل التذكرة، والفتحتان على خطّهما
-  static const double _stubHeight = 22;
-  static const double _nameHeight = 20;
-  static const double _tabsHeight = _stubHeight + _nameHeight;
-
+  // الرسم نفسه المستخدم في صفحة الخدمات والاشتراكات: تصميم واحد لتذكرة
+  // واحدة، والفرق نصٌ وشارة الزاوية ونافذة الطلب التي يفتحها النقر
   @override
   Widget build(BuildContext context) {
-    final String? iconAsset = _findIconAsset();
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // الفتحتان تنزلان إلى خطّ القصّ فوق تبويبي الاسم والسعر، فتنقسم
-        // التذكرة إلى صورةٍ أعلى وجنبٍ مقصوصٍ أسفل لا إلى كرتٍ بفتحةٍ في وسطه
-        final double height = constraints.maxHeight;
-        final double ceiling = (height - _radius - _notch) / height;
-        final double upper = ceiling > 0.55 ? ceiling : 0.55;
-        final double notchFraction = ((height - _tabsHeight) / height)
-            .clamp(0.55, upper)
-            .toDouble();
-
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: CustomPaint(
-            painter: TicketPassShadowPainter(
-              cornerRadius: _radius,
-              notchRadius: _notch,
-              notchPositionFraction: notchFraction,
-              // ظلّ بلون النوع: أخضر خلف المضمون وكهرماني خلف الآلي
-              shadowColor: item.tagColor,
-              elevation: 5,
-            ),
-            foregroundPainter: TicketPassBorderPainter(
-              cornerRadius: _radius,
-              notchRadius: _notch,
-              notchPositionFraction: notchFraction,
-              borderColor: Colors.white.withValues(alpha: 0.75),
-              borderWidth: 1,
-            ),
-            child: ClipPath(
-              clipper: TicketPassClipper(
-                cornerRadius: _radius,
-                notchRadius: _notch,
-                notchPositionFraction: notchFraction,
-              ),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  // أرض التذكرة: تدرّج وحرف، كي لا تترك البطاقةُ بلا رمز
-                  // بياضاً على حوافها، ولكي يبقى تحت تبويبي الاسم والسعر ما يسده
-                  _letterBackdrop(),
-                  // الصورة وقدرُها ما فوق التبويبين: حدُّها السفلي خطُّ الاسم
-                  // نفسه، فلا اسمَ ولا سعرَ يُقرأ فوق جزء منها
-                  PositionedDirectional(
-                    top: 0,
-                    start: 0,
-                    end: 0,
-                    bottom: _tabsHeight,
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        if (iconAsset != null)
-                          Positioned.fill(
-                            child: Image.asset(
-                              iconAsset,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const SizedBox.shrink(),
-                            ),
-                          ),
-                        // تعتيم أسفل الصورة: الأسطر الصغيرة تُقرأ فوق أي رمز
-                        const Positioned.fill(
-                          child: IgnorePointer(
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  stops: [0.0, 0.4, 0.7, 0.86],
-                                  colors: [
-                                    Color(0x00000000),
-                                    Color(0x0D000000),
-                                    Color(0x66000000),
-                                    Color(0xB3000000),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                        // أعلى الصورة للقفل والشارة، وأسفلها الأسطر الصغيرة
-                        Positioned.fill(
-                          child: Padding(
-                            padding: const EdgeInsets.fromLTRB(7, 20, 7, 4),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                // الاسم الأجنبي وعدد الدول يبقيان على الصورة،
-                                // أما الاسم والسعر فلكلٍّ تبويبه تحتها
-                                if (item.foreign.isNotEmpty)
-                                  _subLine(item.foreign, ltr: true),
-                                if (item.metaText.isNotEmpty)
-                                  _subLine(item.metaText),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  // تبويب الاسم فوق تبويب السعر: شريطاهما الآن على أرض التذكرة
-                  // لا على الصورة
-                  PositionedDirectional(
-                    bottom: _stubHeight,
-                    start: 0,
-                    end: 0,
-                    child: _nameTab(),
-                  ),
-                  // تبويب السعر أسفل الكرت: السعر وحده، أكبر وأبين من قبل
-                  PositionedDirectional(
-                    bottom: 0,
-                    start: 0,
-                    end: 0,
-                    child: _priceStub(),
-                  ),
-                  // شارة النوع في زاوية الكرت: هي وحدها ما يفرّق خدمةَ مشرف
-                  // مضمونة عن رقم مزود آلي، بعد أن ادمجت الشبكة الواحدة القسمين
-                  PositionedDirectional(top: 4, start: 4, child: _typeTag()),
-                  if (item.sensitive)
-                    // قفل صغير في الزاوية المقابلة: الخدمة تطلب بيانات سرية
-                    PositionedDirectional(
-                      top: 4,
-                      end: 4,
-                      child: _sensitiveLock(),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  /// سطر مساعد فوق الاسم: الاسم الأجنبي أو عدد الدول، بخطّ خافت صغير
-  Widget _subLine(String text, {bool ltr = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        textDirection: ltr ? TextDirection.ltr : null,
-        style: AppTypography.cairo(
-          fontSize: 8.5,
-          fontWeight: FontWeight.w700,
-          color: Colors.white70,
-          height: 1.15,
-        ),
-      ),
-    );
-  }
-
-  /// تبويب الاسم: شريط متدرّج رأسي من أسفل الكرت إلى أعلاه، الاسمُ فيه وحده
-  /// بخطّ أبيض بائن، فلا يقرأه أحد فوق صورة داكنة
-  Widget _nameTab() {
-    return Container(
-      height: _nameHeight,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        // التدرّج من أسفل الكرت إلى أعلاه: سواد عند تبويب السعر يفتح شيئاً
-        // فشيئاً نحو الصورة، فالتبويبان طبقة واحدة لا شريطان بنفس اللون
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [Colors.black, AppColors.slate700],
-        ),
-        border: Border(top: BorderSide(color: Colors.white38, width: 0.8)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Text(
-          item.name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: AppTypography.cairo(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
-            height: 1.15,
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// شريط السعر أسفل التذكرة: أرضية داكنة مصمتة وخطّ كبير بلون التطبيق المميز،
-  /// فالسعر أول ما تقرأه العين ولا ينافسه سطرُ الدول ولا الاسم
-  Widget _priceStub() {
-    return Container(
-      height: _stubHeight,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: AppColors.slate900,
-        // نفس الخيط الأبيض الرفيع الذي فوق تبويب الاسم: خطّان متماثلان
-        // يفصلان الصورة عن الاسم عن السعر
-        border: Border(top: BorderSide(color: Colors.white38, width: 0.8)),
-      ),
-      child: Text(
-        item.priceText,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: AppTypography.cairo(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w900,
-          color: AppColors.ticketAmber,
-          height: 1.15,
-        ),
-      ),
-    );
-  }
-
-  /// قفل على زاوية كرت الخدمة التي تطلب بيانات سرية
-  Widget _sensitiveLock() {
-    return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: BoxDecoration(
-        color: AppColors.slate100,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: const Icon(
-        Icons.lock_outline_rounded,
-        size: 9,
-        color: AppColors.rose,
-      ),
-    );
-  }
-
-  /// وسم صغير أعلى الكرت: أخضر للتفعيل المضمون، كهرماني للرقم الآلي
-  Widget _typeTag() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: item.tagColor,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        item.tag,
-        maxLines: 1,
-        style: AppTypography.cairo(
-          fontSize: 7,
-          fontWeight: FontWeight.w900,
-          color: Colors.white,
-          height: 1.2,
-        ),
-      ),
-    );
-  }
-
-  /// خلفية التذكرة: تدرّج بحرف كبير من اسم الخدمة، تُمدّ فوقها الصورة عند وجودها
-  Widget _letterBackdrop() {
-    final letter = item.name.isNotEmpty
-        ? item.name.substring(0, 1)
-        : (item.letterSeed.isEmpty
-              ? '#'
-              : item.letterSeed.substring(0, 1).toUpperCase());
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF1E293B), Color(0xFF475569)],
-        ),
-      ),
-      child: Center(
-        child: Text(
-          letter,
-          style: AppTypography.fintechBadge(color: Colors.white, fontSize: 30),
-        ),
-      ),
+    return ServiceTicketCard(
+      name: item.name,
+      priceText: item.priceText,
+      tag: item.tag,
+      tagColor: item.tagColor,
+      iconRaw: item.iconRaw,
+      iconSeeds: item.iconSeeds,
+      letterSeed: item.letterSeed,
+      foreign: item.foreign,
+      metaText: item.metaText,
+      sensitive: item.sensitive,
+      onTap: onTap,
     );
   }
 }

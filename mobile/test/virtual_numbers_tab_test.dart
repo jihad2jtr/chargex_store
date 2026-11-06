@@ -18,7 +18,7 @@ import 'package:layan_chargex/providers/wallet_provider.dart';
 import 'package:layan_chargex/screens/user/user_main_screen.dart';
 import 'package:layan_chargex/screens/user/virtual_numbers_screen.dart';
 import 'package:layan_chargex/widgets/app_icon_tile.dart';
-import 'package:layan_chargex/widgets/digital_pass_card.dart';
+import 'package:layan_chargex/widgets/service_ticket_card.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -113,12 +113,16 @@ void _drainExpectedNoise(WidgetTester w) {
 /// المفتاح لا يُعثر على أي من محتواها.
 Finder _text(String data) => find.text(data, skipOffstage: false);
 
-List<String> _cardTitles(WidgetTester w) => w
-    .widgetList<DigitalPassCardWidget>(
-      find.byType(DigitalPassCardWidget, skipOffstage: false),
+/// كروت نمط التذكرة في كل الصفحات (تطبيقات/ألعاب/خدمات) بنفس التذكرة المشتركة
+List<ServiceTicketCard> _cards(WidgetTester w) => w
+    .widgetList<ServiceTicketCard>(
+      find.byType(ServiceTicketCard, skipOffstage: false),
     )
-    .map((c) => c.item.title)
     .toList();
+
+/// كروت صفحة الخدمات: تُرسم بالتذكرة المشتركة مع صفحة الأرقام
+List<String> _cardTitles(WidgetTester w) =>
+    _cards(w).map((c) => c.name).toList();
 
 List<String> _iconNames(WidgetTester w) => w
     .widgetList<AppIconTile>(find.byType(AppIconTile, skipOffstage: false))
@@ -186,6 +190,39 @@ void main() {
     expect(_text('لا توجد خدمات متاحة حالياً'), findsOneWidget);
     expect(_cardTitles(w), isEmpty);
     expect(_iconNames(w), <String>['ببجي']);
+
+    _drainExpectedNoise(w);
+  });
+
+  testWidgets('نمط الكروت في التطبيقات والألعاب هو تذكرة صفحة الأرقام', (
+    WidgetTester w,
+  ) async {
+    await _pumpMain(
+      w,
+      apps: <Map<String, dynamic>>[
+        _app('a1', 'نتفلكس', 'app'),
+        _app('g1', 'ببجي', 'game'),
+      ],
+    );
+
+    // الافتراضي أيقونات، فالتذاكر لا تظهر إلا بعد التبديل إلى نمط الكروت
+    expect(_cardTitles(w), isEmpty);
+    expect(_iconNames(w), <String>['نتفلكس', 'ببجي']);
+
+    // زر التبديل في صفحتي التطبيقات والألعاب، والظاهر منهما الآن التطبيقات
+    await w.tap(find.byIcon(Icons.view_agenda_rounded).first);
+    await w.pump();
+
+    // الصفحتان تبديلان معاً: لا أيقونات، وكل كرت تذكرة صفحة الأرقام
+    expect(_iconNames(w), isEmpty);
+    expect(_cardTitles(w), <String>['نتفلكس', 'ببجي']);
+
+    // وسم الزاوية يفرّق النوع: «تطبيق» في صفحة التطبيقات و«لعبة» في صفحة الألعاب
+    final Map<String, String> tags = <String, String>{
+      for (final ServiceTicketCard c in _cards(w)) c.name: c.tag,
+    };
+    expect(tags, <String, String>{'نتفلكس': 'تطبيق', 'ببجي': 'لعبة'});
+    expect(_cards(w).every((c) => c.priceText == 'باقات متعددة'), isTrue);
 
     _drainExpectedNoise(w);
   });
