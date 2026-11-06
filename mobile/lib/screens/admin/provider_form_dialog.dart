@@ -247,6 +247,16 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                       url: 'https://bay2game.com/api',
                     ),
                   ),
+                  // مزود الخدمات والاشتراكات (reseller): رابطه يحدّد نوعه في الخادم
+                  _quickChip(
+                    label: 'Gemini Pro للخدمات',
+                    icon: Icons.workspace_premium_rounded,
+                    color: AppColors.accentGreen,
+                    onTap: () => _fillQuick(
+                      name: 'Gemini Pro',
+                      url: 'https://api-geminipro.ignorelist.com',
+                    ),
+                  ),
                 ],
                 // مزودو الأرقام لهم صفحة مستقلة: لا تظهر اختصاراتهم هنا
                 if (_virtualOnly) ...[

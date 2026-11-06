@@ -21,6 +21,8 @@ export enum ProviderType {
   DOGESMS = 'dogesms',
   // SMSPool: REST يستجيب بأكواد MessagePack والرقم يصل فور الشراء
   SMSPOOL = 'smspool',
+  // مزود الخدمات والاشتراكات (Gemini Pro reseller): منتجات رقمية تُسلَّم بيانات دخول فورية
+  GEMINIPRO = 'geminipro',
   CUSTOM = 'custom',
 }
 

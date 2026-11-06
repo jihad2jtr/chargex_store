@@ -1,5 +1,6 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { OrdersService } from './orders.service';
+import { ProductType } from '../../database/schemas/product.schema';
 
 // =============================================================================
 // اختبارات دورة حياة الطلب اليدوي بعد تسليم النتيجة (نظام الشات + التثبيت):
@@ -518,5 +519,116 @@ describe('OrdersService — مقدّم الخدمة لا يشتري من نفس�
       .createOrder({ userId: 'user-buyer', productId: 'p-1' })
       .catch((e) => e);
     expect(String(err?.message)).not.toContain('مسندة إليك');
+  });
+});
+
+// =============================================================================
+// باقات الخدمات والاشتراكات (مزود reseller): تُسلَّم بيانات الدخول فوراً
+// — لا تُطلب بيانات من العميل (requiredFields فارغة) ولا يُرجع المبلغ بحثاً عن Player ID
+// — deliveredCode يُقرأ من order.value ويُحفظ مرجع rs_ للمصالحة
+// =============================================================================
+function createResellerPurchaseHarness(product: any, providersService: any) {
+  const user: any = { _id: 'user-buyer', name: 'عميل', role: 'user', balance: 10 };
+  let created: any = null;
+  const orderModel: any = {
+    create: vi.fn(async (doc: any) => {
+      created = { _id: 'order-1', ...doc, save: async () => created };
+      return created;
+    }),
+    findById: () => asQuery(created),
+  };
+  const productModel: any = { findById: () => asQuery(product) };
+  const userModel: any = {
+    findById: async () => user,
+    findOneAndUpdate: async () => ({
+      ...user,
+      balance: Number((user.balance - product.salePrice).toFixed(2)),
+    }),
+    findByIdAndUpdate: vi.fn(async () => user),
+  };
+  const transactionModel: any = { create: async () => ({}) };
+  const notificationsService: any = {
+    createNotification: vi.fn(async () => undefined),
+  };
+
+  const service = new OrdersService(
+    orderModel,
+    productModel,
+    {} as any, // appModel
+    userModel,
+    transactionModel,
+    notificationsService,
+    providersService,
+    {} as any, // usersService
+    {} as any, // connection
+  );
+  // بنية الاختبار بلا معاملات: المسار التتابعي التعويضي نفسه
+  (service as any).txSupported = false;
+
+  return { service, user, userModel, orderModel, notificationsService, getOrder: () => created };
+}
+
+const RESELLER_PRODUCT = {
+  _id: 'p-1',
+  isActive: true,
+  type: ProductType.DIRECT_API,
+  name: 'ExpressVPN 1 Month',
+  appId: null,
+  providerId: 'prov-1',
+  providerProductCode: '285',
+  requiredFields: [],
+  sensitiveFields: [],
+  serviceTemplateId: null,
+  salePrice: 3.5,
+  costPrice: 2.0,
+};
+
+const resellerProviderOk = (): any => ({
+  ensureReadyForOrder: vi.fn(async () => ({ _id: 'prov-1' })),
+  markProviderFailure: vi.fn(async () => undefined),
+  executeOrder: vi.fn(async () => ({
+    success: true,
+    transactionId: 'rs_live_1',
+    message: 'تم تسليم بيانات الاشتراك فوراً',
+    raw: { order: { orderCode: 'rs_live_1', status: 'completed', value: 'mail@x.com|secret|otp-key' } },
+  })),
+});
+
+describe('OrdersService — شراء باقة اشتراك من مزود الخدمات', () => {
+  it('بلا حقول مطلوبة: لا استرجاع بحثاً عن Player ID، والبيانات تُسلَّم فوراً', async () => {
+    const providersService = resellerProviderOk();
+    const { service, userModel, getOrder } = createResellerPurchaseHarness(
+      { ...RESELLER_PRODUCT },
+      providersService,
+    );
+
+    const res: any = await service.createOrder({ userId: 'user-buyer', productId: 'p-1' });
+
+    expect(res.deliveredCode).toBe('mail@x.com|secret|otp-key');
+    const order = getOrder();
+    expect(order.status).toBe('completed');
+    expect(order.deliveredCode).toBe('mail@x.com|secret|otp-key');
+    // مرجع rs_ محفوظ للمصالحة اللاحقة
+    expect(order.providerReference).toBe('rs_live_1');
+    // لا عملية إرجاع واحدة: لم يُرفض الطلب لافتقاد معرف اللاعب
+    expect(userModel.findByIdAndUpdate).not.toHaveBeenCalled();
+    // المزود لا يستقبل أي معرف لاعب — فقط رقم الطلب كمفتاح idempotency
+    const execCall = providersService.executeOrder.mock.calls[0];
+    expect(execCall[1]).toMatchObject({ productCode: '285', gameUserId: '' });
+    expect(execCall[1].reference).toBe(order.orderNumber);
+  });
+
+  it('منتج شحن عادي ما زال يشترط معرف اللاعب قبل الخصم', async () => {
+    const providersService = resellerProviderOk();
+    const { service, orderModel } = createResellerPurchaseHarness(
+      { ...RESELLER_PRODUCT, requiredFields: ['Player ID'] },
+      providersService,
+    );
+
+    await expect(
+      service.createOrder({ userId: 'user-buyer', productId: 'p-1' }),
+    ).rejects.toThrow('يرجى إكمال الحقول المطلوبة: Player ID');
+    expect(orderModel.create).not.toHaveBeenCalled();
+    expect(providersService.executeOrder).not.toHaveBeenCalled();
   });
 });

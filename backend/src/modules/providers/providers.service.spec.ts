@@ -1,7 +1,8 @@
 import { Types } from 'mongoose';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import axios from 'axios';
 import { ProvidersService } from './providers.service.js';
-import { ProviderStatus } from '../../database/schemas/provider.schema.js';
+import { ProviderStatus, ProviderType } from '../../database/schemas/provider.schema.js';
 
 // وثيقة مزود وهمية تحاكي سلوك mongoose (save يعيد نفس الوثيقة بعد التعديل)
 const makeProvider = (overrides: any = {}) => {
@@ -173,5 +174,230 @@ describe('ProvidersService.markProviderFailure', () => {
     expect(provider.isActive).toBe(true);
     expect(provider.lastError).toBe('Player id not found');
     expect(notificationsService.createNotification).not.toHaveBeenCalled();
+  });
+});
+
+// =============================================================================
+// مزود الخدمات والاشتراكات (Gemini Pro reseller):
+// — قاعدة صارمة: مفتاح X-Idempotency هو رقم الطلب نفسه ولا يُولَّد مفتاح آخر
+//   في أي إعادة محاولة، فلا يُشترى المنتج مرتين عند انقطاع المهلة
+// — التسليم فوري: order.value (بريد|سر) يعود في codes عند المصالحة
+// =============================================================================
+const makeGeminiProvider = (overrides: any = {}) =>
+  makeProvider({
+    name: 'Gemini Pro',
+    baseUrl: 'https://api-geminipro.ignorelist.com',
+    apiKey: 'rsp_test_key',
+    providerType: ProviderType.GEMINIPRO,
+    balance: 10,
+    ...overrides,
+  });
+
+function makeResellerService(providers: any[]) {
+  const find = (id: any) => providers.find((p) => p._id.toString() === String(id)) ?? null;
+  const upserts: any[] = [];
+  const providerModel: any = {
+    findById: async (id: any) => find(id),
+  };
+  const providerProductModel: any = {
+    findOneAndUpdate: vi.fn(async (_filter: any, update: any) => {
+      upserts.push(update);
+      return update;
+    }),
+  };
+  const service = new ProvidersService(
+    providerModel as any,
+    providerProductModel as any,
+    {} as any,
+    { createNotification: vi.fn(async () => undefined) } as any,
+  );
+  return { service, upserts };
+}
+
+describe('ProvidersService — مزود الخدمات (Gemini Pro)', () => {
+  const gemini = (service: ProvidersService) => service as any;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('يستدل على المزود بالنوع أو بالاسم أو بالرابط', () => {
+    const { service } = makeResellerService([]);
+    expect(gemini(service).isGeminiPro(makeGeminiProvider())).toBe(true);
+    expect(gemini(service).isGeminiPro(makeProvider({ providerType: undefined, baseUrl: 'https://api-geminipro.ignorelist.com' }))).toBe(true);
+    expect(gemini(service).isGeminiPro(makeProvider({ providerType: undefined, name: 'Gemini Pro للخدمات', baseUrl: 'https://example.com' }))).toBe(true);
+    expect(gemini(service).isGeminiPro(makeProvider({ providerType: undefined }))).toBe(false);
+  });
+
+  it('يزامي الكتالوج المسطح: رمز المنتج هو productId والمخزون يحكم التوفر', async () => {
+    const provider = makeGeminiProvider();
+    const { service, upserts } = makeResellerService([provider]);
+    vi.spyOn(service, 'checkStatus').mockImplementation(async () => provider);
+    const getSpy = vi.spyOn(axios, 'get').mockResolvedValue({
+      data: {
+        ok: true,
+        products: [
+          { productId: 285, name: 'ExpressVPN 1M', description: 'VPN', price: '2.00', currency: 'USD', stock: 17, inStock: true },
+          { productId: 350, name: 'ExpressVPN 12M', price: '7.00', stock: 0, inStock: false },
+        ],
+      },
+    } as any);
+
+    const res = await service.syncProviderProducts(provider._id.toString());
+
+    expect(res.syncedCount).toBe(2);
+    expect(String(getSpy.mock.calls[0][0])).toBe(
+      'https://api-geminipro.ignorelist.com/api/reseller/v1/products',
+    );
+    expect((getSpy.mock.calls as any[][])[0][1].headers['X-API-Key']).toBe('rsp_test_key');
+    expect(upserts[0]).toMatchObject({
+      providerProductCode: '285',
+      name: 'ExpressVPN 1M',
+      category: 'خدمات واشتراكات',
+      costPrice: 2.0,
+      inStock: true,
+    });
+    expect(upserts[0].rawDetails.description).toBe('VPN');
+    expect(upserts[1].inStock).toBe(false);
+  });
+
+  it('ينجح الشراء ويسلم order.value مع transactionId هو رمز الطلب rs_...', async () => {
+    const provider = makeGeminiProvider();
+    const { service } = makeResellerService([provider]);
+    vi.spyOn(service, 'checkStatus').mockImplementation(async () => provider);
+    const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: {
+        ok: true,
+        order: { orderCode: 'rs_abc123', productId: 285, status: 'completed', value: 'mail|x|otp', total: '2.00' },
+      },
+    } as any);
+
+    const res = await service.executeOrder(provider._id.toString(), {
+      productCode: '285',
+      gameUserId: '',
+      reference: 'ORD-20261106-ABC',
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.transactionId).toBe('rs_abc123');
+    expect(res.raw.order.value).toBe('mail|x|otp');
+    expect(postSpy).toHaveBeenCalledOnce();
+    const calls = postSpy.mock.calls as any[][];
+    expect(calls[0][0]).toBe('https://api-geminipro.ignorelist.com/api/reseller/v1/orders');
+    expect(calls[0][1]).toEqual({ productId: 285, quantity: 1 });
+    expect(calls[0][2].headers['X-Idempotency-Key']).toBe('ORD-20261106-ABC');
+  });
+
+  it('عند انتهاء المهلة تُعاد المحاولة بنفس مفتاح Idempotency تماماً — لا مفتاح جديد', async () => {
+    const provider = makeGeminiProvider();
+    const { service } = makeResellerService([provider]);
+    vi.spyOn(service, 'checkStatus').mockImplementation(async () => provider);
+    const timeoutErr = Object.assign(new Error('timeout of 12000ms exceeded'), { code: 'ECONNABORTED' });
+    const postSpy = vi
+      .spyOn(axios, 'post')
+      .mockRejectedValueOnce(timeoutErr)
+      .mockResolvedValueOnce({
+        data: { ok: true, order: { orderCode: 'rs_recovered', status: 'completed', value: 'k|k' } },
+      } as any);
+
+    const res = await service.executeOrder(provider._id.toString(), {
+      productCode: '285',
+      gameUserId: '',
+      reference: 'ORD-20261106-XYZ',
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.transactionId).toBe('rs_recovered');
+    expect(postSpy).toHaveBeenCalledTimes(2);
+    // المفتاح في المرتين هو رقم الطلب نفسه: لا يُشترى المنتج مرتين
+    const keys = postSpy.mock.calls.map((c: any) => c[2].headers['X-Idempotency-Key']);
+    expect(keys).toEqual(['ORD-20261106-XYZ', 'ORD-20261106-XYZ']);
+    // والجسم نفسه أيضاً (نفس المنتج ونفس الكمية)
+    const bodies = postSpy.mock.calls.map((c: any) => JSON.stringify(c[1]));
+    expect(new Set(bodies).size).toBe(1);
+  });
+
+  it('الرفض القاطع (402 نفاد رصيد) لا يُعاد إرساله إطلاقاً', async () => {
+    const provider = makeGeminiProvider();
+    const { service } = makeResellerService([provider]);
+    const err: any = Object.assign(new Error('Request failed'), {
+      response: { status: 402, data: { ok: false, error: 'insufficient_funds', message: 'Not enough balance' } },
+    });
+    const postSpy = vi.spyOn(axios, 'post').mockRejectedValue(err);
+
+    const res = await service.executeOrder(provider._id.toString(), {
+      productCode: '285',
+      gameUserId: '',
+      reference: 'ORD-1',
+    });
+
+    expect(res.success).toBe(false);
+    expect(res.isTimeout).toBeUndefined();
+    expect(res.message).toContain('رصيد مزود الخدمات غير كافٍ');
+    expect(postSpy).toHaveBeenCalledOnce();
+  });
+
+  it('المصالحة برمز rs_ تقرأ الطلب وتُخرج value ككود مُسلَّم', async () => {
+    const provider = makeGeminiProvider();
+    const { service } = makeResellerService([provider]);
+    const getSpy = vi.spyOn(axios, 'get').mockResolvedValue({
+      data: { ok: true, order: { orderCode: 'rs_abc', status: 'completed', value: 'mail|pass' } },
+    } as any);
+
+    const inspection = await service.inspectOrderStatus(provider._id.toString(), 'rs_abc');
+
+    expect(inspection.state).toBe('delivered');
+    expect(inspection.codes).toEqual(['mail|pass']);
+    expect(String(getSpy.mock.calls[0][0])).toBe(
+      'https://api-geminipro.ignorelist.com/api/reseller/v1/orders/rs_abc',
+    );
+  });
+
+  it('استعادة بعد مهلة بلا رمز طلب: يعاد POST بنفس رقم الطلب كمفتاح — لا شراء مزدوج', async () => {
+    const provider = makeGeminiProvider();
+    const { service } = makeResellerService([provider]);
+    const postSpy = vi.spyOn(axios, 'post').mockResolvedValue({
+      data: { ok: true, order: { orderCode: 'rs_late', status: 'completed', value: 'v|v' } },
+    } as any);
+
+    // المرجع المحفوظ هو رقم الطلب (لم تصل أول محاولة): prodCode يسمح بإعادة الإرسال
+    const inspection = await service.inspectOrderStatus(
+      provider._id.toString(),
+      'ORD-20261106-RMA',
+      '285',
+    );
+
+    expect(inspection.state).toBe('delivered');
+    expect(inspection.codes).toEqual(['v|v']);
+    const recoveryCall = (postSpy.mock.calls as any[][])[0];
+    expect(recoveryCall[2].headers['X-Idempotency-Key']).toBe('ORD-20261106-RMA');
+    expect(recoveryCall[1]).toEqual({ productId: 285, quantity: 1 });
+  });
+
+  it('بلا رمز منتج ومع مرجع ليس rs_ لا تخمين: حالة مجهولة بلا إرسال جديد', async () => {
+    const provider = makeGeminiProvider();
+    const { service } = makeResellerService([provider]);
+    const postSpy = vi.spyOn(axios, 'post');
+
+    const raw = await service.checkOrderStatus(provider._id.toString(), 'ORD-NO-CODE');
+
+    expect(raw.status).toBe('unknown');
+    expect(postSpy).not.toHaveBeenCalled();
+  });
+
+  it('فحص الحالة يحدّث الرصيد ويوقف المزود إن عُطّلت الطلبات لديه', async () => {
+    const provider = makeGeminiProvider();
+    const { service } = makeResellerService([provider]);
+    vi.spyOn(axios, 'get').mockImplementation(async (url: any) => {
+      if (String(url).endsWith('/account/info')) {
+        return { data: { ok: true, ordersEnabled: false } } as any;
+      }
+      return { data: { ok: true, balance: '3.25', currency: 'USD' } } as any;
+    });
+
+    const updated: any = await service.checkStatus(provider._id.toString());
+
+    expect(updated.status).toBe(ProviderStatus.ERROR);
+    expect(updated.lastError).toContain('أوقف استقبال الطلبات');
   });
 });

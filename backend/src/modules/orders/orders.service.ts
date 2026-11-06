@@ -531,19 +531,20 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
           rawInput['zoneId'] ||
           (Object.values(rawInput).length > 1 ? Object.values(rawInput)[1] : undefined);
 
-        if (!gameUserId) {
+        if (!gameUserId && (product.requiredFields?.length ?? 0) > 0) {
           // Refund the customer atomically and keep the attempt on record
           return this.failPaidOrder(order, {
             amount: price,
             reason: 'يرجى إدخال معرف اللاعب (Player ID) المطلوب للشحن',
           });
         }
+        // باقات الخدمات والاشتراكات (مزود reseller): بلا أي حقل مطلوب — التسليم بيانات دخول
 
         let providerResult: Awaited<ReturnType<ProvidersService['executeOrder']>>;
         try {
           providerResult = await this.providersService.executeOrder(product.providerId.toString(), {
             productCode: product.providerProductCode || '',
-            gameUserId: String(gameUserId),
+            gameUserId: gameUserId ? String(gameUserId) : '',
             gameZoneId: gameZoneId ? String(gameZoneId) : undefined,
             reference: orderNumber,
           });
@@ -626,6 +627,10 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
         if (providerResult.raw?.items?.[0]?.externalData?.length) {
           deliveredCode = providerResult.raw.items[0].externalData.join(', ');
+        }
+        // مزود الخدمات يُسلّم بيانات المنتج الرقمي في order.value (بريد|سر أو كود تفعيل)
+        else if (typeof providerResult.raw?.order?.value === 'string' && providerResult.raw.order.value.trim()) {
+          deliveredCode = providerResult.raw.order.value.trim();
         }
 
         // Kept for later reconciliation against the provider
@@ -1011,7 +1016,16 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
 
       let inspection: Awaited<ReturnType<ProvidersService['inspectOrderStatus']>>;
       try {
-        inspection = await this.providersService.inspectOrderStatus(providerId, reference);
+        // مزود الخدمات يحتاج رمز منتجه لإعادة الإرسال بنفس مفتاح Idempotency (رقم الطلب)
+        const linkedProduct = await this.productModel
+          .findById(order.productId)
+          .select('providerProductCode')
+          .lean();
+        inspection = await this.providersService.inspectOrderStatus(
+          providerId,
+          reference,
+          linkedProduct?.providerProductCode,
+        );
       } catch (err: any) {
         this.logger.warn(`Orphan reconciliation failed for order ${order.orderNumber}: ${err.message}`);
         continue;

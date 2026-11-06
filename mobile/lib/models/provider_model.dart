@@ -4,7 +4,7 @@ class ProviderModel {
   final String baseUrl;
   final String apiKey;
   final String? apiSecret;
-  // 'bay2game' | 'foxreload' | 'fivesim' | 'herosms' | 'dogesms' | 'smspool' | 'custom'
+  // 'bay2game' | 'foxreload' | 'geminipro' | 'fivesim' | 'herosms' | 'dogesms' | 'smspool' | 'custom'
   final String providerType;
   final Map<String, dynamic> headers;
   final String status; // 'online' | 'offline' | 'error'
@@ -74,7 +74,9 @@ class ProviderModel {
         type == 'smspool') {
       return true;
     }
-    if (type == 'bay2game' || type == 'foxreload') return false;
+    if (type == 'bay2game' || type == 'foxreload' || type == 'geminipro') {
+      return false;
+    }
     final String haystack = '$name $baseUrl'.toLowerCase();
     return haystack.contains('5sim') ||
         haystack.contains('herosms') ||
