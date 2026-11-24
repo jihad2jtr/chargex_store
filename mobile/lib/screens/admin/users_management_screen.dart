@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:intl/intl.dart' hide TextDirection;
 import 'package:provider/provider.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../providers/admin_provider.dart';
 import '../../widgets/digital_pass_card.dart';
 import '../../widgets/top_notice.dart';
+import '../../widgets/user_avatar.dart';
 
 /// صفحة إدارة المستخدمين: عرض كل الحسابات، البحث، الترقية إلى وكيل أو مشرف،
 /// الإرجاع إلى عميل، تفعيل/تعطيل الحسابات، وشحن/خصم رصيد العميل مباشرة.
@@ -193,17 +194,24 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                   filled: true,
                   fillColor: Colors.white,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  prefixIconConstraints: const BoxConstraints(
+                    minWidth: 38,
+                    minHeight: 38,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: AppColors.outline),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(
                       color: AppColors.primaryBlue,
                       width: 1.4,
@@ -211,10 +219,16 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
-              _buildRoleChips(),
-              const SizedBox(height: 14),
+              _buildRoleChips(
+                total: all.length,
+                customers: customersCount,
+                supervisors: supervisorsCount,
+                agents: agentsCount,
+                admins: all.where((u) => _roleOfUser(u) == 'admin').length,
+              ),
+              const SizedBox(height: 10),
 
               if (admin.isLoading && all.isEmpty)
                 const Center(
@@ -329,50 +343,63 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
     );
   }
 
-  /// خانة عدّاد: أيقونة ملوّنة + رقم + تسمية. FittedBox يمنع طفو أي عنصر
-  Widget _stripCell(String label, String value, IconData icon, Color color) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 26,
-            height: 26,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: color.withValues(alpha: 0.26)),
+  /// خانة عدّاد: أيقونة ملوّنة + رقم + تسمية. قابلة للضغط للفلترة السريعة
+  Widget _stripCell(
+    String label,
+    String value,
+    IconData icon,
+    Color color, {
+    VoidCallback? onTap,
+    bool active = false,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        color: active ? color.withValues(alpha: 0.06) : Colors.transparent,
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 2),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: active ? 0.20 : 0.12),
+                borderRadius: BorderRadius.circular(7),
+                border: Border.all(
+                  color: color.withValues(alpha: active ? 0.50 : 0.24),
+                ),
+              ),
+              child: Icon(icon, size: 12.5, color: color),
             ),
-            child: Icon(icon, size: 14, color: color),
-          ),
-          const SizedBox(height: 5),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              value,
-              maxLines: 1,
-              style: AppTypography.plusJakartaSans(
-                fontSize: 15.5,
-                fontWeight: FontWeight.w900,
-                color: AppColors.slate900,
+            const SizedBox(height: 3),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                value,
+                maxLines: 1,
+                style: AppTypography.plusJakartaSans(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.slate900,
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 1),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              label,
-              maxLines: 1,
-              style: AppTypography.cairo(
-                fontSize: 9,
-                fontWeight: FontWeight.w700,
-                color: AppColors.slate500,
+            const SizedBox(height: 1),
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                label,
+                maxLines: 1,
+                style: AppTypography.cairo(
+                  fontSize: 8.5,
+                  fontWeight: FontWeight.w700,
+                  color: active ? color : AppColors.slate500,
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -436,6 +463,8 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                   '$total',
                   Icons.groups_rounded,
                   AppColors.primaryBlue,
+                  active: _roleFilter == 'all',
+                  onTap: () => setState(() => _roleFilter = 'all'),
                 ),
               ),
               _stripDivider(),
@@ -445,6 +474,8 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                   '$agents',
                   Icons.support_agent_rounded,
                   _agentColor,
+                  active: _roleFilter == 'agent',
+                  onTap: () => setState(() => _roleFilter = 'agent'),
                 ),
               ),
               _stripDivider(),
@@ -454,6 +485,8 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                   '$supervisors',
                   Icons.verified_user_rounded,
                   AppColors.ticketAmber,
+                  active: _roleFilter == 'supervisor',
+                  onTap: () => setState(() => _roleFilter = 'supervisor'),
                 ),
               ),
               _stripDivider(),
@@ -463,6 +496,8 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                   '$customers',
                   Icons.person_rounded,
                   AppColors.tertiary,
+                  active: _roleFilter == 'user',
+                  onTap: () => setState(() => _roleFilter = 'user'),
                 ),
               ),
               _stripDivider(),
@@ -482,17 +517,31 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
   }
 
   // --- Role Filter Chips ---
-  Widget _buildRoleChips() {
+  Widget _buildRoleChips({
+    required int total,
+    required int customers,
+    required int supervisors,
+    required int agents,
+    required int admins,
+  }) {
     final filters = <Map<String, dynamic>>[
-      {'key': 'all', 'label': 'الكل', 'color': AppColors.primaryBlue},
-      {'key': 'user', 'label': 'عملاء', 'color': const Color(0xFF6366F1)},
+      {'key': 'all', 'label': 'الكل ($total)', 'color': AppColors.primaryBlue},
+      {
+        'key': 'user',
+        'label': 'عملاء ($customers)',
+        'color': const Color(0xFF6366F1),
+      },
       {
         'key': 'supervisor',
-        'label': 'مشرفون',
+        'label': 'مشرفون ($supervisors)',
         'color': const Color(0xFF38BDF8),
       },
-      {'key': 'agent', 'label': 'وكلاء', 'color': _agentColor},
-      {'key': 'admin', 'label': 'أدمن', 'color': AppColors.ticketAmber},
+      {'key': 'agent', 'label': 'وكلاء ($agents)', 'color': _agentColor},
+      {
+        'key': 'admin',
+        'label': 'أدمن ($admins)',
+        'color': AppColors.ticketAmber,
+      },
     ];
 
     return SingleChildScrollView(
@@ -502,18 +551,20 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
           final isSelected = _roleFilter == f['key'];
           final Color color = f['color'] as Color;
           return Padding(
-            padding: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.only(left: 6),
             child: ChoiceChip(
               label: Text(f['label'] as String),
               selected: isSelected,
               showCheckmark: false,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               onSelected: (val) {
                 if (val) setState(() => _roleFilter = f['key'] as String);
               },
               selectedColor: color,
               backgroundColor: Colors.white,
               labelStyle: AppTypography.cairo(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 color: isSelected ? Colors.white : AppColors.slate600,
               ),
@@ -605,95 +656,94 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
     final role = _roleOfUser(user);
     final roleColor = _roleColorOf(role);
     final name = (user['name'] ?? 'مستخدم').toString();
+    final email = (user['email'] ?? '').toString().trim();
+    final uid = (user['userId'] ?? '').toString().trim();
+    final avatar = (user['avatar'] ?? '').toString().trim();
     final balance = (user['balance'] is num)
         ? (user['balance'] as num).toDouble()
         : 0.0;
     final isActive = user['isActive'] != false;
 
-    return Material(
-      color: isActive
-          ? AppColors.surfaceCard
-          : AppColors.rose.withValues(alpha: 0.05),
-      child: InkWell(
-        onTap: () => _openDetails(user, admin),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 11, 10, 11),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Color.lerp(roleColor, Colors.white, 0.28)!,
-                              roleColor,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: roleColor.withValues(alpha: 0.26),
-                              blurRadius: 8,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
+    final String subtitle = [
+      if (uid.isNotEmpty) uid,
+      if (email.isNotEmpty) email,
+    ].join(' · ');
+
+    return RepaintBoundary(
+      child: Material(
+        color: isActive
+            ? AppColors.surfaceCard
+            : AppColors.rose.withValues(alpha: 0.05),
+        child: InkWell(
+          onTap: () => _openDetails(user, admin),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 9, 8, 9),
+                    child: Row(
+                      children: [
+                        UserAvatar(
+                          url: avatar.isNotEmpty ? avatar : null,
+                          initial: name.isNotEmpty ? name.characters.first : '؟',
+                          size: 36,
+                          circular: false,
+                          backgroundColor: roleColor,
                         ),
-                        child: Text(
-                          name.isNotEmpty ? name.characters.first : '؟',
-                          style: AppTypography.cairo(
-                            fontSize: 15.5,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 11),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              name,
-                              style: AppTypography.cairo(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.slate900,
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                name,
+                                style: AppTypography.cairo(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w800,
+                                  color: AppColors.slate900,
+                                  height: 1.15,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 5),
-                            // Wrap بدل Row: الشارات تنزل سطرًا عند ضيق المساحة
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 4,
-                              children: [
-                                _buildRoleBadge(role),
-                                _buildStatusPill(isActive),
+                              if (subtitle.isNotEmpty) ...[
+                                const SizedBox(height: 1.5),
+                                Text(
+                                  subtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  textDirection: TextDirection.ltr,
+                                  style: AppTypography.spaceMono(
+                                    fontSize: 9,
+                                    color: AppColors.textMuted,
+                                  ),
+                                ),
                               ],
-                            ),
-                          ],
+                              const SizedBox(height: 4),
+                              // Wrap بدل Row: الشارات تنزل سطرًا عند ضيق المساحة
+                              Wrap(
+                                spacing: 5,
+                                runSpacing: 4,
+                                children: [
+                                  _buildRoleBadge(role),
+                                  _buildStatusPill(isActive),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      const Icon(
-                        Icons.chevron_left_rounded,
-                        size: 20,
-                        color: AppColors.slate400,
-                      ),
-                    ],
+                        const Icon(
+                          Icons.chevron_left_rounded,
+                          size: 18,
+                          color: AppColors.slate400,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
               // خط التثقيب الفاصل بين الجسم وكعب الرصيد
               SizedBox(
                 width: 1,
@@ -743,6 +793,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
