@@ -291,56 +291,60 @@ class _ManualServicesManagementScreenState
     required int delayed,
     required int issues,
   }) {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildMetricTile(
-            'إجمالي الطلبات',
-            total.toString(),
-            Icons.receipt_long_rounded,
-            AppColors.primaryBlue,
-            AppColors.brandGradient,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildMetricTile(
-            'قيد التنفيذ',
-            inProgress.toString(),
-            Icons.hourglass_top_rounded,
-            AppColors.ticketAmber,
-            AppColors.ticketGoldGradient,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildMetricTile(
-            'تأخير SLA',
-            delayed.toString(),
-            Icons.alarm_off_rounded,
-            AppColors.rose,
-            const LinearGradient(
-              colors: [Color(0xFFEF4444), Color(0xFFDC2626)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.darkNav,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.slate800),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _buildMetricTile(
+              'إجمالي الطلبات',
+              total.toString(),
+              Icons.receipt_long_rounded,
+              AppColors.primarySky,
+              active: _selectedFilter == 'all',
+              onTap: () => setState(() => _selectedFilter = 'all'),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _buildMetricTile(
-            'اعتراضات/رفض',
-            issues.toString(),
-            Icons.report_problem_rounded,
-            const Color(0xFF8B5CF6),
-            const LinearGradient(
-              colors: [Color(0xFF8B5CF6), Color(0xFF7C3AED)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
+          const SizedBox(width: 6),
+          Expanded(
+            child: _buildMetricTile(
+              'قيد التنفيذ',
+              inProgress.toString(),
+              Icons.hourglass_top_rounded,
+              AppColors.ticketAmber,
+              active: _selectedFilter == 'in_progress',
+              onTap: () => setState(() => _selectedFilter = 'in_progress'),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 6),
+          Expanded(
+            child: _buildMetricTile(
+              'تأخير SLA',
+              delayed.toString(),
+              Icons.alarm_off_rounded,
+              AppColors.roseHot,
+              active: _selectedFilter == 'delayed',
+              onTap: () => setState(() => _selectedFilter = 'delayed'),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: _buildMetricTile(
+              'اعتراضات',
+              issues.toString(),
+              Icons.report_problem_rounded,
+              AppColors.violetBright,
+              active: _selectedFilter == 'issues',
+              onTap: () => setState(() => _selectedFilter = 'issues'),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -348,80 +352,71 @@ class _ManualServicesManagementScreenState
     String title,
     String value,
     IconData icon,
-    Color color,
-    LinearGradient gradient,
-  ) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.outline),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
+    Color color, {
+    VoidCallback? onTap,
+    bool active = false,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(11),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          decoration: BoxDecoration(
+            color: active
+                ? color.withValues(alpha: 0.16)
+                : Colors.white.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(11),
+            border: Border.all(
+              color: active
+                  ? color.withValues(alpha: 0.55)
+                  : Colors.white.withValues(alpha: 0.08),
+            ),
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              gradient: gradient,
-              borderRadius: BorderRadius.circular(11),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withValues(alpha: 0.30),
-                  blurRadius: 8,
-                  offset: const Offset(0, 3),
+          child: Column(
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, color: color, size: 13),
+                  const SizedBox(width: 4),
+                  Text(
+                    value,
+                    style: AppTypography.plusJakartaSans(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                title,
+                style: AppTypography.cairo(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.72),
                 ),
-              ],
-            ),
-            child: Icon(icon, color: Colors.white, size: 18),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-          const SizedBox(height: 7),
-          Text(
-            value,
-            style: AppTypography.plusJakartaSans(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-              color: color,
-            ),
-          ),
-          const SizedBox(height: 1),
-          Text(
-            title,
-            style: AppTypography.cairo(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w700,
-              color: AppColors.slate500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildSupervisorFilter(List<Map<String, dynamic>> supervisors) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
+      height: 44,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.outline),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         children: [
@@ -503,26 +498,26 @@ class _ManualServicesManagementScreenState
 
   Widget _buildStatusFilterChips() {
     final filters = <Map<String, dynamic>>[
-      {'key': 'all', 'label': 'الكل', 'color': AppColors.primaryBlue},
-      {'key': 'new', 'label': 'جديدة ومسندة', 'color': const Color(0xFF6366F1)},
+      {'key': 'all', 'label': 'الكل', 'color': AppColors.darkNav},
+      {'key': 'new', 'label': 'جديدة ومسندة', 'color': AppColors.primaryBlue},
       {
         'key': 'in_progress',
         'label': 'قيد التنفيذ',
-        'color': AppColors.ticketAmber,
+        'color': AppColors.secondaryBright,
       },
       {
         'key': 'waiting_client',
         'label': 'بانتظار العميل',
-        'color': const Color(0xFF0EA5E9),
+        'color': AppColors.primaryBright,
       },
       {'key': 'delayed', 'label': 'متأخرة', 'color': AppColors.rose},
       {
         'key': 'issues',
         'label': 'اعتراضات/رفض',
-        'color': const Color(0xFF8B5CF6),
+        'color': AppColors.violet,
       },
-      {'key': 'completed', 'label': 'مكتملة', 'color': AppColors.tertiary},
-      {'key': 'refunded', 'label': 'مسترجعة', 'color': AppColors.slate400},
+      {'key': 'completed', 'label': 'مكتملة', 'color': AppColors.accentGreen},
+      {'key': 'refunded', 'label': 'مسترجعة', 'color': AppColors.slate500},
     ];
 
     return SingleChildScrollView(
@@ -532,18 +527,20 @@ class _ManualServicesManagementScreenState
           final isSelected = _selectedFilter == f['key'];
           final Color color = f['color'] as Color;
           return Padding(
-            padding: const EdgeInsets.only(left: 8),
+            padding: const EdgeInsets.only(left: 6),
             child: ChoiceChip(
               label: Text(f['label'] as String),
               selected: isSelected,
               showCheckmark: false,
+              visualDensity: VisualDensity.compact,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               onSelected: (val) {
                 if (val) setState(() => _selectedFilter = f['key'] as String);
               },
               selectedColor: color,
               backgroundColor: Colors.white,
               labelStyle: AppTypography.cairo(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
                 color: isSelected ? Colors.white : AppColors.slate600,
               ),
@@ -593,19 +590,19 @@ class _ManualServicesManagementScreenState
   }
 
   Color _statusColor(OrderModel order) {
-    if (order.status == 'completed') return AppColors.tertiary;
-    if (order.status == 'refunded') return AppColors.slate400;
+    if (order.status == 'completed') return AppColors.accentGreen;
+    if (order.status == 'refunded') return AppColors.slate500;
     if (order.isDisputed ||
         order.status == 'revision_requested' ||
         order.status == 'rejected') {
-      return const Color(0xFF8B5CF6);
+      return AppColors.violet;
     }
     if (order.isDelayed && !order.isCompleted) return AppColors.rose;
     if (order.status == 'in_progress' || order.status == 'accepted') {
-      return AppColors.ticketAmber;
+      return AppColors.secondaryBright;
     }
     if (order.status == 'delivered' || order.status == 'info_requested') {
-      return const Color(0xFF0EA5E9);
+      return AppColors.primaryBright;
     }
     return AppColors.primaryBlue;
   }
