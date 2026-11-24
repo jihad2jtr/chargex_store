@@ -134,33 +134,45 @@ let CodesService = class CodesService {
     }
     async redeemCode(codeString, userId) {
         const cleanCode = codeString.trim().toUpperCase();
-        const code = await this.codeModel.findOne({ code: cleanCode });
-        if (!code) {
-            throw new common_1.BadRequestException('كود الشحن غير صحيح');
-        }
-        if (!code.isActive) {
-            throw new common_1.BadRequestException('هذا الكود معطل حالياً');
-        }
-        if (code.isUsed) {
+        const claimed = await this.codeModel.findOneAndUpdate({ code: cleanCode, isActive: true, isUsed: false }, {
+            $set: {
+                isUsed: true,
+                usedBy: new mongoose_2.Types.ObjectId(userId),
+                usedAt: new Date(),
+            },
+        }, { new: true });
+        if (!claimed) {
+            const existing = await this.codeModel.findOne({ code: cleanCode });
+            if (!existing) {
+                throw new common_1.BadRequestException('كود الشحن غير صحيح');
+            }
+            if (!existing.isActive) {
+                throw new common_1.BadRequestException('هذا الكود معطل حالياً');
+            }
             throw new common_1.BadRequestException('هذا الكود تم استخدامه مسبقاً');
         }
-        code.isUsed = true;
-        code.usedBy = new mongoose_2.Types.ObjectId(userId);
-        code.usedAt = new Date();
-        await code.save();
-        const rechargeResult = await this.walletService.adminAdjustBalance({
-            userId,
-            amount: code.amount,
-            description: `شحن عبر كود رقمي: ${code.code}`,
-            adminId: userId,
-            referenceType: 'ShippingCode',
-            referenceId: code._id.toString(),
-        });
-        return {
-            message: `تم شحن رصيدك بنجاح بمبلغ $${code.amount.toFixed(2)}`,
-            amountAdded: code.amount,
-            newBalance: rechargeResult.user.balance,
-        };
+        try {
+            const rechargeResult = await this.walletService.adminAdjustBalance({
+                userId,
+                amount: claimed.amount,
+                description: `شحن عبر كود رقمي: ${claimed.code}`,
+                adminId: userId,
+                referenceType: 'ShippingCode',
+                referenceId: claimed._id.toString(),
+            });
+            return {
+                message: `تم شحن رصيدك بنجاح بمبلغ $${claimed.amount.toFixed(2)}`,
+                amountAdded: claimed.amount,
+                newBalance: rechargeResult.user.balance,
+            };
+        }
+        catch (err) {
+            await this.codeModel.findByIdAndUpdate(claimed._id, {
+                $set: { isUsed: false },
+                $unset: { usedBy: 1, usedAt: 1 },
+            });
+            throw err;
+        }
     }
     async verifyCode(codeString) {
         const cleanCode = (codeString || '').trim().toUpperCase();

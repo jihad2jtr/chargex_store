@@ -213,10 +213,22 @@ export class AgentService {
     if (initialAmount < 0) {
       throw new BadRequestException('الرصيد الأولي لا يمكن أن يكون سالباً');
     }
-    if (initialAmount > 0 && agent.balance < initialAmount) {
-      throw new BadRequestException(
-        `رصيدك كوكيل غير كافٍ لمنح رصيد أولي بقيمة $${initialAmount.toFixed(2)}. رصيدك الحالي: $${agent.balance.toFixed(2)}`,
+    let agentBalBefore = agent.balance;
+    let agentBalAfter = agent.balance;
+
+    if (initialAmount > 0) {
+      const debitedAgent = await this.userModel.findOneAndUpdate(
+        { _id: agent._id, balance: { $gte: initialAmount } },
+        { $inc: { balance: -initialAmount } },
+        { new: true },
       );
+      if (!debitedAgent) {
+        throw new BadRequestException(
+          `رصيدك كوكيل غير كافٍ لمنح رصيد أولي بقيمة $${initialAmount.toFixed(2)}. رصيدك الحالي: $${agent.balance.toFixed(2)}`,
+        );
+      }
+      agentBalAfter = Number(debitedAgent.balance.toFixed(2));
+      agentBalBefore = Number((agentBalAfter + initialAmount).toFixed(2));
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
@@ -235,14 +247,19 @@ export class AgentService {
       isActive: true,
     });
 
-    await newUser.save();
+    try {
+      await newUser.save();
+    } catch (err) {
+      if (initialAmount > 0) {
+        await this.userModel.findByIdAndUpdate(agent._id, {
+          $inc: { balance: initialAmount },
+        });
+      }
+      throw err;
+    }
 
-    // If initial balance was assigned, deduct from agent atomically and record transactions
+    // Record transactions if initial balance was assigned
     if (initialAmount > 0) {
-      const agentBalBefore = agent.balance;
-      const agentBalAfter = Number((agentBalBefore - initialAmount).toFixed(2));
-      agent.balance = agentBalAfter;
-      await agent.save();
 
       // Agent outgoing transaction
       await this.transactionModel.create({
@@ -283,7 +300,7 @@ export class AgentService {
         isActive: newUser.isActive,
         createdAt: (newUser as any).createdAt,
       },
-      agentRemainingBalance: agent.balance,
+      agentRemainingBalance: agentBalAfter,
     };
   }
 
@@ -397,18 +414,45 @@ export class AgentService {
       );
     }
 
-    // Atomic execution
-    const agentBalBefore = agent.balance;
-    const agentBalAfter = Number((agentBalBefore - transferAmount).toFixed(2));
-    agent.balance = agentBalAfter;
-    await agent.save();
-
-    const targetBalBefore = target.balance;
-    const targetBalAfter = Number(
-      (targetBalBefore + transferAmount).toFixed(2),
+    // Atomic debit from agent first (prevents concurrent overdraft)
+    const debitedAgent = await this.userModel.findOneAndUpdate(
+      { _id: agent._id, balance: { $gte: transferAmount } },
+      { $inc: { balance: -transferAmount } },
+      { new: true },
     );
-    target.balance = targetBalAfter;
-    await target.save();
+    if (!debitedAgent) {
+      throw new BadRequestException(
+        `رصيدك الحالي غير كافٍ. المطلوب: $${transferAmount.toFixed(2)}، الرصيد المتاح: $${agent.balance.toFixed(2)}`,
+      );
+    }
+
+    const agentBalAfter = Number(debitedAgent.balance.toFixed(2));
+    const agentBalBefore = Number((agentBalAfter + transferAmount).toFixed(2));
+
+    let creditedTarget: UserDocument | null = null;
+    try {
+      const updateTarget: any = { $inc: { balance: transferAmount } };
+      if (!target.parentAgentId) {
+        updateTarget.$set = { parentAgentId: agent._id };
+      }
+      creditedTarget = await this.userModel.findByIdAndUpdate(
+        target._id,
+        updateTarget,
+        { new: true },
+      );
+      if (!creditedTarget) {
+        throw new NotFoundException('المستخدم المستلم غير موجود');
+      }
+    } catch (err) {
+      // Compensate agent if target credit fails
+      await this.userModel.findByIdAndUpdate(agent._id, {
+        $inc: { balance: transferAmount },
+      });
+      throw err;
+    }
+
+    const targetBalAfter = Number(creditedTarget.balance.toFixed(2));
+    const targetBalBefore = Number((targetBalAfter - transferAmount).toFixed(2));
 
     // Record transaction for Agent (Debit)
     const agentTx = await this.transactionModel.create({
@@ -451,7 +495,7 @@ export class AgentService {
 
     return {
       message: `تم تحويل مبلغ $${transferAmount.toFixed(2)} بنجاح للعميل ${target.name} ✅`,
-      newAgentBalance: agent.balance,
+      newAgentBalance: agentBalAfter,
       user: {
         _id: target._id,
         userId: target.userId,

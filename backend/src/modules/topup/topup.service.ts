@@ -330,7 +330,7 @@ export class TopupService {
     };
   }
 
-  // Admin: approve manual topup request
+  // Admin: approve manual topup request (حجز ذري يمنع الموافقة المزدوجة)
   async approveTopup(
     id: string,
     adminId: string,
@@ -339,64 +339,78 @@ export class TopupService {
   ) {
     const manualOrder = await this.manualOrderModel.findById(id);
     if (!manualOrder) throw new NotFoundException('طلب الشحن غير موجود');
-    if (manualOrder.status !== ManualOrderStatus.PENDING) {
-      throw new BadRequestException('تمت معالجة هذا الطلب مسبقاً');
-    }
 
     const finalAmount =
       approvedAmount !== undefined && approvedAmount > 0
         ? approvedAmount
         : manualOrder.amount;
 
-    manualOrder.status = ManualOrderStatus.APPROVED;
-    manualOrder.amount = finalAmount;
-    manualOrder.adminNotes = notes || 'تم التحقق من الإيصال والموافقة بنجاح';
-    manualOrder.processedBy = new Types.ObjectId(adminId);
-    manualOrder.processedAt = new Date();
-    await manualOrder.save();
+    const claimed = await this.manualOrderModel.findOneAndUpdate(
+      { _id: id, status: ManualOrderStatus.PENDING },
+      {
+        $set: {
+          status: ManualOrderStatus.APPROVED,
+          amount: finalAmount,
+          adminNotes: notes || 'تم التحقق من الإيصال والموافقة بنجاح',
+          processedBy: new Types.ObjectId(adminId),
+          processedAt: new Date(),
+        },
+      },
+      { new: true },
+    );
+    if (!claimed) {
+      throw new BadRequestException('تمت معالجة هذا الطلب مسبقاً');
+    }
 
     // Add balance to user
     await this.walletService.adminAdjustBalance({
-      userId: manualOrder.userId.toString(),
+      userId: claimed.userId.toString(),
       amount: finalAmount,
-      description: `شحن رصيد عبر ${manualOrder.type} (طلب رقم: #${manualOrder._id.toString().substring(18)})`,
+      description: `شحن رصيد عبر ${claimed.type} (طلب رقم: #${claimed._id.toString().substring(18)})`,
       adminId,
       referenceType: 'ManualOrder',
-      referenceId: manualOrder._id.toString(),
+      referenceId: claimed._id.toString(),
     });
 
     return {
       message: 'تمت الموافقة على طلب الشحن وإضافة الرصيد إلى المحفظة',
-      manualOrder,
+      manualOrder: claimed,
     };
   }
 
   // Admin: reject manual topup request
   async rejectTopup(id: string, adminId: string, notes: string) {
-    const manualOrder = await this.manualOrderModel.findById(id);
-    if (!manualOrder) throw new NotFoundException('طلب الشحن غير موجود');
-    if (manualOrder.status !== ManualOrderStatus.PENDING) {
+    const existing = await this.manualOrderModel.findById(id);
+    if (!existing) throw new NotFoundException('طلب الشحن غير موجود');
+
+    const claimed = await this.manualOrderModel.findOneAndUpdate(
+      { _id: id, status: ManualOrderStatus.PENDING },
+      {
+        $set: {
+          status: ManualOrderStatus.REJECTED,
+          adminNotes: notes || 'تم رفض الطلب لعدم تطابق بيانات الإيصال',
+          processedBy: new Types.ObjectId(adminId),
+          processedAt: new Date(),
+        },
+      },
+      { new: true },
+    );
+    if (!claimed) {
       throw new BadRequestException('تمت معالجة هذا الطلب مسبقاً');
     }
 
-    manualOrder.status = ManualOrderStatus.REJECTED;
-    manualOrder.adminNotes = notes || 'تم رفض الطلب لعدم تطابق بيانات الإيصال';
-    manualOrder.processedBy = new Types.ObjectId(adminId);
-    manualOrder.processedAt = new Date();
-    await manualOrder.save();
-
     // Send notification to user with notes
     await this.notificationsService.createNotification({
-      userId: manualOrder.userId.toString(),
+      userId: claimed.userId.toString(),
       title: 'تم رفض طلب الشحن ❌',
-      body: `تم رفض طلب الشحن بقيمة $${manualOrder.amount.toFixed(2)}. ملاحظات الإدارة: ${notes || 'بيانات التحويل غير متطابقة'}`,
+      body: `تم رفض طلب الشحن بقيمة $${claimed.amount.toFixed(2)}. ملاحظات الإدارة: ${notes || 'بيانات التحويل غير متطابقة'}`,
       type: 'manual_order_rejected',
-      data: { manualOrderId: manualOrder._id, notes },
+      data: { manualOrderId: claimed._id, notes },
     });
 
     return {
       message: 'تم رفض طلب الشحن وإشعار العميل بالملاحظات',
-      manualOrder,
+      manualOrder: claimed,
     };
   }
 }

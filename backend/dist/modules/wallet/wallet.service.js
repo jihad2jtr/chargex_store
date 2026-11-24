@@ -61,13 +61,16 @@ let WalletService = class WalletService {
         }
         if (!user)
             throw new common_1.NotFoundException('المستخدم غير موجود (يرجى التحقق من آيدي العميل)');
-        const balanceBefore = user.balance;
-        const balanceAfter = Number((balanceBefore + params.amount).toFixed(2));
-        if (balanceAfter < 0) {
+        const filter = { _id: user._id };
+        if (params.amount < 0) {
+            filter.balance = { $gte: Math.abs(params.amount) };
+        }
+        const updatedUser = await this.userModel.findOneAndUpdate(filter, { $inc: { balance: params.amount } }, { new: true });
+        if (!updatedUser) {
             throw new common_1.BadRequestException('الرصيد المتبقي لا يمكن أن يكون سالباً');
         }
-        user.balance = balanceAfter;
-        await user.save();
+        const balanceAfter = Number(updatedUser.balance.toFixed(2));
+        const balanceBefore = Number((balanceAfter - params.amount).toFixed(2));
         const transaction = new this.transactionModel({
             userId: user._id,
             type: params.amount > 0
@@ -95,11 +98,11 @@ let WalletService = class WalletService {
         return {
             message: 'تم تحديث رصيد المستخدم بنجاح',
             user: {
-                id: user._id,
-                userId: user.userId,
-                name: user.name,
-                email: user.email,
-                balance: user.balance,
+                id: updatedUser._id,
+                userId: updatedUser.userId,
+                name: updatedUser.name,
+                email: updatedUser.email,
+                balance: balanceAfter,
             },
             transaction,
         };
