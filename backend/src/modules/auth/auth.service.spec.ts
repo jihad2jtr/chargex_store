@@ -90,3 +90,29 @@ describe('AuthService.updateProfile', () => {
     ).rejects.toThrow(UnauthorizedException);
   });
 });
+
+describe('AuthService.seedAdmin', () => {
+  it('queries by admin email and creates default admin if missing', async () => {
+    let queriedFilter: any = null;
+    let createdDoc: any = null;
+    const userModel = {
+      findOne: async (filter: any) => {
+        if (filter?.email) queriedFilter = filter;
+        return null;
+      },
+      create: async (doc: any) => {
+        createdDoc = doc;
+        return doc;
+      },
+    } as any;
+    const configService = { get: () => undefined } as any;
+    const service = new AuthService(userModel, {} as any, configService);
+
+    await service.seedAdmin();
+
+    expect(queriedFilter).toEqual({ email: 'admin@chargex.com' });
+    expect(createdDoc?.email).toBe('admin@chargex.com');
+    expect(createdDoc?.role).toBe('admin');
+    expect(createdDoc?.isActive).toBe(true);
+  });
+});

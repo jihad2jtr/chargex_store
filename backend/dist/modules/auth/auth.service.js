@@ -99,10 +99,12 @@ let AuthService = AuthService_1 = class AuthService {
     }
     async seedAdmin() {
         try {
-            const adminExists = await this.userModel.findOne({ role: role_enum_1.Role.ADMIN });
+            const adminEmail = (this.configService.get('ADMIN_DEFAULT_EMAIL') ||
+                'admin@chargex.com')
+                .trim()
+                .toLowerCase();
+            const adminExists = await this.userModel.findOne({ email: adminEmail });
             if (!adminExists) {
-                const adminEmail = this.configService.get('ADMIN_DEFAULT_EMAIL') ||
-                    'admin@chargex.com';
                 const adminPass = this.configService.get('ADMIN_DEFAULT_PASSWORD') ||
                     'Z@@lka1994';
                 const hashedPassword = await bcrypt.hash(adminPass, 10);
@@ -117,6 +119,15 @@ let AuthService = AuthService_1 = class AuthService {
                     isActive: true,
                 });
                 this.logger.log(`Default Admin created successfully: ${adminEmail} (ID: ${adminUserId})`);
+            }
+            else if (this.configService.get('ADMIN_RESET_ON_BOOT') === 'true') {
+                const adminPass = this.configService.get('ADMIN_DEFAULT_PASSWORD') ||
+                    'Z@@lka1994';
+                adminExists.password = await bcrypt.hash(adminPass, 10);
+                adminExists.role = role_enum_1.Role.ADMIN;
+                adminExists.isActive = true;
+                await adminExists.save();
+                this.logger.log(`Default Admin credentials reset on boot: ${adminEmail}`);
             }
         }
         catch (err) {
@@ -243,7 +254,7 @@ let AuthService = AuthService_1 = class AuthService {
     }
     async login(loginDto) {
         const user = await this.userModel.findOne({
-            email: loginDto.email.toLowerCase(),
+            email: loginDto.email.trim().toLowerCase(),
         });
         if (!user) {
             throw new common_1.UnauthorizedException('بيانات الدخول غير صحيحة');

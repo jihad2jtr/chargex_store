@@ -77,11 +77,14 @@ export class AuthService implements OnModuleInit {
 
   async seedAdmin() {
     try {
-      const adminExists = await this.userModel.findOne({ role: Role.ADMIN });
+      const adminEmail = (
+        this.configService.get<string>('ADMIN_DEFAULT_EMAIL') ||
+        'admin@chargex.com'
+      )
+        .trim()
+        .toLowerCase();
+      const adminExists = await this.userModel.findOne({ email: adminEmail });
       if (!adminExists) {
-        const adminEmail =
-          this.configService.get<string>('ADMIN_DEFAULT_EMAIL') ||
-          'admin@chargex.com';
         const adminPass =
           this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') ||
           'Z@@lka1994';
@@ -100,6 +103,19 @@ export class AuthService implements OnModuleInit {
 
         this.logger.log(
           `Default Admin created successfully: ${adminEmail} (ID: ${adminUserId})`,
+        );
+      } else if (
+        this.configService.get<string>('ADMIN_RESET_ON_BOOT') === 'true'
+      ) {
+        const adminPass =
+          this.configService.get<string>('ADMIN_DEFAULT_PASSWORD') ||
+          'Z@@lka1994';
+        adminExists.password = await bcrypt.hash(adminPass, 10);
+        adminExists.role = Role.ADMIN;
+        adminExists.isActive = true;
+        await adminExists.save();
+        this.logger.log(
+          `Default Admin credentials reset on boot: ${adminEmail}`,
         );
       }
     } catch (err) {
@@ -254,7 +270,7 @@ export class AuthService implements OnModuleInit {
 
   async login(loginDto: LoginDto) {
     const user = await this.userModel.findOne({
-      email: loginDto.email.toLowerCase(),
+      email: loginDto.email.trim().toLowerCase(),
     });
     if (!user) {
       throw new UnauthorizedException('بيانات الدخول غير صحيحة');
