@@ -24,6 +24,7 @@ import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 import '../../widgets/ops_console.dart';
 import '../../widgets/tactile_scale.dart';
+import '../../widgets/admin_section_illustration.dart';
 import '../user/user_main_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -159,14 +160,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridColumns(),
-                                  crossAxisSpacing: 8,
+                                  crossAxisSpacing: 6,
                                   mainAxisSpacing: 8,
-                                  mainAxisExtent: 118,
+                                  mainAxisExtent: 102,
                                 ),
                             itemBuilder: (context, index) =>
                                 _buildSectionTile(groupSections[index]),
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(height: 6),
                         ],
                       );
                     }),
@@ -267,12 +268,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- عدد أعمدة الشبكة حسب عرض الشاشة (شبكة كروت) ---
+  // --- عدد أعمدة الشبكة حسب عرض الشاشة ---
   int _gridColumns() {
     final width = MediaQuery.of(context).size.width;
-    if (width >= 1000) return 4;
-    if (width >= 600) return 3;
-    return 2;
+    if (width >= 1200) return 6;
+    if (width >= 700) return 5;
+    return 4;
   }
 
   // --- عنوان مجموعة الأقسام ---
@@ -324,7 +325,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- Section Card: كرت بصري بصورة/بانر علوي كبير وتفاصيل واضحة ---
+  // --- Section Tile: صور رسومية تعبيرية كبيرة بدون إطار كرت ---
   Widget _buildSectionTile(_AdminSectionItem item) {
     final Color accent = item.isAlert ? const Color(0xFFEF4444) : item.color;
 
@@ -339,145 +340,75 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     return RepaintBoundary(
       child: TactileScale(
         onTap: item.onTap,
-        pressedScale: 0.96,
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color: item.isAlert
-                  ? accent.withValues(alpha: 0.45)
-                  : AppColors.outline,
-              width: 1,
+        pressedScale: 0.93,
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                AdminSectionIllustration(
+                  kind: item.illustration,
+                  accent: accent,
+                  size: 56,
+                ),
+                if (badgeCount != null)
+                  Positioned(
+                    top: -2,
+                    right: -4,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 17),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFEF4444),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.white, width: 1.3),
+                      ),
+                      child: Text(
+                        badgeCount,
+                        textAlign: TextAlign.center,
+                        style: AppTypography.plusJakartaSans(
+                          fontSize: 8.5,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 6,
-                offset: const Offset(0, 2),
+            const SizedBox(height: 4),
+            Text(
+              item.title,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 9.5,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary,
+                height: 1.15,
               ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // الجزء العلوي: بانر/صورة بصرية كبيرة مع أيقونة معبّرة
-              Expanded(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Color.lerp(accent, Colors.white, 0.16)!,
-                        accent,
-                        Color.lerp(accent, Colors.black, 0.22)!,
-                      ],
-                      begin: Alignment.topRight,
-                      end: Alignment.bottomLeft,
-                    ),
-                  ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // علامة مائية هندسية كبيرة في الخلفية
-                      PositionedDirectional(
-                        end: -10,
-                        bottom: -12,
-                        child: Icon(
-                          item.icon,
-                          size: 62,
-                          color: Colors.white.withValues(alpha: 0.14),
-                        ),
-                      ),
-                      // الأيقونة الرئيسية بحجم كبير وواضح
-                      Center(
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.28),
-                            ),
-                          ),
-                          child: Icon(
-                            item.icon,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                        ),
-                      ),
-                      if (badgeCount != null)
-                        PositionedDirectional(
-                          top: 6,
-                          start: 6,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 1.5,
-                            ),
-                            constraints: const BoxConstraints(minWidth: 18),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEF4444),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 1.2,
-                              ),
-                            ),
-                            child: Text(
-                              badgeCount,
-                              textAlign: TextAlign.center,
-                              style: AppTypography.plusJakartaSans(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w900,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-              // الجزء السفلي: عنوان القسم وحالته
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cairo(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary,
-                        height: 1.2,
-                      ),
-                    ),
-                    if (item.statusText.isNotEmpty) ...[
-                      const SizedBox(height: 1.5),
-                      Text(
-                        item.statusText,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.cairo(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w700,
-                          color: item.statusColor ?? AppColors.textSecondary,
-                          height: 1.15,
-                        ),
-                      ),
-                    ],
-                  ],
+            ),
+            if (item.statusText.isNotEmpty) ...[
+              const SizedBox(height: 1),
+              Text(
+                item.statusText,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cairo(
+                  fontSize: 8.2,
+                  fontWeight: FontWeight.bold,
+                  color: item.statusColor ?? AppColors.textSecondary,
+                  height: 1.1,
                 ),
               ),
             ],
-          ),
+          ],
         ),
       ),
     );
@@ -511,6 +442,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'مزودو الأرقام الوهمية',
         icon: Icons.perm_phone_msg_rounded,
+        illustration: AdminIllustrationKind.numProviders,
         color: const Color(0xFF155E75), // Cyan 800
         category: 'numbers',
         statusText: '',
@@ -529,6 +461,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'معجم تطبيقات الأرقام',
         icon: Icons.menu_book_rounded,
+        illustration: AdminIllustrationKind.numDictionary,
         color: const Color(0xFF1D4ED8), // Blue 800 — هوية المعجم والإتاحة
         category: 'numbers',
         statusText: '',
@@ -546,6 +479,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'منتجات الأرقام',
         icon: Icons.apps_rounded,
+        illustration: AdminIllustrationKind.numApps,
         color: const Color(0xFF0D9488), // Teal — هوية صفحة الانتقاء نفسها
         category: 'numbers',
         statusText: '',
@@ -560,6 +494,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'مراقبة جودة الأرقام',
         icon: Icons.monitor_heart_rounded,
+        illustration: AdminIllustrationKind.numQuality,
         color: const Color(0xFFBE123C), // Rose 700 — هوية المراقبة والتنبيه
         category: 'numbers',
         statusText: quality.disabled > 0
@@ -585,6 +520,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'خدمات التفعيل المضمون',
         icon: Icons.verified_user_rounded,
+        illustration: AdminIllustrationKind.numManual,
         color: const Color(0xFF059669), // Emerald — هوية قسم العميل
         category: 'numbers',
         statusText: '',
@@ -601,6 +537,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'سجل التفعيلات التلقائية',
         icon: Icons.sim_card_rounded,
+        illustration: AdminIllustrationKind.numLogs,
         color: const Color(0xFF0891B2), // Deep Cyan
         category: 'numbers',
         statusText: numbers.stats.total > 0
@@ -622,6 +559,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'مزودو خدمات الشحن',
         icon: Icons.hub_rounded,
+        illustration: AdminIllustrationKind.storeProviders,
         color: const Color(0xFF6366F1), // Electric Indigo
         category: 'catalog',
         statusText:
@@ -640,6 +578,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'التطبيقات والمنتجات',
         icon: Icons.grid_view_rounded,
+        illustration: AdminIllustrationKind.storeApps,
         color: const Color(0xFF0EA5E9), // Cyan / Sky Blue
         category: 'catalog',
         statusText: '',
@@ -656,6 +595,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'الطلبات والمراجعة',
         icon: Icons.fact_check_rounded,
+        illustration: AdminIllustrationKind.orders,
         color: const Color(0xFFF43F5E), // Rose / Red
         category: 'catalog',
         isAlert: totalPending > 0,
@@ -674,6 +614,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'حسابات الدفع',
         icon: Icons.account_balance_wallet_rounded,
+        illustration: AdminIllustrationKind.paymentAccounts,
         color: const Color(0xFF10B981), // Emerald
         category: 'finance',
         statusText: '$activeAccounts مفعل',
@@ -689,6 +630,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'أنواع قوالب الخدمة',
         icon: Icons.description_outlined,
+        illustration: AdminIllustrationKind.templates,
         color: const Color(0xFF7C3AED), // Violet
         category: 'general',
         statusText: '',
@@ -703,6 +645,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'لوحة إدارة الأعلانات',
         icon: Icons.view_carousel_rounded,
+        illustration: AdminIllustrationKind.banners,
         color: const Color(0xFFF59E0B), // Amber Gold
         category: 'general',
         statusText: '',
@@ -716,6 +659,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'أكواد الشحن',
         icon: Icons.confirmation_number_rounded,
+        illustration: AdminIllustrationKind.shippingCodes,
         color: const Color(0xFF8B5CF6), // Purple
         category: 'finance',
         statusText: '$unusedCodes كود متاح',
@@ -731,6 +675,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'إدارة المستخدمين',
         icon: Icons.manage_accounts_rounded,
+        illustration: AdminIllustrationKind.users,
         color: const Color(0xFF0EA5E9), // Sky Blue
         category: 'people',
         statusText: '${stats?.usersTotal ?? 0} مستخدم',
@@ -745,6 +690,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _AdminSectionItem(
         title: 'الخدمات اليدوية والمشرفين',
         icon: Icons.assignment_ind_rounded,
+        illustration: AdminIllustrationKind.manualServices,
         color: const Color(0xFF0D9488), // Teal
         category: 'people',
         statusText: '$supervisorsCount مشرف • متابعة SLA',
@@ -764,6 +710,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
 class _AdminSectionItem {
   final String title;
   final IconData icon;
+  final AdminIllustrationKind illustration;
   final Color color;
   final String category;
   final String statusText;
@@ -774,6 +721,7 @@ class _AdminSectionItem {
   const _AdminSectionItem({
     required this.title,
     required this.icon,
+    required this.illustration,
     required this.color,
     required this.category,
     required this.statusText,
