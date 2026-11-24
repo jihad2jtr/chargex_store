@@ -95,7 +95,15 @@ class _VirtualNumberQualityScreenState
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('مراقبة جودة الأرقام'),
+        toolbarHeight: 50,
+        title: Text(
+          'مراقبة جودة الأرقام',
+          style: AppTypography.cairo(
+            fontSize: 15.5,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'تحديث',
@@ -108,14 +116,14 @@ class _VirtualNumberQualityScreenState
         onRefresh: _load,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
           children: [
             _summaryTicket(board.summary),
-            const SizedBox(height: 12),
-            _searchField(),
             const SizedBox(height: 10),
+            _searchField(),
+            const SizedBox(height: 8),
             _bucketTabs(board.summary),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             if (provider.errorMessage != null) ...[
               _messageBar(provider.errorMessage!),
               const SizedBox(height: 10),

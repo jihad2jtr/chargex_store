@@ -99,13 +99,15 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
+        scrolledUnderElevation: 0,
+        toolbarHeight: 50,
         centerTitle: false,
         title: Text(
           'قسائم الشحن المسبق',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppTypography.cairo(
-            fontSize: 18,
+            fontSize: 15.5,
             fontWeight: FontWeight.w800,
             color: AppColors.slate900,
           ),
@@ -132,11 +134,11 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
               onRefresh: () => admin.fetchShippingCodes(),
               color: AppColors.primaryBlue,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(12),
                 children: [
                   // Swiss Neo-Bento Executive Banner
                   Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: AppColors.slate900,
                       borderRadius: BorderRadius.circular(18),

@@ -262,9 +262,9 @@ class _VirtualNumberCatalogScreenState
   /// شبكة بنفس نمط أيقونات العميل: مربّع أيقونة وتحته الاسم العربي وتحتيه
   /// الأجنبي وسطر الرمز والدول وشارة الحالة — infoH يستوعب السطور بلا طفو
   Widget _appsGrid(List<VirtualNumberAppModel> apps) {
-    const double spacing = 10;
-    const double targetCell = 84;
-    const double infoH = 62;
+    const double spacing = 8;
+    const double targetCell = 76;
+    const double infoH = 56;
 
     return LayoutBuilder(
       builder: (context, constraints) {

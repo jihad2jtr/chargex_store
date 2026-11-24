@@ -167,7 +167,15 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('منتجات الأرقام المضافة'),
+        toolbarHeight: 50,
+        title: Text(
+          'منتجات الأرقام المضافة',
+          style: AppTypography.cairo(
+            fontSize: 15.5,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+          ),
+        ),
         actions: [
           IconButton(
             tooltip: 'معجم التطبيقات',

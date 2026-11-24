@@ -26,9 +26,9 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
   String _roleFilter = 'all';
 
   // مقاسات التذكرة الموحّدة في هذه الشاشة (نفس هوية بقية صفحات الأدمن)
-  static const double _radius = 16;
-  static const double _notch = 8;
-  static const double _stubWidth = 70;
+  static const double _radius = 14;
+  static const double _notch = 6.5;
+  static const double _stubWidth = 62;
 
   @override
   void initState() {
@@ -87,6 +87,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
         backgroundColor: Colors.white,
         elevation: 0,
         scrolledUnderElevation: 0,
+        toolbarHeight: 50,
         centerTitle: false,
         titleSpacing: 0,
         bottom: PreferredSize(
@@ -96,31 +97,31 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
         title: Row(
           children: [
             Container(
-              width: 32,
-              height: 32,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 gradient: AppColors.brandGradient,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(9),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.32),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
+                    color: AppColors.primaryBlue.withValues(alpha: 0.24),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: const Icon(
                 Icons.people_alt_rounded,
                 color: Colors.white,
-                size: 17,
+                size: 15,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Flexible(
               child: Text(
                 'إدارة المستخدمين',
                 style: AppTypography.cairo(
-                  fontSize: 17,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.w800,
                   color: AppColors.slate900,
                 ),
@@ -144,7 +145,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
         color: AppColors.primaryBlue,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -155,7 +156,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
                 customers: customersCount,
                 suspended: suspendedCount,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Search
               TextField(

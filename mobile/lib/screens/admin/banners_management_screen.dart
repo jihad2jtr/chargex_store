@@ -132,9 +132,10 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                   const SizedBox(width: 8),
                   Text(
                     isEditing ? 'تعديل الإعلان' : 'إضافة إعلان جديد',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                    style: AppTypography.cairo(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: AppColors.slate900,
                     ),
                   ),
                 ],
@@ -707,14 +708,14 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
               onRefresh: () => admin.fetchAdminBanners(),
               color: AppColors.primaryBlue,
               child: ListView(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 72),
                 children: [
                   // Swiss Neo-Bento Executive Banner
                   Container(
-                    padding: const EdgeInsets.all(18),
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
                       color: AppColors.slate900,
-                      borderRadius: BorderRadius.circular(18),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.slate900.withValues(alpha: 0.15),

@@ -23,6 +23,7 @@ import 'virtual_number_quality_screen.dart';
 import '../../widgets/unified_tactile_header.dart';
 import '../../widgets/floating_role_dashboard_shield.dart';
 import '../../widgets/ops_console.dart';
+import '../../widgets/tactile_scale.dart';
 import '../user/user_main_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
@@ -121,22 +122,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
-                  vertical: 8,
+                  horizontal: 12,
+                  vertical: 6,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const UnifiedTactileHeader(isDashboard: true),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
 
                     // KPI Stats Grid
                     _buildOpsConsole(admin),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
 
                     // Management Sections Header
                     _buildManagementHeader(visibleCount, totalPending),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
 
                     // Management Sections Grid (نمط أيقونات الهاتف)
                     ...visibleKeys.map((key) {
@@ -158,14 +159,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridColumns(),
-                                  crossAxisSpacing: 5,
-                                  mainAxisSpacing: 8,
-                                  mainAxisExtent: 94,
+                                  crossAxisSpacing: 4,
+                                  mainAxisSpacing: 6,
+                                  mainAxisExtent: 89,
                                 ),
                             itemBuilder: (context, index) =>
                                 _buildSectionTile(groupSections[index]),
                           ),
-                          const SizedBox(height: 5),
+                          const SizedBox(height: 4),
                         ],
                       );
                     }),
@@ -335,9 +336,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ? countMatch.group(1)
         : null;
 
-    return InkWell(
+    return TactileScale(
       onTap: item.onTap,
-      borderRadius: BorderRadius.circular(14),
+      pressedScale: 0.94,
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -345,28 +346,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             clipBehavior: Clip.none,
             children: [
               Container(
-                width: 44,
-                height: 44,
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
-                      Color.lerp(accent, Colors.white, 0.30)!,
+                      Color.lerp(accent, Colors.white, 0.28)!,
                       accent,
-                      Color.lerp(accent, Colors.black, 0.20)!,
+                      Color.lerp(accent, Colors.black, 0.18)!,
                     ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(12),
                   boxShadow: [
                     BoxShadow(
-                      color: accent.withValues(alpha: 0.34),
-                      blurRadius: 9,
-                      offset: const Offset(0, 4),
+                      color: accent.withValues(alpha: 0.26),
+                      blurRadius: 6,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),
-                child: Icon(item.icon, color: Colors.white, size: 22),
+                child: Icon(item.icon, color: Colors.white, size: 20),
               ),
               if (badgeCount != null)
                 Positioned(
@@ -396,7 +397,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 4),
           Text(
             item.title,
             textAlign: TextAlign.center,

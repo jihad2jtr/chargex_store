@@ -42,9 +42,9 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
   bool get _virtualOnly => widget.virtualNumbersOnly;
 
   // مقاسات التذكرة الموحّدة في هذه الشاشة (نفس هوية بقية صفحات الأدمن)
-  static const double _radius = 16;
-  static const double _notch = 8;
-  static const double _stubWidth = 56;
+  static const double _radius = 14;
+  static const double _notch = 6.5;
+  static const double _stubWidth = 52;
 
   @override
   void initState() {
@@ -139,11 +139,12 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        scrolledUnderElevation: 1,
+        scrolledUnderElevation: 0,
+        toolbarHeight: 50,
         title: Text(
           _virtualOnly ? 'مزودو الأرقام الوهمية' : 'إدارة المزودين',
           style: AppTypography.cairo(
-            fontSize: 16.5,
+            fontSize: 15.5,
             fontWeight: FontWeight.w800,
             color: AppColors.slate900,
           ),

@@ -1201,7 +1201,7 @@ class _AppsAndProductsManagementScreenState
                 slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
@@ -1212,11 +1212,11 @@ class _AppsAndProductsManagementScreenState
                             inactiveApps: inactiveAppsCount,
                             totalProducts: totalProductsCount,
                           ),
-                          const SizedBox(height: 14),
+                          const SizedBox(height: 10),
 
                           // 2. Neo-Bento Search Box
                           _buildSearchField(),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
 
                           // 3. Category Filter Chips
                           _buildCategoryFiltersRow(
@@ -1224,7 +1224,7 @@ class _AppsAndProductsManagementScreenState
                             active: activeAppsCount,
                             inactive: inactiveAppsCount,
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 10),
 
                           // 4. Section Subheader
                           Row(
@@ -1347,7 +1347,7 @@ class _AppsAndProductsManagementScreenState
                     )
                   else
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(14, 6, 14, 30),
+                      padding: const EdgeInsets.fromLTRB(12, 4, 12, 24),
                       sliver: SliverToBoxAdapter(child: _buildAppsList(apps)),
                     ),
                 ],

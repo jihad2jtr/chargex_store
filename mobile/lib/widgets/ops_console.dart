@@ -50,13 +50,13 @@ class _OpsConsoleState extends State<OpsConsole> {
     return Container(
       decoration: BoxDecoration(
         color: AppColors.darkNav,
-        borderRadius: BorderRadius.circular(15),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.slate800, width: 1),
         boxShadow: [
           BoxShadow(
-            color: _navy.withValues(alpha: 0.28),
-            blurRadius: 14,
-            spreadRadius: 0.5,
-            offset: const Offset(0, 5),
+            color: _navy.withValues(alpha: 0.20),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -67,12 +67,12 @@ class _OpsConsoleState extends State<OpsConsole> {
           // مؤثر السحب للأسفل: تكشف اللوحة بحركة ارتفاع ناعمة
           ClipRect(
             child: AnimatedSize(
-              duration: const Duration(milliseconds: 320),
+              duration: const Duration(milliseconds: 280),
               curve: Curves.easeOutCubic,
               alignment: Alignment.topCenter,
               child: _expanded
                   ? Padding(
-                      padding: const EdgeInsets.fromLTRB(9, 2, 9, 9),
+                      padding: const EdgeInsets.fromLTRB(8, 2, 8, 8),
                       child: s == null ? _buildSkeleton() : _buildConsole(s),
                     )
                   : const SizedBox(width: double.infinity),

@@ -934,10 +934,10 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.white.withValues(alpha: 0.07),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
           ),
           child: Column(
@@ -945,13 +945,13 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
             children: [
               Row(
                 children: [
-                  Icon(icon, size: 12, color: color),
+                  Icon(icon, size: 11.5, color: color),
                   const SizedBox(width: 4),
                   Text(
                     value,
                     maxLines: 1,
                     style: AppTypography.plusJakartaSans(
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w900,
                       color: Colors.white,
                     ),
@@ -979,8 +979,8 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
   /// مبدّل الأقسام: ثلاث بطاقات/أقسام داخل شريط أبيض واحد (بدل TabBar التقليدي).
   Widget _buildSegmentSwitcher(AdminProvider admin) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-      padding: const EdgeInsets.all(4),
+      margin: const EdgeInsets.fromLTRB(12, 0, 12, 6),
+      padding: const EdgeInsets.all(3.5),
       decoration: BoxDecoration(
         color: AppColors.surfaceCard,
         borderRadius: BorderRadius.circular(14),

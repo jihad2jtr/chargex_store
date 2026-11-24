@@ -156,7 +156,7 @@ class _ManualServicesManagementScreenState
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.cairo(
-                  fontSize: 16,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.w800,
                   color: AppColors.slate900,
                 ),
@@ -186,7 +186,7 @@ class _ManualServicesManagementScreenState
         color: AppColors.primaryBlue,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -197,15 +197,15 @@ class _ManualServicesManagementScreenState
                 delayed: delayedCount,
                 issues: issuesCount,
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Supervisor Filter Dropdown
               _buildSupervisorFilter(_supervisorList(admin)),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
 
               // Status Filter Chips
               _buildStatusFilterChips(),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
 
               // Orders List Header
               Row(
