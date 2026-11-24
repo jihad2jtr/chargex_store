@@ -159,14 +159,14 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridColumns(),
-                                  crossAxisSpacing: 4,
-                                  mainAxisSpacing: 6,
-                                  mainAxisExtent: 89,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  mainAxisExtent: 118,
                                 ),
                             itemBuilder: (context, index) =>
                                 _buildSectionTile(groupSections[index]),
                           ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
                         ],
                       );
                     }),
@@ -267,12 +267,12 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- عدد أعمدة الشبكة حسب عرض الشاشة ---
+  // --- عدد أعمدة الشبكة حسب عرض الشاشة (شبكة كروت) ---
   int _gridColumns() {
     final width = MediaQuery.of(context).size.width;
-    if (width >= 1200) return 6;
-    if (width >= 700) return 5;
-    return 4;
+    if (width >= 1000) return 4;
+    if (width >= 600) return 3;
+    return 2;
   }
 
   // --- عنوان مجموعة الأقسام ---
@@ -324,7 +324,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- Section Tile: نمط أيقونات الهاتف (App Icon) ---
+  // --- Section Card: كرت بصري بصورة/بانر علوي كبير وتفاصيل واضحة ---
   Widget _buildSectionTile(_AdminSectionItem item) {
     final Color accent = item.isAlert ? const Color(0xFFEF4444) : item.color;
 
@@ -336,92 +336,149 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ? countMatch.group(1)
         : null;
 
-    return TactileScale(
-      onTap: item.onTap,
-      pressedScale: 0.94,
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Color.lerp(accent, Colors.white, 0.28)!,
-                      accent,
-                      Color.lerp(accent, Colors.black, 0.18)!,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                  boxShadow: [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.26),
-                      blurRadius: 6,
-                      offset: const Offset(0, 3),
-                    ),
-                  ],
-                ),
-                child: Icon(item.icon, color: Colors.white, size: 20),
+    return RepaintBoundary(
+      child: TactileScale(
+        onTap: item.onTap,
+        pressedScale: 0.96,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: item.isAlert
+                  ? accent.withValues(alpha: 0.45)
+                  : AppColors.outline,
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-              if (badgeCount != null)
-                Positioned(
-                  top: -4,
-                  right: -4,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 1,
-                    ),
-                    constraints: const BoxConstraints(minWidth: 16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFEF4444),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.white, width: 1.3),
-                    ),
-                    child: Text(
-                      badgeCount,
-                      textAlign: TextAlign.center,
-                      style: AppTypography.cairo(
-                        fontSize: 8.5,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            item.title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.cairo(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-            ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // الجزء العلوي: بانر/صورة بصرية كبيرة مع أيقونة معبّرة
+              Expanded(
+                child: Container(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Color.lerp(accent, Colors.white, 0.16)!,
+                        accent,
+                        Color.lerp(accent, Colors.black, 0.22)!,
+                      ],
+                      begin: Alignment.topRight,
+                      end: Alignment.bottomLeft,
+                    ),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // علامة مائية هندسية كبيرة في الخلفية
+                      PositionedDirectional(
+                        end: -10,
+                        bottom: -12,
+                        child: Icon(
+                          item.icon,
+                          size: 62,
+                          color: Colors.white.withValues(alpha: 0.14),
+                        ),
+                      ),
+                      // الأيقونة الرئيسية بحجم كبير وواضح
+                      Center(
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.28),
+                            ),
+                          ),
+                          child: Icon(
+                            item.icon,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        ),
+                      ),
+                      if (badgeCount != null)
+                        PositionedDirectional(
+                          top: 6,
+                          start: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 1.5,
+                            ),
+                            constraints: const BoxConstraints(minWidth: 18),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEF4444),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 1.2,
+                              ),
+                            ),
+                            child: Text(
+                              badgeCount,
+                              textAlign: TextAlign.center,
+                              style: AppTypography.plusJakartaSans(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              // الجزء السفلي: عنوان القسم وحالته
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 6, 8, 7),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTypography.cairo(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary,
+                        height: 1.2,
+                      ),
+                    ),
+                    if (item.statusText.isNotEmpty) ...[
+                      const SizedBox(height: 1.5),
+                      Text(
+                        item.statusText,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                          color: item.statusColor ?? AppColors.textSecondary,
+                          height: 1.15,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 1.5),
-          Text(
-            item.statusText,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AppTypography.cairo(
-              fontSize: 8.6,
-              fontWeight: FontWeight.bold,
-              color: item.statusColor ?? AppColors.textSecondary,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
