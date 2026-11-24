@@ -28,7 +28,7 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
   final _searchCtrl = TextEditingController();
   bool _busy = false;
   // فلتر حالة المنتجات: 0 الكل، 1 جاهزة، 2 بلا دول مفعّلة، 3 متوقفة
-  int _filter = 0;
+  final int _filter = 0;
 
   // شجرة التصفح: مفاتيح الدول الفردة داخل تذكرة التطبيق
   // (تطبيق|دولة)؛ الدولة ذات المشغّل الواحد لا تحتاج فرداً

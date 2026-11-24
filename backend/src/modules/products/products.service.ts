@@ -49,7 +49,8 @@ export class ProductsService {
       .populate('providerId', 'name status isActive')
       .populate('assignedSupervisorId', 'name role')
       .populate('serviceTemplateId')
-      .sort({ salePrice: 1 });
+      .sort({ salePrice: 1 })
+      .lean();
 
     // مزود موقوف = منتجاته مخفية تماماً (كانت تُعرض كـ "غير متاحة" فقط)
     return products
@@ -57,8 +58,7 @@ export class ProductsService {
         const provider = prod.providerId as unknown as { isActive?: boolean } | null;
         return !provider || provider.isActive !== false;
       })
-      .map((prod) => {
-        const obj = prod.toObject();
+      .map((obj) => {
         const provider = obj.providerId as any;
 
         return {
@@ -84,15 +84,13 @@ export class ProductsService {
       .populate('providerId', 'name status')
       .populate('assignedSupervisorId', 'name role email')
       .populate('serviceTemplateId')
-      .sort({ createdAt: -1 });
+      .sort({ createdAt: -1 })
+      .lean();
 
-    return products.map((prod) => {
-      const obj = prod.toObject();
-      return {
-        ...obj,
-        availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
-      };
-    });
+    return products.map((obj) => ({
+      ...obj,
+      availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
+    }));
   }
 
   async findOne(id: string) {

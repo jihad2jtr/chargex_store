@@ -72,7 +72,7 @@ void _drainExpectedNoise(WidgetTester w) {
 String _fieldText(WidgetTester w, String label) =>
     w.widget<TextField>(find.widgetWithText(TextField, label)).controller!.text;
 
-const _nameLabel = 'اسم المزود (5sim أو Hero-SMS أو DogeSMS أو SMSPool)';
+const _nameLabel = 'اسم المزود (5sim أو Hero-SMS أو DogeSMS أو SMSPool أو TG-Lion)';
 const _urlLabel = 'Base URL رابط الـ API الرئيسي';
 const _serverLabel = 'اسم السيرفر الظاهر للعميل';
 
@@ -118,13 +118,14 @@ void main() {
     _drainExpectedNoise(w);
   });
 
-  testWidgets('رقاقتا DogeSMS وSMSPool تملأان الاسم وجذر الـ API', (
+  testWidgets('رقاقات DogeSMS وSMSPool وTG-Lion تملأ الاسم وجذر الـ API', (
     WidgetTester w,
   ) async {
     await _pumpForm(w, AdminProvider());
 
     expect(find.text('DogeSMS للأرقام الوهمية'), findsOneWidget);
     expect(find.text('SMSPool للأرقام الوهمية'), findsOneWidget);
+    expect(find.text('TG-Lion (تيليجرام فقط)'), findsOneWidget);
 
     await w.tap(find.text('DogeSMS للأرقام الوهمية'));
     await w.pump();
@@ -137,6 +138,12 @@ void main() {
 
     expect(_fieldText(w, _nameLabel), 'SMSPool');
     expect(_fieldText(w, _urlLabel), 'https://api.smspool.net');
+
+    await w.tap(find.text('TG-Lion (تيليجرام فقط)'));
+    await w.pump();
+
+    expect(_fieldText(w, _nameLabel), 'TG-Lion');
+    expect(_fieldText(w, _urlLabel), 'https://tg-lion.net');
 
     _drainExpectedNoise(w);
   });

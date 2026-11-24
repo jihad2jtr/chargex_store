@@ -216,7 +216,7 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
           children: [
             Text(
               _virtualOnly
-                  ? 'بيانات مزود أرقام التحقق (5sim / Hero-SMS / DogeSMS / SMSPool) عبر API المباشر'
+                  ? 'بيانات مزود أرقام التحقق (5sim / Hero-SMS / DogeSMS / SMSPool / TG-Lion) عبر API المباشر'
                   : 'بيانات الربط عبر API المباشر لجلب المنتجات والأسعار',
               style: AppTypography.cairo(
                 color: AppColors.slate500,
@@ -296,6 +296,16 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                     onTap: () => _fillQuick(
                       name: 'SMSPool',
                       url: 'https://api.smspool.net',
+                    ),
+                  ),
+                  // TG-Lion (tglion): أرقام وهمية خاصة بالتيليجرام فقط
+                  _quickChip(
+                    label: 'TG-Lion (تيليجرام فقط)',
+                    icon: Icons.send_rounded,
+                    color: AppColors.primaryBlue,
+                    onTap: () => _fillQuick(
+                      name: 'TG-Lion',
+                      url: 'https://tg-lion.net',
                     ),
                   ),
                 ],
@@ -380,7 +390,7 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
             _field(
               controller: _nameCtrl,
               label: _virtualOnly
-                  ? 'اسم المزود (5sim أو Hero-SMS أو DogeSMS أو SMSPool)'
+                  ? 'اسم المزود (5sim أو Hero-SMS أو DogeSMS أو SMSPool أو TG-Lion)'
                   : 'اسم المزود (مثال: Smile One, SEAGM)',
               icon: Icons.business_rounded,
             ),
@@ -420,7 +430,9 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
             const SizedBox(height: 11),
             _field(
               controller: _secretCtrl,
-              label: 'API Secret (اختياري)',
+              label: _virtualOnly
+                  ? 'API Secret / YourID لمزود TG-Lion (اختياري)'
+                  : 'API Secret (اختياري)',
               icon: Icons.lock_outline_rounded,
             ),
             const SizedBox(height: 11),

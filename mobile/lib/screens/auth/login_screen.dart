@@ -106,7 +106,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // ChargeX Passport Emblem & Status Tag
+                  // JGO Passport Emblem & Status Tag
                   Center(
                     child: Column(
                       children: [
@@ -119,9 +119,9 @@ class _LoginScreenState extends State<LoginScreen> {
                               BoxShadow(
                                 color: const Color(
                                   0xFFF18223,
-                                ).withValues(alpha: 0.35),
-                                blurRadius: 20,
-                                offset: const Offset(0, 8),
+                                ).withValues(alpha: 0.16),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
                               ),
                             ],
                           ),
@@ -290,7 +290,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               fontSize: 13,
                               color: AppColors.textSecondary,
                             ),
-                            hintText: 'user@chargex.com',
+                            hintText: 'user@jgo.store',
                             hintStyle: AppTypography.plusJakartaSans(
                               fontSize: 13,
                               color: AppColors.textMuted,

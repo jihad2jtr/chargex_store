@@ -3,6 +3,7 @@ import { DogeSmsClient } from './dogesms.client';
 import { FiveSimClient } from './fivesim.client';
 import { HeroSmsClient } from './herosms.client';
 import { SmsPoolClient } from './smspool.client';
+import { TgLionClient } from './tglion.client';
 import {
   VIRTUAL_NUMBER_PROVIDER_TYPES,
   createVirtualNumberClient,
@@ -24,6 +25,7 @@ describe('detectVirtualNumberType', () => {
       ProviderType.HEROSMS,
       ProviderType.DOGESMS,
       ProviderType.SMSPOOL,
+      ProviderType.TGLION,
     ]) {
       expect(detectVirtualNumberType({ providerType: type, baseUrl: 'https://example.com' })).toBe(type);
     }
@@ -38,12 +40,15 @@ describe('detectVirtualNumberType', () => {
     expect(detectVirtualNumberType({ baseUrl: 'https://hero-sms.com/stubs/handler_api.php' })).toBe(
       ProviderType.HEROSMS,
     );
+    expect(detectVirtualNumberType({ baseUrl: 'https://tg-lion.net' })).toBe(ProviderType.TGLION);
+    expect(detectVirtualNumberType({ name: 'TG-Lion' })).toBe(ProviderType.TGLION);
   });
 
   it('مزود المتاجر لا يُحسب على الأرقام', () => {
     expect(detectVirtualNumberType({ baseUrl: 'https://bay2game.com/api' })).toBeNull();
     expect(isVirtualNumberProvider({ name: 'Fox Reload' })).toBe(false);
     expect(isVirtualNumberProvider({ name: 'SMSPool' })).toBe(true);
+    expect(isVirtualNumberProvider({ name: 'TG-Lion' })).toBe(true);
   });
 });
 
@@ -71,6 +76,9 @@ describe('createVirtualNumberClient', () => {
     expect(
       createVirtualNumberClient({ ...creds, baseUrl: 'https://5sim.net/v1', providerType: ProviderType.FIVESIM }),
     ).toBeInstanceOf(FiveSimClient);
+    expect(
+      createVirtualNumberClient({ ...creds, baseUrl: 'https://tg-lion.net', providerType: ProviderType.TGLION }),
+    ).toBeInstanceOf(TgLionClient);
   });
 
   it('يبقي 5sim افتراضياً للسجل القديم بلا نوع ولا اسم دال', () => {
@@ -81,7 +89,13 @@ describe('createVirtualNumberClient', () => {
 
   it('كل أنواع الأرقام في قائمة المسح كي تُزامَن وتُفحص', () => {
     expect([...VIRTUAL_NUMBER_PROVIDER_TYPES].sort()).toEqual(
-      [ProviderType.DOGESMS, ProviderType.FIVESIM, ProviderType.HEROSMS, ProviderType.SMSPOOL].sort(),
+      [
+        ProviderType.DOGESMS,
+        ProviderType.FIVESIM,
+        ProviderType.HEROSMS,
+        ProviderType.SMSPOOL,
+        ProviderType.TGLION,
+      ].sort(),
     );
   });
 });

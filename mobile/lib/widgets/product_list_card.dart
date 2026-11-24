@@ -4,6 +4,7 @@ import '../core/theme/app_colors.dart';
 import '../core/theme/app_typography.dart';
 import '../models/product_model.dart';
 import 'digital_pass_card.dart';
+import 'tactile_scale.dart';
 
 /// بطاقة باقة (منتج) في شاشة التطبيق: تصميم تذكرة فاتحة
 /// — نص داكن على أبيض (وضوح عالٍ)، شارة نوع التسليم، ملخص المحتوى،
@@ -90,258 +91,265 @@ class ProductListCard extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: CustomPaint(
-        painter: TicketPassShadowPainter(
-          cornerRadius: _radius,
-          notchPositionFraction: 0.5,
-          notchRadius: _notchRadius,
-          elevation: 3.0,
-        ),
-        child: CustomPaint(
-          foregroundPainter: TicketPassBorderPainter(
-            cornerRadius: _radius,
-            notchPositionFraction: 0.5,
-            notchRadius: _notchRadius,
-            borderColor: AppColors.outline,
-            borderWidth: 1.0,
-          ),
-          child: ClipPath(
-            clipper: TicketPassClipper(
+      child: RepaintBoundary(
+        child: TactileScale(
+          onTap: onTap,
+          child: CustomPaint(
+            painter: TicketPassShadowPainter(
               cornerRadius: _radius,
               notchPositionFraction: 0.5,
               notchRadius: _notchRadius,
+              elevation: 3.0,
             ),
-            child: Material(
-              color: Colors.white,
-              child: InkWell(
-                onTap: onTap,
-                child: SizedBox(
-                  height: _height,
-                  child: Row(
-                    children: [
-                      // ---------------- جسم البطاقة (الاسم + النوع + الوصف)
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.fromLTRB(6, 10, 14, 10),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Row(
+            child: CustomPaint(
+              foregroundPainter: TicketPassBorderPainter(
+                cornerRadius: _radius,
+                notchPositionFraction: 0.5,
+                notchRadius: _notchRadius,
+                borderColor: AppColors.outline,
+                borderWidth: 1.0,
+              ),
+              child: ClipPath(
+                clipper: TicketPassClipper(
+                  cornerRadius: _radius,
+                  notchPositionFraction: 0.5,
+                  notchRadius: _notchRadius,
+                ),
+                child: Material(
+                  color: Colors.white,
+                  child: InkWell(
+                    onTap: onTap,
+                    child: SizedBox(
+                      height: _height,
+                      child: Row(
+                        children: [
+                          // ---------------- جسم البطاقة (الاسم + النوع + الوصف)
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.fromLTRB(6, 10, 14, 10),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  _pill(
-                                    icon: meta.icon,
-                                    label: meta.label,
-                                    bg: meta.bg,
-                                    fg: meta.fg,
-                                  ),
-                                  if (discounted) ...[
-                                    const SizedBox(width: 5),
-                                    _pill(
-                                      icon: Icons.trending_down_rounded,
-                                      label: 'سعر مخفّض',
-                                      bg: const Color(0xFFECFDF5),
-                                      fg: const Color(0xFF047857),
-                                    ),
-                                  ],
-                                  const Spacer(),
-                                ],
-                              ),
-                              const SizedBox(height: 5),
-                              Text(
-                                product.name,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: AppTypography.cairo(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w900,
-                                  color: AppColors.slate900,
-                                  height: 1.15,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Row(
-                                children: [
-                                  Icon(
-                                    product.description != null &&
-                                            product.description!
-                                                .trim()
-                                                .isNotEmpty
-                                        ? Icons.info_outline_rounded
-                                        : meta.icon,
-                                    size: 11,
-                                    color: AppColors.textMuted,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Expanded(
-                                    child: Text(
-                                      (product.description != null &&
-                                              product.description!
-                                                  .trim()
-                                                  .isNotEmpty)
-                                          ? product.description!
-                                          : meta.hint,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppTypography.cairo(
-                                        fontSize: 9.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: AppColors.textSecondary,
+                                  Row(
+                                    children: [
+                                      _pill(
+                                        icon: meta.icon,
+                                        label: meta.label,
+                                        bg: meta.bg,
+                                        fg: meta.fg,
                                       ),
-                                    ),
-                                  ),
-                                  if (marginText != null) ...[
-                                    const SizedBox(width: 5),
-                                    _pill(
-                                      icon: Icons.percent_rounded,
-                                      label: marginText!,
-                                      bg: const Color(0xFFF1F5F9),
-                                      fg: AppColors.slate600,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // ---------------- خط التثقيب الفاصل
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: CustomPaint(
-                          painter: VerticalDashedLinePainter(
-                            color: AppColors.outlineVariant,
-                          ),
-                          size: const Size(1, 60),
-                        ),
-                      ),
-
-                      // ---------------- كعب السعر + زر الشحن
-                      SizedBox(
-                        width: _stubWidth,
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: insufficient
-                                  ? [
-                                      const Color(0xFFFFF1F2),
-                                      const Color(0xFFFECDD3),
-                                    ]
-                                  : [
-                                      const Color(0xFFFFFDF5),
-                                      const Color(0xFFFEF3C7),
-                                    ],
-                            ),
-                          ),
-                          child: Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (discounted)
-                                  Text(
-                                    '\$${product.previousPrice!.toStringAsFixed(2)}',
-                                    style:
-                                        AppTypography.price(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: insufficient
-                                              ? const Color(0xFF9F1239)
-                                              : const Color(0xFF92400E),
-                                        ).copyWith(
-                                          decoration:
-                                              TextDecoration.lineThrough,
-                                          height: 1.0,
+                                      if (discounted) ...[
+                                        const SizedBox(width: 5),
+                                        _pill(
+                                          icon: Icons.trending_down_rounded,
+                                          label: 'سعر مخفّض',
+                                          bg: const Color(0xFFECFDF5),
+                                          fg: const Color(0xFF047857),
                                         ),
+                                      ],
+                                      const Spacer(),
+                                    ],
                                   ),
-                                if (showCost)
-                                  Padding(
-                                    padding: const EdgeInsets.only(bottom: 1),
-                                    child: Text(
-                                      'التكلفة \$${costPrice!.toStringAsFixed(2)}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppTypography.cairo(
-                                        fontSize: 8.6,
-                                        fontWeight: FontWeight.w700,
-                                        color: AppColors.textMuted,
-                                        height: 1.1,
-                                      ),
+                                  const SizedBox(height: 5),
+                                  Text(
+                                    product.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: AppTypography.cairo(
+                                      fontSize: 14.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: AppColors.slate900,
+                                      height: 1.15,
                                     ),
                                   ),
-                                Text(
-                                  '\$${displayPrice.toStringAsFixed(2)}',
-                                  style: AppTypography.price(
-                                    fontSize: 17.5,
-                                    fontWeight: FontWeight.w900,
-                                    color: insufficient
-                                        ? const Color(0xFFBE123C)
-                                        : const Color(0xFF0F172A),
-                                  ),
-                                ),
-                                // المقابل بالليرة السورية — خافت تحت السعر بالدولار
-                                if (sypPriceText != null &&
-                                    sypPriceText!.isNotEmpty) ...[
-                                  const SizedBox(height: 1),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 4,
-                                    ),
-                                    child: Text(
-                                      sypPriceText!,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: AppTypography.cairo(
-                                        fontSize: 8.6,
-                                        fontWeight: FontWeight.w700,
-                                        color: const Color(0xFF94A3B8),
-                                        height: 1.1,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                                const SizedBox(height: 3),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 9,
-                                    vertical: 2.5,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: insufficient
-                                        ? const Color(0xFF9F1239)
-                                        : const Color(0xFF0F172A),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
+                                  const SizedBox(height: 3),
+                                  Row(
                                     children: [
                                       Icon(
-                                        insufficient
-                                            ? Icons.lock_outline_rounded
-                                            : Icons.bolt_rounded,
-                                        size: 10,
-                                        color: const Color(0xFFFBBF24),
+                                        product.description != null &&
+                                                product.description!
+                                                    .trim()
+                                                    .isNotEmpty
+                                            ? Icons.info_outline_rounded
+                                            : meta.icon,
+                                        size: 11,
+                                        color: AppColors.textMuted,
                                       ),
-                                      const SizedBox(width: 2),
+                                      const SizedBox(width: 4),
+                                      Expanded(
+                                        child: Text(
+                                          (product.description != null &&
+                                                  product.description!
+                                                      .trim()
+                                                      .isNotEmpty)
+                                              ? product.description!
+                                              : meta.hint,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppTypography.cairo(
+                                            fontSize: 9.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: AppColors.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                      if (marginText != null) ...[
+                                        const SizedBox(width: 5),
+                                        _pill(
+                                          icon: Icons.percent_rounded,
+                                          label: marginText!,
+                                          bg: const Color(0xFFF1F5F9),
+                                          fg: AppColors.slate600,
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
+                          // ---------------- خط التثقيب الفاصل
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: CustomPaint(
+                              painter: VerticalDashedLinePainter(
+                                color: AppColors.outlineVariant,
+                              ),
+                              size: const Size(1, 60),
+                            ),
+                          ),
+
+                          // ---------------- كعب السعر + زر الشحن
+                          SizedBox(
+                            width: _stubWidth,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: insufficient
+                                      ? [
+                                          const Color(0xFFFFF1F2),
+                                          const Color(0xFFFECDD3),
+                                        ]
+                                      : [
+                                          const Color(0xFFFFFDF5),
+                                          const Color(0xFFFEF3C7),
+                                        ],
+                                ),
+                              ),
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (discounted)
                                       Text(
-                                        insufficient ? 'رصيد ناقص' : 'شحن',
-                                        style: AppTypography.cairo(
-                                          fontSize: 9.5,
-                                          fontWeight: FontWeight.w900,
-                                          color: Colors.white,
+                                        '\$${product.previousPrice!.toStringAsFixed(2)}',
+                                        style:
+                                            AppTypography.price(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w700,
+                                              color: insufficient
+                                                  ? const Color(0xFF9F1239)
+                                                  : const Color(0xFF92400E),
+                                            ).copyWith(
+                                              decoration:
+                                                  TextDecoration.lineThrough,
+                                              height: 1.0,
+                                            ),
+                                      ),
+                                    if (showCost)
+                                      Padding(
+                                        padding: const EdgeInsets.only(
+                                          bottom: 1,
+                                        ),
+                                        child: Text(
+                                          'التكلفة \$${costPrice!.toStringAsFixed(2)}',
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppTypography.cairo(
+                                            fontSize: 8.6,
+                                            fontWeight: FontWeight.w700,
+                                            color: AppColors.textMuted,
+                                            height: 1.1,
+                                          ),
+                                        ),
+                                      ),
+                                    Text(
+                                      '\$${displayPrice.toStringAsFixed(2)}',
+                                      style: AppTypography.price(
+                                        fontSize: 17.5,
+                                        fontWeight: FontWeight.w900,
+                                        color: insufficient
+                                            ? const Color(0xFFBE123C)
+                                            : const Color(0xFF0F172A),
+                                      ),
+                                    ),
+                                    // المقابل بالليرة السورية — خافت تحت السعر بالدولار
+                                    if (sypPriceText != null &&
+                                        sypPriceText!.isNotEmpty) ...[
+                                      const SizedBox(height: 1),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 4,
+                                        ),
+                                        child: Text(
+                                          sypPriceText!,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppTypography.cairo(
+                                            fontSize: 8.6,
+                                            fontWeight: FontWeight.w700,
+                                            color: const Color(0xFF94A3B8),
+                                            height: 1.1,
+                                          ),
                                         ),
                                       ),
                                     ],
-                                  ),
+                                    const SizedBox(height: 3),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 9,
+                                        vertical: 2.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: insufficient
+                                            ? const Color(0xFF9F1239)
+                                            : const Color(0xFF0F172A),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            insufficient
+                                                ? Icons.lock_outline_rounded
+                                                : Icons.bolt_rounded,
+                                            size: 10,
+                                            color: const Color(0xFFFBBF24),
+                                          ),
+                                          const SizedBox(width: 2),
+                                          Text(
+                                            insufficient ? 'رصيد ناقص' : 'شحن',
+                                            style: AppTypography.cairo(
+                                              fontSize: 9.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
-                        ),
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ),

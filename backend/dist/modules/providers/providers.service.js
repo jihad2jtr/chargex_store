@@ -53,6 +53,12 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
             provider.baseUrl?.toLowerCase().includes('foxreload') ||
             provider.name?.toLowerCase().includes('foxreload'));
     }
+    isGeminiPro(provider) {
+        return (provider.providerType === provider_schema_1.ProviderType.GEMINIPRO ||
+            provider.baseUrl?.toLowerCase().includes('geminipro') ||
+            provider.name?.toLowerCase().includes('geminipro') ||
+            provider.name?.toLowerCase().includes('gemini pro'));
+    }
     isVirtualNumbers(provider) {
         return (0, virtual_number_clients_1.isVirtualNumberProvider)(provider);
     }
@@ -60,6 +66,7 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         return (0, virtual_number_clients_1.createVirtualNumberClient)({
             baseUrl: provider.baseUrl,
             apiKey: provider.apiKey,
+            apiSecret: provider.apiSecret,
             providerType: provider.providerType,
             name: provider.name,
         });
@@ -79,6 +86,45 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
             'Content-Type': 'application/json',
             ...(provider.headers || {}),
         };
+    }
+    getGeminiProBaseUrl(provider) {
+        let raw = (provider.baseUrl || '').trim().replace(/\/+$/, '');
+        if (!raw)
+            raw = ProvidersService_1.GEMINIPRO_DEFAULT_URL;
+        if (!raw.includes('/api/reseller')) {
+            raw = `${raw}/api/reseller/v1`;
+        }
+        return raw;
+    }
+    getGeminiProHeaders(provider) {
+        return {
+            'X-API-Key': provider.apiKey,
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            ...(provider.headers || {}),
+        };
+    }
+    geminiProErrorText(body, status) {
+        const slug = String(body?.error || '').toLowerCase();
+        const map = {
+            insufficient_funds: 'رصيد مزود الخدمات غير كافٍ، أخبر الإدارة بشحنه',
+            out_of_stock: 'نفدت كمية هذا المنتج لدى المزود',
+            product_not_found: 'المنتج لم يعد موجوداً لدى المزود',
+            order_not_found: 'الطلب غير موجود لدى المزود',
+            invalid_api_key: 'مفتاح مزود الخدمات غير صالح',
+            missing_api_key: 'لم يُرسل مفتاح مزود الخدمات',
+            supplier_purchase_pending: 'شراء المزوّد ما زال قيد المعالجة لدى المزود',
+            supplier_purchase_failed: 'فشل الشراء من مزود الخدمات',
+            transaction_error: 'خطأ في معامل رصيد مزود الخدمات',
+            invalid_order_payload: 'بيانات الطلب غير صالحة لدى مزود الخدمات',
+            invalid_product_id: 'رمز المنتج غير صالح لدى مزود الخدمات',
+            invalid_quantity: 'الكمية غير صالحة لدى مزود الخدمات',
+            invalid_json: 'استجابة غير صالحة من مزود الخدمات',
+        };
+        if (map[slug])
+            return map[slug];
+        const msg = body?.message || body?.error;
+        return msg ? `${msg}${status ? ` (${status})` : ''}` : 'تعذر الاتصال بمزود الخدمات';
     }
     async findAll() {
         return this.providerModel.find().sort({ createdAt: -1 });
@@ -107,17 +153,27 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         const isFox = createDto.providerType === provider_schema_1.ProviderType.FOXRELOAD ||
             createDto.baseUrl?.toLowerCase().includes('foxreload') ||
             createDto.name?.toLowerCase().includes('foxreload');
+        const isGemini = createDto.providerType === provider_schema_1.ProviderType.GEMINIPRO ||
+            createDto.baseUrl?.toLowerCase().includes('geminipro') ||
+            createDto.name?.toLowerCase().includes('geminipro') ||
+            createDto.name?.toLowerCase().includes('gemini pro');
         const virtualType = (0, virtual_number_clients_1.detectVirtualNumberType)(createDto);
         const resolvedType = isBay
             ? provider_schema_1.ProviderType.BAY2GAME
             : isFox
                 ? provider_schema_1.ProviderType.FOXRELOAD
-                : virtualType ?? (createDto.providerType || provider_schema_1.ProviderType.CUSTOM);
+                : isGemini
+                    ? provider_schema_1.ProviderType.GEMINIPRO
+                    : virtualType ?? (createDto.providerType || provider_schema_1.ProviderType.CUSTOM);
+        const resolvedBaseUrl = isGemini && !(createDto.baseUrl || '').trim()
+            ? ProvidersService_1.GEMINIPRO_DEFAULT_URL
+            : createDto.baseUrl;
         const isNumbersProvider = virtual_number_clients_1.VIRTUAL_NUMBER_PROVIDER_TYPES.includes(resolvedType);
         const serverLabel = (createDto.serverLabel || '').trim() ||
             (isNumbersProvider ? await this.nextServerLabel() : '');
         const provider = new this.providerModel({
             ...createDto,
+            baseUrl: resolvedBaseUrl,
             serverLabel,
             providerType: resolvedType,
             status: provider_schema_1.ProviderStatus.OFFLINE,
@@ -236,6 +292,30 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
                     provider.lastError = 'حساب المزود غير نشط أو مفتاح API غير صالح';
                 }
             }
+            else if (this.isGeminiPro(provider)) {
+                const baseUrl = this.getGeminiProBaseUrl(provider);
+                const headers = this.getGeminiProHeaders(provider);
+                const [infoRes, balRes] = await Promise.all([
+                    axios_1.default.get(`${baseUrl}/account/info`, { headers, timeout: ProvidersService_1.STATUS_TIMEOUT_MS }),
+                    axios_1.default.get(`${baseUrl}/account/balance`, { headers, timeout: ProvidersService_1.STATUS_TIMEOUT_MS }),
+                ]);
+                if (infoRes.data?.ok && balRes.data?.ok) {
+                    if (infoRes.data.ordersEnabled === false) {
+                        provider.status = provider_schema_1.ProviderStatus.ERROR;
+                        provider.lastError = 'مزود الخدمات أوقف استقبال الطلبات حالياً';
+                    }
+                    else {
+                        provider.balance = parseFloat(balRes.data.balance) || 0;
+                        provider.currency = balRes.data.currency || 'USD';
+                        provider.status = provider_schema_1.ProviderStatus.ONLINE;
+                        provider.lastError = undefined;
+                    }
+                }
+                else {
+                    provider.status = provider_schema_1.ProviderStatus.ERROR;
+                    provider.lastError = this.geminiProErrorText(infoRes.data ?? balRes.data);
+                }
+            }
             else if (this.isVirtualNumbers(provider)) {
                 const profile = await this.virtualNumberClient(provider).getProfile();
                 provider.balance = profile.balance;
@@ -345,9 +425,9 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         })
             .catch((err) => this.logger.warn(`Background provider status refresh failed: ${err.message}`));
     }
-    async inspectOrderStatus(providerId, reference) {
+    async inspectOrderStatus(providerId, reference, productCode) {
         const provider = await this.findOne(providerId);
-        const raw = await this.checkOrderStatus(providerId, reference);
+        const raw = await this.checkOrderStatus(providerId, reference, productCode);
         if (raw?.isTransportError) {
             return { state: 'unknown', message: raw?.message, raw };
         }
@@ -383,10 +463,42 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
             }
             return { state: raw ? 'pending' : 'unknown', raw };
         }
+        if (this.isGeminiPro(provider)) {
+            const value = typeof raw?.value === 'string' ? raw.value.trim() : '';
+            if (rawStatus === 'completed') {
+                return {
+                    state: 'delivered',
+                    codes: value ? [value] : [],
+                    message: 'تم تنفيذ الطلب لدى مزود الخدمات',
+                    raw,
+                };
+            }
+            if (rawStatus === 'failed' || raw?.error) {
+                return {
+                    state: 'failed',
+                    message: String(raw?.error || 'أبلغ مزود الخدمات عن فشل الطلب'),
+                    raw,
+                };
+            }
+            if (['pending', 'processing', 'in_progress'].includes(rawStatus)) {
+                return { state: 'pending', raw };
+            }
+            return { state: 'unknown', raw };
+        }
         return { state: 'unknown', raw };
     }
     async getProviderCategories(providerId) {
         const provider = await this.findOne(providerId);
+        if (this.isGeminiPro(provider)) {
+            return [
+                {
+                    game_code: 'services',
+                    name: 'خدمات واشتراكات',
+                    game_fields: [],
+                    hasProducts: true,
+                },
+            ];
+        }
         if (this.isBay2Game(provider)) {
             try {
                 const url = `${provider.baseUrl.replace(/\/+$/, '')}/categories`;
@@ -619,6 +731,54 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
                 throw new common_1.BadRequestException('فشل في مزامنة المنتجات من مزود FoxReload: ' + (err.response?.data?.detail || err.message));
             }
         }
+        else if (this.isGeminiPro(provider)) {
+            try {
+                const baseUrl = this.getGeminiProBaseUrl(provider);
+                const headers = this.getGeminiProHeaders(provider);
+                const res = await axios_1.default.get(`${baseUrl}/products`, {
+                    headers,
+                    timeout: 15000,
+                });
+                const items = Array.isArray(res.data?.products) ? res.data.products : [];
+                for (const item of items) {
+                    const productId = item.productId ?? item.id;
+                    if (productId === undefined || productId === null)
+                        continue;
+                    const productCode = String(productId);
+                    const costPrice = parseFloat(item.price) || 0;
+                    const inStock = item.inStock === true || (Number(item.stock) || 0) > 0;
+                    await this.providerProductModel.findOneAndUpdate({
+                        providerId: provider._id,
+                        providerProductCode: productCode,
+                    }, {
+                        providerId: provider._id,
+                        providerProductCode: productCode,
+                        name: item.name || item.title || productCode,
+                        category: 'خدمات واشتراكات',
+                        costPrice,
+                        currency: item.currency || 'USD',
+                        inStock,
+                        rawDetails: {
+                            product_id: productId,
+                            description: item.description || '',
+                            stock: Number(item.stock) || 0,
+                            inStock,
+                            game_fields: [],
+                        },
+                    }, { upsert: true, new: true });
+                    totalSynced++;
+                }
+                await this.checkStatus(provider._id.toString());
+                return {
+                    message: `تمت مزامنة ${totalSynced} منتج من مزود الخدمات بنجاح`,
+                    syncedCount: totalSynced,
+                };
+            }
+            catch (err) {
+                this.logger.error(`Error in syncProviderProducts (GeminiPro): ${err.message}`);
+                throw new common_1.BadRequestException('فشل في مزامنة المنتجات من مزود الخدمات: ' + this.geminiProErrorText(err.response?.data, err.response?.status));
+            }
+        }
         return { message: 'لا تدعم هذه الفئة المزامنة التلقائية للمزود الحالي', syncedCount: 0 };
     }
     async getProviderProducts(providerId, category) {
@@ -628,7 +788,7 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         let products = await this.providerProductModel.find(filter).sort({ category: 1, costPrice: 1 });
         if (products.length === 0) {
             const provider = await this.findOne(providerId);
-            if (this.isBay2Game(provider) || this.isFoxReload(provider)) {
+            if (this.isBay2Game(provider) || this.isFoxReload(provider) || this.isGeminiPro(provider)) {
                 this.logger.log(`Initial sync for provider ${provider.name}...`);
                 await this.syncProviderProducts(providerId);
                 products = await this.providerProductModel.find(filter).sort({ category: 1, costPrice: 1 });
@@ -686,10 +846,15 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
         else if (gameFields.length > 0) {
             requiredFields = gameFields.map((f) => (f === 'userid' ? 'Player ID' : f === 'serverid' ? 'Server/Zone ID' : f));
         }
+        const isServicesReseller = provider ? this.isGeminiPro(provider) : false;
+        if (isServicesReseller)
+            requiredFields = [];
         const newProduct = new this.productModel({
             appId: new mongoose_2.Types.ObjectId(appId),
             name: opts.name?.trim() ? opts.name.trim() : item.name,
-            description: item.category,
+            description: isServicesReseller
+                ? item.rawDetails?.description || item.category
+                : item.category,
             type: product_schema_1.ProductType.DIRECT_API,
             providerId: item.providerId,
             providerProductCode: item.providerProductCode,
@@ -867,13 +1032,90 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
                 };
             }
         }
+        else if (this.isGeminiPro(provider)) {
+            const baseUrl = this.getGeminiProBaseUrl(provider);
+            const headers = this.getGeminiProHeaders(provider);
+            const orderBody = { productId: Number(params.productCode), quantity: 1 };
+            this.logger.log(`Executing GeminiPro order for ref ${params.reference}, product: ${params.productCode}`);
+            const postOrder = () => axios_1.default.post(`${baseUrl}/orders`, orderBody, {
+                headers: { ...headers, 'X-Idempotency-Key': params.reference },
+                timeout: ProvidersService_1.ORDER_TIMEOUT_MS,
+            });
+            let response;
+            try {
+                response = await postOrder();
+            }
+            catch (firstErr) {
+                if (firstErr.response) {
+                    return {
+                        success: false,
+                        message: this.geminiProErrorText(firstErr.response.data, firstErr.response.status),
+                        raw: firstErr.response.data,
+                    };
+                }
+                try {
+                    response = await postOrder();
+                }
+                catch (retryErr) {
+                    if (retryErr.response && retryErr.response.status < 500) {
+                        return {
+                            success: false,
+                            message: this.geminiProErrorText(retryErr.response.data, retryErr.response.status),
+                            raw: retryErr.response.data,
+                        };
+                    }
+                    this.logger.error(`GeminiPro executeOrder timeout for ref ${params.reference}: ${retryErr.message}`);
+                    return {
+                        success: false,
+                        message: 'انتهت مهلة الاستجابة من مزود الخدمة',
+                        raw: retryErr.response?.data,
+                        isTimeout: true,
+                    };
+                }
+            }
+            const data = response.data;
+            const resOrder = data?.order;
+            if (data?.ok && resOrder) {
+                const status = String(resOrder.status || '').toLowerCase();
+                if (status === 'completed') {
+                    this.checkStatus(provider._id.toString()).catch(() => { });
+                    const value = typeof resOrder.value === 'string' ? resOrder.value.trim() : '';
+                    return {
+                        success: true,
+                        transactionId: resOrder.orderCode,
+                        balanceAfter: provider.balance,
+                        message: value ? 'تم تسليم بيانات الاشتراك فوراً' : 'تم تنفيذ الطلب لدى مزود الخدمات',
+                        raw: { order: resOrder },
+                    };
+                }
+                if (status === 'failed' || resOrder.error) {
+                    return {
+                        success: false,
+                        message: String(resOrder.error || 'فشل تنفيذ الطلب لدى مزود الخدمات'),
+                        raw: { order: resOrder },
+                    };
+                }
+                return {
+                    success: false,
+                    transactionId: resOrder.orderCode,
+                    message: 'الطلب قيد التنفيذ لدى مزود الخدمات',
+                    raw: { order: resOrder },
+                    isTimeout: true,
+                };
+            }
+            return {
+                success: false,
+                message: this.geminiProErrorText(data),
+                raw: data,
+            };
+        }
         return {
             success: true,
             transactionId: params.reference,
             message: 'تم تنفيذ الطلب بنجاح (المزود العام)',
         };
     }
-    async checkOrderStatus(providerId, reference) {
+    async checkOrderStatus(providerId, reference, productCode) {
         const provider = await this.findOne(providerId);
         if (this.isBay2Game(provider)) {
             const url = `${provider.baseUrl.replace(/\/+$/, '')}/check_order`;
@@ -913,12 +1155,38 @@ let ProvidersService = ProvidersService_1 = class ProvidersService {
                 };
             }
         }
+        else if (this.isGeminiPro(provider)) {
+            const baseUrl = this.getGeminiProBaseUrl(provider);
+            const headers = this.getGeminiProHeaders(provider);
+            try {
+                if (/^rs_/.test(reference)) {
+                    const res = await axios_1.default.get(`${baseUrl}/orders/${encodeURIComponent(reference)}`, {
+                        headers,
+                        timeout: 10000,
+                    });
+                    return res.data?.order ?? res.data;
+                }
+                if (!productCode) {
+                    return { status: 'unknown', message: 'مرجع غير معروف لدى مزود الخدمات' };
+                }
+                const res = await axios_1.default.post(`${baseUrl}/orders`, { productId: Number(productCode), quantity: 1 }, { headers: { ...headers, 'X-Idempotency-Key': reference }, timeout: ProvidersService_1.ORDER_TIMEOUT_MS });
+                return res.data?.order ?? res.data;
+            }
+            catch (err) {
+                return {
+                    status: 'error',
+                    isTransportError: true,
+                    message: this.geminiProErrorText(err.response?.data, err.response?.status),
+                };
+            }
+        }
         return { status: 'unknown', message: 'فحص الحالة غير مدعوم لهذا المزود' };
     }
 };
 exports.ProvidersService = ProvidersService;
 ProvidersService.ORDER_TIMEOUT_MS = 12_000;
 ProvidersService.STATUS_TIMEOUT_MS = 8_000;
+ProvidersService.GEMINIPRO_DEFAULT_URL = 'https://api-geminipro.ignorelist.com';
 ProvidersService.STATUS_TTL_MS = 10 * 60 * 1000;
 exports.ProvidersService = ProvidersService = ProvidersService_1 = __decorate([
     (0, common_1.Injectable)(),

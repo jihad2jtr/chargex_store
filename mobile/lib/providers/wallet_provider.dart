@@ -51,20 +51,20 @@ class WalletProvider extends ChangeNotifier {
 
   Future<void> fetchPaymentAccounts() async {
     try {
-      final resSham = await _api.get(
-        ApiConstants.topupAccounts,
-        queryParams: {'type': 'sham_cash'},
-      );
+      final results = await Future.wait([
+        _api.get(
+          ApiConstants.topupAccounts,
+          queryParams: {'type': 'sham_cash'},
+        ),
+        _api.get(ApiConstants.topupAccounts, queryParams: {'type': 'binance'}),
+      ]);
+      final resSham = results[0];
+      final resBinance = results[1];
       if (resSham is List) {
         _shamCashAccounts = resSham
             .map((e) => PaymentAccountModel.fromJson(e))
             .toList();
       }
-
-      final resBinance = await _api.get(
-        ApiConstants.topupAccounts,
-        queryParams: {'type': 'binance'},
-      );
       if (resBinance is List) {
         _binanceAccounts = resBinance
             .map((e) => PaymentAccountModel.fromJson(e))
@@ -135,10 +135,12 @@ class WalletProvider extends ChangeNotifier {
         ApiConstants.codesRedeem,
         body: {'code': code.trim().toUpperCase()},
       );
-      await fetchBalance();
-      await fetchTransactions();
-      // الشحن بالكود يُسجّل على الكود نفسه، فيُحدَّث سجل «طلباتي الأخيرة» هنا
-      await fetchMyTopupRequests();
+      await Future.wait([
+        fetchBalance(),
+        fetchTransactions(),
+        // الشحن بالكود يُسجّل على الكود نفسه، فيُحدَّث سجل «طلباتي الأخيرة» هنا
+        fetchMyTopupRequests(),
+      ]);
       _isLoading = false;
       notifyListeners();
       return res['message'] ?? 'تم شحن الرصيد بنجاح';

@@ -37,7 +37,8 @@ let AppsService = class AppsService {
             return [];
         return this.appModel
             .find({ isActive: true, _id: { $in: appIdsWithActiveProducts } })
-            .sort({ sortOrder: 1, createdAt: -1 });
+            .sort({ sortOrder: 1, createdAt: -1 })
+            .lean();
     }
     async hasActiveProducts(appId) {
         const exists = await this.productModel.exists({
@@ -47,7 +48,7 @@ let AppsService = class AppsService {
         return !!exists;
     }
     async findAllAdmin() {
-        return this.appModel.find().sort({ sortOrder: 1, createdAt: -1 });
+        return this.appModel.find().sort({ sortOrder: 1, createdAt: -1 }).lean();
     }
     async findOne(id) {
         const app = await this.appModel.findById(id);

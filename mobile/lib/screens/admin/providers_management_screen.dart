@@ -24,7 +24,7 @@ const Color _brand = AppColors.secondary;
 class ProvidersManagementScreen extends StatefulWidget {
   const ProvidersManagementScreen({super.key, this.virtualNumbersOnly = false});
 
-  /// `true`: صفحة مزودي الأرقام الوهمية (5sim / Hero-SMS / DogeSMS / SMSPool).
+  /// `true`: صفحة مزودي الأرقام الوهمية (5sim / Hero-SMS / DogeSMS / SMSPool / TG-Lion).
   /// نفس التذكرة والمعالجة، لكن القائمة محصورة بهم وحدهم؛ منتجاتهم دول
   /// أرقام تُنتقى من كتالوج المزود إلى تطبيقات الأرقام — مثل منتجات
   /// المزود العاديين في المتجر تماماً.

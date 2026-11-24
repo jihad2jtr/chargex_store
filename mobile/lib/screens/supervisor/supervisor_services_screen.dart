@@ -95,7 +95,7 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           children: [
             _sectionHeader(
-              'الخدمات المسندة إليك',
+              'الخدمات المسندة إلي',
               'SERVICES · ${services.length}',
             ),
             if (services.isEmpty)

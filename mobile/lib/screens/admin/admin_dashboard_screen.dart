@@ -121,22 +121,22 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
+                  horizontal: 14,
+                  vertical: 8,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const UnifiedTactileHeader(isDashboard: true),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 8),
 
                     // KPI Stats Grid
                     _buildOpsConsole(admin),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
 
                     // Management Sections Header
                     _buildManagementHeader(visibleCount, totalPending),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
 
                     // Management Sections Grid (نمط أيقونات الهاتف)
                     ...visibleKeys.map((key) {

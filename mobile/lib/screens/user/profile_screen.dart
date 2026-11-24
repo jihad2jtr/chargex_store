@@ -442,10 +442,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 boxShadow: [
                                   BoxShadow(
                                     color: AppColors.primaryBlue.withValues(
-                                      alpha: 0.35,
+                                      alpha: 0.16,
                                     ),
-                                    blurRadius: 16,
-                                    offset: const Offset(0, 4),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
                                   ),
                                 ],
                               ),

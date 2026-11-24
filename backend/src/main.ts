@@ -16,7 +16,11 @@ async function bootstrap() {
   app.use(json({ limit: '10mb' }));
   app.use(urlencoded({ extended: true, limit: '10mb' }));
 
-  app.useStaticAssets(join(process.cwd(), 'uploads'), { prefix: '/uploads/' });
+  app.useStaticAssets(join(process.cwd(), 'uploads'), {
+    prefix: '/uploads/',
+    maxAge: '7d',
+    etag: true,
+  });
 
   // دعم مسار الويب هوك مع أو بدون بادئة /api لضمان استقبال إشعارات المزودين في الحالتين
   app.use((req: any, _res: any, next: any) => {

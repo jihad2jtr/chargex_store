@@ -1257,6 +1257,8 @@ export function providerCodeKey(providerType?: string): string {
   if (t.includes('doge')) return 'dogesms';
   if (t.includes('smspool') || t.includes('sms-pool') || t.includes('sms pool'))
     return 'smspool';
+  if (t.includes('tg-lion') || t.includes('tglion') || t.includes('tg_lion'))
+    return 'tglion';
   return t;
 }
 

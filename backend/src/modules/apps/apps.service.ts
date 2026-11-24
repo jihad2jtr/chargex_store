@@ -30,7 +30,8 @@ export class AppsService {
 
     return this.appModel
       .find({ isActive: true, _id: { $in: appIdsWithActiveProducts } })
-      .sort({ sortOrder: 1, createdAt: -1 });
+      .sort({ sortOrder: 1, createdAt: -1 })
+      .lean();
   }
 
   // هل يملك هذا التطبيق منتجاً مفعّلاً واحداً على الأقل؟
@@ -44,7 +45,7 @@ export class AppsService {
 
   // For admin: all apps
   async findAllAdmin() {
-    return this.appModel.find().sort({ sortOrder: 1, createdAt: -1 });
+    return this.appModel.find().sort({ sortOrder: 1, createdAt: -1 }).lean();
   }
 
   async findOne(id: string) {

@@ -3,6 +3,7 @@ import { DogeSmsClient } from './dogesms.client';
 import { FiveSimClient } from './fivesim.client';
 import { HeroSmsClient } from './herosms.client';
 import { SmsPoolClient } from './smspool.client';
+import { TgLionClient } from './tglion.client';
 import { VirtualNumberClient } from './virtual-number-client';
 
 /**
@@ -16,6 +17,7 @@ export const VIRTUAL_NUMBER_PROVIDER_TYPES: ProviderType[] = [
   ProviderType.HEROSMS,
   ProviderType.DOGESMS,
   ProviderType.SMSPOOL,
+  ProviderType.TGLION,
 ];
 
 type ProviderLike = {
@@ -35,7 +37,8 @@ export function detectVirtualNumberType(
     provider.providerType === ProviderType.FIVESIM ||
     provider.providerType === ProviderType.HEROSMS ||
     provider.providerType === ProviderType.DOGESMS ||
-    provider.providerType === ProviderType.SMSPOOL
+    provider.providerType === ProviderType.SMSPOOL ||
+    provider.providerType === ProviderType.TGLION
   ) {
     return provider.providerType;
   }
@@ -53,6 +56,9 @@ export function detectVirtualNumberType(
   if (hint.includes('smspool') || hint.includes('sms-pool') || hint.includes('sms pool')) {
     return ProviderType.SMSPOOL;
   }
+  if (hint.includes('tg-lion') || hint.includes('tglion') || hint.includes('tg_lion')) {
+    return ProviderType.TGLION;
+  }
   return null;
 }
 
@@ -63,10 +69,15 @@ export function isVirtualNumberProvider(provider: ProviderLike): boolean {
 export function createVirtualNumberClient(provider: {
   baseUrl: string;
   apiKey: string;
+  apiSecret?: string;
   providerType?: ProviderType | string;
   name?: string;
 }): VirtualNumberClient {
-  const creds = { baseUrl: provider.baseUrl, apiKey: provider.apiKey };
+  const creds = {
+    baseUrl: provider.baseUrl,
+    apiKey: provider.apiKey,
+    apiSecret: provider.apiSecret,
+  };
   switch (detectVirtualNumberType(provider)) {
     case ProviderType.HEROSMS:
       return new HeroSmsClient(creds);
@@ -74,6 +85,8 @@ export function createVirtualNumberClient(provider: {
       return new DogeSmsClient(creds);
     case ProviderType.SMSPOOL:
       return new SmsPoolClient(creds);
+    case ProviderType.TGLION:
+      return new TgLionClient(creds);
     default:
       // 5sim هو الافتراضي تاريخياً: سجل بلا نوع ولا اسم دال كان يُخدم به دائماً
       return new FiveSimClient(creds);

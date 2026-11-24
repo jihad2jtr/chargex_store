@@ -26,6 +26,8 @@ var ProviderType;
     ProviderType["HEROSMS"] = "herosms";
     ProviderType["DOGESMS"] = "dogesms";
     ProviderType["SMSPOOL"] = "smspool";
+    ProviderType["TGLION"] = "tglion";
+    ProviderType["GEMINIPRO"] = "geminipro";
     ProviderType["CUSTOM"] = "custom";
 })(ProviderType || (exports.ProviderType = ProviderType = {}));
 let Provider = class Provider {

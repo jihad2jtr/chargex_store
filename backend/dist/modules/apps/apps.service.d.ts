@@ -7,20 +7,16 @@ export declare class AppsService {
     private productModel;
     private providerModel;
     constructor(appModel: Model<AppDocument>, productModel: Model<ProductDocument>, providerModel: Model<ProviderDocument>);
-    findActive(): Promise<(import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+    findActive(): Promise<(App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
-    } & {
-        id: string;
     })[]>;
     private hasActiveProducts;
-    findAllAdmin(): Promise<(import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+    findAllAdmin(): Promise<(App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: Types.ObjectId;
     }> & {
         __v: number;
-    } & {
-        id: string;
     })[]>;
     findOne(id: string): Promise<import("mongoose").Document<unknown, {}, AppDocument, {}, import("mongoose").DefaultSchemaOptions> & App & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: Types.ObjectId;

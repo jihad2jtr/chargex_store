@@ -4,6 +4,8 @@ import '../core/constants/app_icon_assets.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_typography.dart';
 import 'digital_pass_card.dart';
+import 'smooth_network_image.dart';
+import 'tactile_scale.dart';
 
 /// كرت خدمة بأسلوب التذكرة: صورة تملأ أعلى التذكرة، وفوق خطّ الفتحتين شريط
 /// الاسم المتدرّج وأسفله تبويب السعر، مع وسم نوع في الزاوية. التصميم واحد
@@ -88,7 +90,7 @@ class ServiceTicketCard extends StatelessWidget {
 
   // تبويبا الكرت: شريط اسم وشريط سعر أسفل التذكرة، والفتحتان على خطّهما
   static const double _stubHeight = 22;
-  static const double _nameHeight = 20;
+  static const double _nameHeight = 22;
   static const double _tabsHeight = _stubHeight + _nameHeight;
 
   /// ارتفاع التبويبين تحت الفتحتين: تعده الشبكة لتبقى الكروت أطول من عرضها
@@ -110,131 +112,139 @@ class ServiceTicketCard extends StatelessWidget {
             .clamp(0.55, upper)
             .toDouble();
 
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: CustomPaint(
-            painter: TicketPassShadowPainter(
-              cornerRadius: _radius,
-              notchRadius: _notch,
-              notchPositionFraction: notchFraction,
-              // ظلّ بلون النوع: أخضر خلف المضمون وكهرماني خلف الآلي
-              shadowColor: tagColor,
-              elevation: 5,
-            ),
+        return RepaintBoundary(
+          child: TactileScale(
+            onTap: onTap,
             child: CustomPaint(
-              foregroundPainter: TicketPassBorderPainter(
+              painter: TicketPassShadowPainter(
                 cornerRadius: _radius,
                 notchRadius: _notch,
                 notchPositionFraction: notchFraction,
-                borderColor: Colors.white.withValues(alpha: 0.75),
-                borderWidth: 1,
+                // ظلّ بلون هادئ متناسق مع هوية التذكرة
+                shadowColor: tagColor.withValues(alpha: 0.28),
+                elevation: 3.5,
               ),
-              child: ClipPath(
-                clipper: TicketPassClipper(
+              child: CustomPaint(
+                foregroundPainter: TicketPassBorderPainter(
                   cornerRadius: _radius,
                   notchRadius: _notch,
                   notchPositionFraction: notchFraction,
+                  borderColor: Colors.white.withValues(alpha: 0.75),
+                  borderWidth: 1,
                 ),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // أرض التذكرة: تدرّج وحرف، كي لا تترك البطاقةُ بلا رمز
-                    // بياضاً على حوافها، ولكي يبقى تحت تبويبي الاسم والسعر ما يسده
-                    _letterBackdrop(),
-                    // الصورة وقدرُها ما فوق التبويبين: حدُّها السفلي خطُّ الاسم
-                    // نفسه، فلا اسمَ ولا سعرَ يُقرأ فوق جزء منها
-                    PositionedDirectional(
-                      top: 0,
-                      start: 0,
-                      end: 0,
-                      bottom: _tabsHeight,
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          if (iconAsset != null)
-                            Positioned.fill(
-                              child: Image.asset(
-                                iconAsset,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const SizedBox.shrink(),
+                child: ClipPath(
+                  clipper: TicketPassClipper(
+                    cornerRadius: _radius,
+                    notchRadius: _notch,
+                    notchPositionFraction: notchFraction,
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // أرض التذكرة: تدرّج وحرف، كي لا تترك البطاقةُ بلا رمز
+                      // بياضاً على حوافها، ولكي يبقى تحت تبويبي الاسم والسعر ما يسده
+                      _letterBackdrop(),
+                      // الصورة وقدرُها ما فوق التبويبين: حدُّها السفلي خطُّ الاسم
+                      // نفسه، فلا اسمَ ولا سعرَ يُقرأ فوق جزء منها
+                      PositionedDirectional(
+                        top: 0,
+                        start: 0,
+                        end: 0,
+                        bottom: _tabsHeight,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (iconAsset != null)
+                              Positioned.fill(
+                                child: Image.asset(
+                                  iconAsset,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (context, error, stackTrace) =>
+                                      const SizedBox.shrink(),
+                                ),
+                              )
+                            else if (networkCover != null)
+                              Positioned.fill(
+                                child: SmoothNetworkImage(
+                                  url: networkCover,
+                                  fit: BoxFit.cover,
+                                  cacheWidth: 360,
+                                  placeholderBuilder: (_) =>
+                                      const SizedBox.shrink(),
+                                  errorBuilder: (_) => const SizedBox.shrink(),
+                                ),
                               ),
-                            )
-                          else if (networkCover != null)
-                            Positioned.fill(
-                              child: Image.network(
-                                networkCover,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) =>
-                                    const SizedBox.shrink(),
-                              ),
-                            ),
-                          // تعتيم أسفل الصورة: الأسطر الصغيرة تُقرأ فوق أي رمز
-                          const Positioned.fill(
-                            child: IgnorePointer(
-                              child: DecoratedBox(
-                                decoration: BoxDecoration(
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topCenter,
-                                    end: Alignment.bottomCenter,
-                                    stops: [0.0, 0.4, 0.7, 0.86],
-                                    colors: [
-                                      Color(0x00000000),
-                                      Color(0x0D000000),
-                                      Color(0x66000000),
-                                      Color(0xB3000000),
-                                    ],
+                            // تعتيم أسفل الصورة: الأسطر الصغيرة تُقرأ فوق أي رمز
+                            const Positioned.fill(
+                              child: IgnorePointer(
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      stops: [0.0, 0.4, 0.7, 0.86],
+                                      colors: [
+                                        Color(0x00000000),
+                                        Color(0x0D000000),
+                                        Color(0x66000000),
+                                        Color(0xB3000000),
+                                      ],
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                          // أعلى الصورة للقفل والشارة، وأسفلها الأسطر الصغيرة
-                          Positioned.fill(
-                            child: Padding(
-                              padding: const EdgeInsets.fromLTRB(7, 20, 7, 4),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  // الاسم الأجنبي والسطر المساعد يبقيان على
-                                  // الصورة، أما الاسم والسعر فلكلٍّ تبويبه
-                                  if (foreign.isNotEmpty)
-                                    _subLine(foreign, ltr: true),
-                                  if (metaText.isNotEmpty) _subLine(metaText),
-                                ],
+                            // أعلى الصورة للقفل والشارة، وأسفلها الأسطر الصغيرة
+                            Positioned.fill(
+                              child: Padding(
+                                padding: const EdgeInsets.fromLTRB(7, 20, 7, 4),
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  mainAxisAlignment: MainAxisAlignment.end,
+                                  children: [
+                                    // الاسم الأجنبي والسطر المساعد يبقيان على
+                                    // الصورة، أما الاسم والسعر فلكلٍّ تبويبه
+                                    if (foreign.isNotEmpty)
+                                      _subLine(foreign, ltr: true),
+                                    if (metaText.isNotEmpty) _subLine(metaText),
+                                  ],
+                                ),
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    // تبويب الاسم فوق تبويب السعر: شريطاهما الآن على أرض التذكرة
-                    // لا على الصورة
-                    PositionedDirectional(
-                      bottom: _stubHeight,
-                      start: 0,
-                      end: 0,
-                      child: _nameTab(),
-                    ),
-                    // تبويب السعر أسفل الكرت: السعر وحده، أكبر وأبين من قبل
-                    PositionedDirectional(
-                      bottom: 0,
-                      start: 0,
-                      end: 0,
-                      child: _priceStub(),
-                    ),
-                    // وسم النوع في زاوية الكرت: هو وحده ما يفرّق نوع الخدمة
-                    PositionedDirectional(top: 4, start: 4, child: _typeTag()),
-                    if (sensitive)
-                      // قفل صغير في الزاوية المقابلة: الخدمة تطلب بيانات سرية
+                      // تبويب الاسم فوق تبويب السعر: شريطاهما الآن على أرض التذكرة
+                      // لا على الصورة
+                      PositionedDirectional(
+                        bottom: _stubHeight,
+                        start: 0,
+                        end: 0,
+                        child: _nameTab(),
+                      ),
+                      // تبويب السعر أسفل الكرت: السعر وحده، أكبر وأبين من قبل
+                      PositionedDirectional(
+                        bottom: 0,
+                        start: 0,
+                        end: 0,
+                        child: _priceStub(),
+                      ),
+                      // وسم النوع في زاوية الكرت: هو وحده ما يفرّق نوع الخدمة
                       PositionedDirectional(
                         top: 4,
-                        end: 4,
-                        child: _sensitiveLock(),
+                        start: 4,
+                        child: _typeTag(),
                       ),
-                  ],
+                      if (sensitive)
+                        // قفل صغير في الزاوية المقابلة: الخدمة تطلب بيانات سرية
+                        PositionedDirectional(
+                          top: 4,
+                          end: 4,
+                          child: _sensitiveLock(),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),

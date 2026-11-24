@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'core/network/api_client.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/app_colors.dart';
+import 'core/theme/app_typography.dart';
 import 'providers/auth_provider.dart';
 import 'providers/wallet_provider.dart';
 import 'providers/app_catalog_provider.dart';
@@ -21,9 +22,9 @@ final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await ApiClient().init();
-  await CacheService.instance.init();
-  await FcmService.instance.initialize(navKey: rootNavigatorKey);
+  await Future.wait([ApiClient().init(), CacheService.instance.init()]);
+  // تهيئة الإشعارات بالخلفية بعد تشغيل الواجهة حتى لا تؤخر الإقلاع الأولي
+  FcmService.instance.initialize(navKey: rootNavigatorKey);
 
   runApp(
     MultiProvider(
@@ -117,9 +118,9 @@ class _AuthGateState extends State<AuthGate> {
               const SizedBox(height: 24),
               const CircularProgressIndicator(color: AppColors.secondary),
               const SizedBox(height: 16),
-              const Text(
+              Text(
                 'JGO',
-                style: TextStyle(
+                style: AppTypography.plusJakartaSans(
                   fontSize: 24,
                   fontWeight: FontWeight.w900,
                   color: AppColors.onSurface,

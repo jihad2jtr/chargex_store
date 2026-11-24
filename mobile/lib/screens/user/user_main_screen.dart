@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/constants/app_icon_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
@@ -32,6 +33,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
 
   // طريقة عرض الكتالوج: أيقونات بنمط شاشة الهاتف (افتراضي) أو بطاقات التذاكر
   bool _catalogIconView = true;
+  bool _centerPressed = false;
 
   @override
   void initState() {
@@ -99,26 +101,28 @@ class _UserMainScreenState extends State<UserMainScreen> {
       bottom: false,
       child: RefreshIndicator(
         onRefresh: () async {
-          await catalog.fetchApps();
-          await catalog.fetchBanners();
-          await auth.refreshProfile();
-          await catalog.fetchMyOrders();
-          await rates.fetch(force: true);
+          await Future.wait([
+            catalog.fetchApps(forceRefresh: true),
+            auth.refreshProfile(),
+            catalog.fetchMyOrders(),
+            rates.fetch(force: true),
+          ]);
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.only(bottom: 115),
+          padding: const EdgeInsets.only(bottom: 116),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14.0),
+            padding: const EdgeInsets.symmetric(horizontal: 16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 9),
+                const SizedBox(height: 8),
                 _buildTactileHeader(context, user),
 
                 if (categoryType == 'games' || categoryType == 'apps') ...[
+                  const SizedBox(height: 8),
                   if (catalog.banners.isNotEmpty)
-                    // الإعلان بعرض أقل من كامل الشاشة — يبقى داخل حشوة الصفحة (14px)
+                    // الإعلان بعرض أقل من كامل الشاشة — يبقى داخل حشوة الصفحة (16px)
                     BillboardAdCarousel(banners: catalog.banners)
                   else
                     HeroTicketBanner(
@@ -147,7 +151,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
                       },
                     ),
                 ],
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
                 _buildSectionHeader(
                   context,
                   catalog,
@@ -159,9 +163,9 @@ class _UserMainScreenState extends State<UserMainScreen> {
                   catalog,
                   categoryType: categoryType,
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 16),
                 _buildSupportBox(context),
-                const SizedBox(height: 20),
+                const SizedBox(height: 16),
               ],
             ),
           ),
@@ -196,14 +200,14 @@ class _UserMainScreenState extends State<UserMainScreen> {
     String categoryType = 'apps',
   }) {
     String titleText = "شحن التطبيقات";
-    String badgeText = "APPS ";
+    String badgeText = "APPS";
 
     if (categoryType == 'games') {
       titleText = "شحن الألعاب";
-      badgeText = " GAMES";
+      badgeText = "GAMES";
     } else if (categoryType == 'services') {
-      titleText = "الخدمات والاشتراكات ";
-      badgeText = "DIGITAL SERVICES";
+      titleText = "الخدمات والاشتراكات";
+      badgeText = "SERVICES";
     }
 
     return Row(
@@ -364,10 +368,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
     String categoryType = 'apps',
   }) {
     if (catalog.isLoading && catalog.apps.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 40),
-        child: Center(child: CircularProgressIndicator()),
-      );
+      return _buildCatalogSkeleton(categoryType);
     }
 
     if (catalog.apps.isEmpty) {
@@ -458,6 +459,68 @@ class _UserMainScreenState extends State<UserMainScreen> {
     // كروت في الصف، صورة تملأ التذكرة وشريط اسم فوق تبويب سعر، ووسم نوع
     // العنصر في الزاوية يفرّق تطبيق عن لعبة عن خدمة عن اشتراك
     return _buildTicketGrid(filteredApps);
+  }
+
+  /// هيكل تحميل أنيق متوافق مع شبكة الأيقونات أو التذاكر
+  Widget _buildCatalogSkeleton(String categoryType) {
+    final bool useIcons =
+        _catalogIconView && !_isCardOnlyCategory(categoryType);
+    if (useIcons) {
+      return GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        shrinkWrap: true,
+        padding: EdgeInsets.zero,
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 4,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 16,
+          childAspectRatio: 0.72,
+        ),
+        itemCount: 8,
+        itemBuilder: (context, index) => Column(
+          children: [
+            AspectRatio(
+              aspectRatio: 1,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: AppColors.slate200.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Container(
+              height: 10,
+              width: 48,
+              decoration: BoxDecoration(
+                color: AppColors.slate200.withValues(alpha: 0.55),
+                borderRadius: BorderRadius.circular(4),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GridView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      shrinkWrap: true,
+      padding: EdgeInsets.zero,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+        childAspectRatio: 0.68,
+      ),
+      itemCount: 6,
+      itemBuilder: (context, index) => Container(
+        decoration: BoxDecoration(
+          color: AppColors.slate200.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AppColors.outline),
+        ),
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -606,70 +669,82 @@ class _UserMainScreenState extends State<UserMainScreen> {
   // ---------------------------------------------------------------------------
 
   Widget _buildSupportBox(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () async {
+          final uri = Uri.parse('https://t.me/JGO_STORE');
+          try {
+            await launchUrl(uri, mode: LaunchMode.externalApplication);
+          } catch (_) {}
+        },
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFCBD5E1)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.02),
-            blurRadius: 4,
-            offset: const Offset(0, 1),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFECFDF5),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: const Color(0xFFA7F3D0)),
-                ),
-                child: const Icon(
-                  Icons.support_agent,
-                  color: Color(0xFF059669),
-                  size: 20,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "دعم فني مباشر على مدار الساعة 24/7",
-                    style: AppTypography.cairo(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF0F172A),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "TG DISPATCH CHANNEL: @CHARGEX_SY",
-                    style: AppTypography.spaceMono(
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                      color: const Color(0xFF64748B),
-                    ),
-                  ),
-                ],
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE2E8F0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          const Icon(
-            Icons.arrow_back_ios_new,
-            size: 15,
-            color: Color(0xFF94A3B8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFECFDF5),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFFA7F3D0)),
+                    ),
+                    child: const Icon(
+                      Icons.support_agent_rounded,
+                      color: Color(0xFF059669),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "دعم فني مباشر على مدار الساعة 24/7",
+                        style: AppTypography.cairo(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "قناة المساعدة والتواصل: @JGO_STORE",
+                        style: AppTypography.cairo(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF64748B),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 14,
+                color: Color(0xFF94A3B8),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -692,10 +767,13 @@ class _UserMainScreenState extends State<UserMainScreen> {
             const SizedBox(height: 6),
             _buildTactileHeader(context, user),
             const SizedBox(height: 8),
-            const Expanded(
+            Expanded(
               child: Padding(
-                padding: EdgeInsets.only(bottom: 90),
-                child: OrdersHistoryScreen(showAppBar: false),
+                padding: const EdgeInsets.only(bottom: 90),
+                child: OrdersHistoryScreen(
+                  showAppBar: false,
+                  isActive: _currentIndex == 2,
+                ),
               ),
             ),
           ],
@@ -809,16 +887,16 @@ class _UserMainScreenState extends State<UserMainScreen> {
                   return Stack(
                     alignment: Alignment.center,
                     children: [
-                      // Liquid Yellow Droplet (قطرة ماء سائلة تنزلق بنعومة)
+                      // Tactile Indicator Pill (المؤشر اللمسي الانزلاقي الفاخر)
                       AnimatedPositionedDirectional(
-                        duration: const Duration(milliseconds: 320),
-                        curve: Curves.easeOutBack,
+                        duration: const Duration(milliseconds: 280),
+                        curve: Curves.easeOutCubic,
                         start: startPos,
                         top: (58.0 - pillHeight) / 2,
                         width: currentPillWidth,
                         height: pillHeight,
                         child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 200),
+                          duration: const Duration(milliseconds: 180),
                           opacity: pillOpacity,
                           child: Container(
                             decoration: BoxDecoration(
@@ -827,37 +905,14 @@ class _UserMainScreenState extends State<UserMainScreen> {
                                 begin: Alignment.bottomLeft,
                                 end: Alignment.topRight,
                               ),
-                              borderRadius: BorderRadius.circular(14),
+                              borderRadius: BorderRadius.circular(12),
                               boxShadow: [
                                 BoxShadow(
                                   color: const Color(
                                     0xFFF59E0B,
-                                  ).withValues(alpha: 0.5),
-                                  blurRadius: 10,
+                                  ).withValues(alpha: 0.28),
+                                  blurRadius: 8,
                                   offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Stack(
-                              children: [
-                                // Surface water droplet reflection gloss (لمعة قطرة الماء السائلة)
-                                Positioned(
-                                  top: 2,
-                                  left: 6,
-                                  right: 6,
-                                  child: Container(
-                                    height: 1.8,
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Colors.white.withValues(alpha: 0.0),
-                                          Colors.white.withValues(alpha: 0.75),
-                                          Colors.white.withValues(alpha: 0.0),
-                                        ],
-                                      ),
-                                      borderRadius: BorderRadius.circular(1),
-                                    ),
-                                  ),
                                 ),
                               ],
                             ),
@@ -920,102 +975,111 @@ class _UserMainScreenState extends State<UserMainScreen> {
             ),
           ),
 
-          // TAB 2: CENTER FLOATING BUTTON: طلباتي (في الوسط)
+          // TAB 2: CENTER FLOATING BUTTON: طلباتي (في الوسط مع تفاعل لمسي)
           Positioned(
             bottom: 14,
             child: GestureDetector(
               onTap: () => setState(() => _currentIndex = 2),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      gradient: _currentIndex == 2
-                          ? const LinearGradient(
-                              colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
-                              begin: Alignment.bottomLeft,
-                              end: Alignment.topRight,
-                            )
-                          : const LinearGradient(
-                              colors: [Color(0xFF0284C7), Color(0xFF38BDF8)],
-                              begin: Alignment.bottomLeft,
-                              end: Alignment.topRight,
-                            ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: _currentIndex == 2
-                            ? const Color(0xFFFDE68A)
-                            : const Color(0xFFBAE6FD),
-                        width: 2.0,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color:
-                              (_currentIndex == 2
-                                      ? const Color(0xFFF59E0B)
-                                      : const Color(0xFF0284C7))
-                                  .withValues(alpha: 0.55),
-                          blurRadius: 14,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    child: Stack(
-                      alignment: Alignment.center,
-                      clipBehavior: Clip.none,
-                      children: [
-                        Icon(
-                          Icons.receipt_long_rounded,
+              onTapDown: (_) => setState(() => _centerPressed = true),
+              onTapUp: (_) => setState(() => _centerPressed = false),
+              onTapCancel: () => setState(() => _centerPressed = false),
+              behavior: HitTestBehavior.opaque,
+              child: AnimatedScale(
+                scale: _centerPressed ? 0.93 : 1.0,
+                duration: const Duration(milliseconds: 120),
+                curve: Curves.easeOut,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        gradient: _currentIndex == 2
+                            ? const LinearGradient(
+                                colors: [Color(0xFFF59E0B), Color(0xFFFBBF24)],
+                                begin: Alignment.bottomLeft,
+                                end: Alignment.topRight,
+                              )
+                            : const LinearGradient(
+                                colors: [Color(0xFF0284C7), Color(0xFF38BDF8)],
+                                begin: Alignment.bottomLeft,
+                                end: Alignment.topRight,
+                              ),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
                           color: _currentIndex == 2
-                              ? const Color(0xFF020617)
-                              : Colors.white,
-                          size: 24,
+                              ? const Color(0xFFFDE68A)
+                              : const Color(0xFFBAE6FD),
+                          width: 2.0,
                         ),
-                        if (activeOrdersCount > 0)
-                          Positioned(
-                            top: -4,
-                            right: -4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF10B981),
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.white,
-                                  width: 1.2,
+                        boxShadow: [
+                          BoxShadow(
+                            color:
+                                (_currentIndex == 2
+                                        ? const Color(0xFFF59E0B)
+                                        : const Color(0xFF0284C7))
+                                    .withValues(alpha: 0.28),
+                            blurRadius: 10,
+                            offset: const Offset(0, 3),
+                          ),
+                        ],
+                      ),
+                      child: Stack(
+                        alignment: Alignment.center,
+                        clipBehavior: Clip.none,
+                        children: [
+                          Icon(
+                            Icons.receipt_long_rounded,
+                            color: _currentIndex == 2
+                                ? const Color(0xFF020617)
+                                : Colors.white,
+                            size: 24,
+                          ),
+                          if (activeOrdersCount > 0)
+                            Positioned(
+                              top: -4,
+                              right: -4,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1.5,
                                 ),
-                              ),
-                              child: Text(
-                                '$activeOrdersCount',
-                                style: AppTypography.plusJakartaSans(
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.white,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF10B981),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: Colors.white,
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: Text(
+                                  '$activeOrdersCount',
+                                  style: AppTypography.plusJakartaSans(
+                                    fontSize: 8,
+                                    fontWeight: FontWeight.w900,
+                                    color: Colors.white,
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "طلباتي",
-                    style: AppTypography.cairo(
-                      fontSize: 9.5,
-                      fontWeight: FontWeight.w900,
-                      color: _currentIndex == 2
-                          ? const Color(0xFFFBBF24)
-                          : const Color(0xFF7DD3FC),
-                      letterSpacing: 0.2,
+                    const SizedBox(height: 2),
+                    Text(
+                      "طلباتي",
+                      style: AppTypography.cairo(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w900,
+                        color: _currentIndex == 2
+                            ? const Color(0xFFFBBF24)
+                            : const Color(0xFF7DD3FC),
+                        letterSpacing: 0.2,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

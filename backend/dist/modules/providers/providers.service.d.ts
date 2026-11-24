@@ -15,10 +15,15 @@ export declare class ProvidersService {
     private isTimeoutError;
     private isBay2Game;
     private isFoxReload;
+    private isGeminiPro;
     private isVirtualNumbers;
     private virtualNumberClient;
     private getFoxReloadBaseUrl;
     private getFoxReloadHeaders;
+    private static readonly GEMINIPRO_DEFAULT_URL;
+    private getGeminiProBaseUrl;
+    private getGeminiProHeaders;
+    private geminiProErrorText;
     findAll(): Promise<(import("mongoose").Document<unknown, {}, ProviderDocument, {}, import("mongoose").DefaultSchemaOptions> & Provider & import("mongoose").Document<Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: Types.ObjectId;
     }> & {
@@ -83,7 +88,7 @@ export declare class ProvidersService {
     private disableForInsufficientBalance;
     ensureReadyForOrder(providerId: string, requiredCost?: number): Promise<ProviderDocument>;
     markProviderFailure(providerId: string, message: string, requiredCost?: number): Promise<void>;
-    inspectOrderStatus(providerId: string, reference: string): Promise<{
+    inspectOrderStatus(providerId: string, reference: string, productCode?: string): Promise<{
         state: 'delivered' | 'failed' | 'pending' | 'unknown';
         codes?: string[];
         message?: string;
@@ -156,5 +161,5 @@ export declare class ProvidersService {
         raw?: any;
         isTimeout?: boolean;
     }>;
-    checkOrderStatus(providerId: string, reference: string): Promise<any>;
+    checkOrderStatus(providerId: string, reference: string, productCode?: string): Promise<any>;
 }

@@ -2,19 +2,15 @@ import { AppsService } from './apps.service';
 export declare class AppsController {
     private readonly appsService;
     constructor(appsService: AppsService);
-    getActiveApps(): Promise<(import("mongoose").Document<unknown, {}, import("../../database/schemas/app.schema").AppDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/app.schema").App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+    getActiveApps(): Promise<(import("../../database/schemas/app.schema").App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
         __v: number;
-    } & {
-        id: string;
     })[]>;
-    getAllAppsAdmin(): Promise<(import("mongoose").Document<unknown, {}, import("../../database/schemas/app.schema").AppDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/app.schema").App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
+    getAllAppsAdmin(): Promise<(import("../../database/schemas/app.schema").App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: import("mongoose").Types.ObjectId;
     }> & {
         __v: number;
-    } & {
-        id: string;
     })[]>;
     getOne(id: string): Promise<import("mongoose").Document<unknown, {}, import("../../database/schemas/app.schema").AppDocument, {}, import("mongoose").DefaultSchemaOptions> & import("../../database/schemas/app.schema").App & import("mongoose").Document<import("mongoose").Types.ObjectId, any, any, Record<string, any>, {}> & Required<{
         _id: import("mongoose").Types.ObjectId;

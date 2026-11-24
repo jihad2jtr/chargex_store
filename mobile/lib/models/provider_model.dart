@@ -4,7 +4,7 @@ class ProviderModel {
   final String baseUrl;
   final String apiKey;
   final String? apiSecret;
-  // 'bay2game' | 'foxreload' | 'geminipro' | 'fivesim' | 'herosms' | 'dogesms' | 'smspool' | 'custom'
+  // 'bay2game' | 'foxreload' | 'geminipro' | 'fivesim' | 'herosms' | 'dogesms' | 'smspool' | 'tglion' | 'custom'
   final String providerType;
   final Map<String, dynamic> headers;
   final String status; // 'online' | 'offline' | 'error'
@@ -63,7 +63,7 @@ class ProviderModel {
     );
   }
 
-  /// مزود أرقام التحقق الوهمية (5sim / Hero-SMS / DogeSMS / SMSPool): صفحته مستقلة
+  /// مزود أرقام التحقق الوهمية (5sim / Hero-SMS / DogeSMS / SMSPool / TG-Lion): صفحته مستقلة
   /// عن مزودي المتاجر لأنه لا يخدم منتجات ولا كتالوج تطبيقات، بل إصدار أرقام مؤقتة.
   /// السجلات القديمة قد تخلو من النوع، فيُستدل عليه من الاسم أو الرابط.
   bool get isVirtualNumber {
@@ -71,7 +71,8 @@ class ProviderModel {
     if (type == 'fivesim' ||
         type == 'herosms' ||
         type == 'dogesms' ||
-        type == 'smspool') {
+        type == 'smspool' ||
+        type == 'tglion') {
       return true;
     }
     if (type == 'bay2game' || type == 'foxreload' || type == 'geminipro') {
@@ -84,7 +85,10 @@ class ProviderModel {
         haystack.contains('dogesms') ||
         haystack.contains('doge-sms') ||
         haystack.contains('smspool') ||
-        haystack.contains('sms-pool');
+        haystack.contains('sms-pool') ||
+        haystack.contains('tg-lion') ||
+        haystack.contains('tglion') ||
+        haystack.contains('tg_lion');
   }
 
   Map<String, dynamic> toJson() {

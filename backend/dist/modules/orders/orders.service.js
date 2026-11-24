@@ -295,6 +295,11 @@ let OrdersService = OrdersService_1 = class OrdersService {
         if (!product || !product.isActive) {
             throw new common_1.BadRequestException('المنتج غير متاح حالياً');
         }
+        const assignedId = product.assignedSupervisorId?._id?.toString?.() ??
+            product.assignedSupervisorId?.toString?.();
+        if (assignedId && assignedId === params.userId) {
+            throw new common_1.ForbiddenException('لا يمكنك شراء هذه الخدمة، فهي مسندة إليك كمقدّم خدمة');
+        }
         const app = product.appId
             ? await this.appModel.findById(product.appId)
             : null;
@@ -430,7 +435,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
                     rawInput['serverid'] ||
                     rawInput['zoneId'] ||
                     (Object.values(rawInput).length > 1 ? Object.values(rawInput)[1] : undefined);
-                if (!gameUserId) {
+                if (!gameUserId && (product.requiredFields?.length ?? 0) > 0) {
                     return this.failPaidOrder(order, {
                         amount: price,
                         reason: 'يرجى إدخال معرف اللاعب (Player ID) المطلوب للشحن',
@@ -440,7 +445,7 @@ let OrdersService = OrdersService_1 = class OrdersService {
                 try {
                     providerResult = await this.providersService.executeOrder(product.providerId.toString(), {
                         productCode: product.providerProductCode || '',
-                        gameUserId: String(gameUserId),
+                        gameUserId: gameUserId ? String(gameUserId) : '',
                         gameZoneId: gameZoneId ? String(gameZoneId) : undefined,
                         reference: orderNumber,
                     });
@@ -504,6 +509,9 @@ let OrdersService = OrdersService_1 = class OrdersService {
                 }
                 if (providerResult.raw?.items?.[0]?.externalData?.length) {
                     deliveredCode = providerResult.raw.items[0].externalData.join(', ');
+                }
+                else if (typeof providerResult.raw?.order?.value === 'string' && providerResult.raw.order.value.trim()) {
+                    deliveredCode = providerResult.raw.order.value.trim();
                 }
                 order.providerReference = providerResult.transactionId || orderNumber;
                 order.providerResponse = providerResult.raw;
@@ -826,7 +834,11 @@ let OrdersService = OrdersService_1 = class OrdersService {
                 continue;
             let inspection;
             try {
-                inspection = await this.providersService.inspectOrderStatus(providerId, reference);
+                const linkedProduct = await this.productModel
+                    .findById(order.productId)
+                    .select('providerProductCode')
+                    .lean();
+                inspection = await this.providersService.inspectOrderStatus(providerId, reference, linkedProduct?.providerProductCode);
             }
             catch (err) {
                 this.logger.warn(`Orphan reconciliation failed for order ${order.orderNumber}: ${err.message}`);

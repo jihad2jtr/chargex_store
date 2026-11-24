@@ -70,7 +70,7 @@ class ApiConstants {
   static const String exchangeRate = '/exchange-rates/current';
   static const String adminRefreshExchangeRate = '/exchange-rates/refresh';
 
-  // Virtual Numbers (أرقام التحقق الوهمية — 5sim / Hero-SMS / DogeSMS / SMSPool)
+  // Virtual Numbers (أرقام التحقق الوهمية — 5sim / Hero-SMS / DogeSMS / SMSPool / TG-Lion)
   static const String virtualNumbers = '/virtual-numbers';
   static const String virtualNumberOptions = '/virtual-numbers/options';
   static const String virtualNumberRequest = '/virtual-numbers/request';

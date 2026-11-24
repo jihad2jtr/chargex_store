@@ -49,14 +49,14 @@ let ProductsService = ProductsService_1 = class ProductsService {
             .populate('providerId', 'name status isActive')
             .populate('assignedSupervisorId', 'name role')
             .populate('serviceTemplateId')
-            .sort({ salePrice: 1 });
+            .sort({ salePrice: 1 })
+            .lean();
         return products
             .filter((prod) => {
             const provider = prod.providerId;
             return !provider || provider.isActive !== false;
         })
-            .map((prod) => {
-            const obj = prod.toObject();
+            .map((obj) => {
             const provider = obj.providerId;
             return {
                 ...obj,
@@ -77,14 +77,12 @@ let ProductsService = ProductsService_1 = class ProductsService {
             .populate('providerId', 'name status')
             .populate('assignedSupervisorId', 'name role email')
             .populate('serviceTemplateId')
-            .sort({ createdAt: -1 });
-        return products.map((prod) => {
-            const obj = prod.toObject();
-            return {
-                ...obj,
-                availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
-            };
-        });
+            .sort({ createdAt: -1 })
+            .lean();
+        return products.map((obj) => ({
+            ...obj,
+            availableCodesCount: obj.inventoryCodes ? obj.inventoryCodes.length : 0,
+        }));
     }
     async findOne(id) {
         const product = await this.productModel

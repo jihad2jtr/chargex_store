@@ -1,0 +1,820 @@
+﻿import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_typography.dart';
+import '../../models/product_model.dart';
+import '../../providers/manual_services_provider.dart';
+import '../../widgets/digital_pass_card.dart';
+import '../../widgets/top_notice.dart';
+
+/// ظ‡ظˆظٹط© ط§ظ„ط®ط¯ظ…ط§طھ ط§ظ„ط­ط³ط§ط³ط© (ظ…ط´ظپظ‘ط±ط©) â€” ظ„ط§ ظٹظˆط¬ط¯ ط±ظ…ط² ظ„ظˆظ†ظٹ ط¨ظ†ظپط³ط¬ظٹ ظپظٹ AppColors
+const Color _violet = Color(0xFF7C3AED);
+
+/// طµظپط­ط© ظ…ط³طھظ‚ظ„ط© ظ„ظ„ط®ط¯ظ…ط§طھ ط§ظ„ظ…ط³ظ†ط¯ط© ظ„ظ…ظ‚ط¯ظ… ط§ظ„ط®ط¯ظ…ط©: ط¹ط±ط¶ظ‡ط§ ط¨ط­ط§ظ„طھظ‡ط§طŒ ط¥ظٹظ‚ط§ظپظ‡ط§ ظ…ط¤ظ‚طھط§ظ‹
+/// ط£ظˆ ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„ظ‡ط§طŒ ظˆظ†ط³ط® ط¨ظٹط§ظ†ط§طھ ظƒظ„ ط®ط¯ظ…ط©. طھظڈظپطھط­ ظ…ظ† ط¨ط·ط§ظ‚ط© آ«ط®ط¯ظ…ط§طھظٹ ط§ظ„ظ…ط³ظ†ط¯ط©آ»
+/// ظپظٹ ظ„ظˆط­ط© ط§ظ„ظ…ط´ط±ظپطŒ ظˆطھظ‚ط±ط£ ظ†ظپط³ ظ…ط²ظ‘ط¯ ط§ظ„ط­ط§ظ„ط© ظپطھط¨ظ‚ظ‰ ظ…طھط²ط§ظ…ظ†ط© ظ…ط¹ظ‡.
+class SupervisorServicesScreen extends StatefulWidget {
+  const SupervisorServicesScreen({super.key});
+
+  @override
+  State<SupervisorServicesScreen> createState() =>
+      _SupervisorServicesScreenState();
+}
+
+class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
+  // ظ…ظ‚ط§ط³ط§طھ ط§ظ„طھط°ظƒط±ط© ط§ظ„ظ…ظˆط­ظ‘ط¯ط© (ظ†ظپط³ ظ‡ظˆظٹط© ط¨ظ‚ظٹط© طµظپط­ط§طھ ط§ظ„ظ†ط¸ط§ظ…)
+  static const double _radius = 16;
+  static const double _notch = 8;
+  static const double _serviceStubWidth = 74;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _load());
+  }
+
+  Future<void> _load() async {
+    final provider = Provider.of<ManualServicesProvider>(
+      context,
+      listen: false,
+    );
+    await provider.fetchAssignedServices(
+      silent: provider.assignedServices.isNotEmpty,
+    );
+    // ط¹ط¯ظ‘ط§ط¯ آ«ط·ظ„ط¨ ظ†ط´ط·آ» ظ„ظƒظ„ ط®ط¯ظ…ط© ظٹط­طھط§ط¬ ط£ط­ط¯ط« ظ‚ط§ط¦ظ…ط© ط·ظ„ط¨ط§طھ
+    await provider.fetchSupervisorOrders(null, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final provider = Provider.of<ManualServicesProvider>(context);
+    final services = provider.assignedServices;
+
+    return Scaffold(
+      backgroundColor: AppColors.paper,
+      appBar: AppBar(
+        backgroundColor: AppColors.surfaceCard,
+        elevation: 0,
+        scrolledUnderElevation: 1,
+        foregroundColor: AppColors.slate900,
+        title: Text(
+          'ط®ط¯ظ…ط§طھظٹ ط§ظ„ظ…ط³ظ†ط¯ط©',
+          style: AppTypography.cairo(
+            fontSize: 16.5,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+          ),
+        ),
+        actions: [
+          IconButton(
+            tooltip: 'طھط­ط¯ظٹط« ط§ظ„ط®ط¯ظ…ط§طھ',
+            icon: provider.isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AppColors.primaryBlue,
+                    ),
+                  )
+                : const Icon(
+                    Icons.refresh_rounded,
+                    color: AppColors.primaryBlue,
+                  ),
+            onPressed: _load,
+          ),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: RefreshIndicator(
+        color: AppColors.primaryBlue,
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          children: [
+            _sectionHeader(
+              'ط§ظ„ط®ط¯ظ…ط§طھ ط§ظ„ظ…ط³ظ†ط¯ط© ط¥ظ„ظٹظƒ',
+              'SERVICES آ· ${services.length}',
+            ),
+            if (services.isEmpty)
+              _buildNoServicesTicket()
+            else ...[
+              ...services.map(
+                (service) => _buildServiceTicket(service, provider),
+              ),
+              _note(
+                icon: Icons.visibility_off_rounded,
+                text:
+                    'ط§ظ„ط¥ظٹظ‚ط§ظپ ط§ظ„ظ…ط¤ظ‚طھ ظٹط®ظپظٹ ط§ظ„ط®ط¯ظ…ط© ط¹ظ† ظˆط§ط¬ظ‡ط© ط§ظ„ط¹ظ…ظ„ط§ط، ظˆظٹظ…ظ†ط¹ ط§ظ„ط·ظ„ط¨ط§طھ ط§ظ„ط¬ط¯ظٹط¯ط©طŒ ظˆظ„ط§ ظٹظڈظ„ط؛ظٹ ط§ظ„ط·ظ„ط¨ط§طھ ط§ظ„ط¬ط§ط±ظٹط©',
+                color: AppColors.slate600,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // ط¹ظ†ط§طµط± ظ‡ظˆظٹط© ط§ظ„طھط°ظƒط±ط© ط§ظ„ظ…ط´طھط±ظƒط© (ظ†ط³ط®ط© ظ…ط­ظ„ظٹط© ظƒظ…ط§ ظپظٹ ط¨ظ‚ظٹط© ط§ظ„طµظپط­ط§طھ)
+  // ---------------------------------------------------------------------------
+
+  /// ط؛ظ„ط§ظپ ط§ظ„طھط°ظƒط±ط©: ط¸ظ„ + ط­ط¯ + ظ‚طµظ‘ ط¨ظپطھط­طھظٹ طھط«ظ‚ظٹط¨.
+  /// ط§ظ„ط­ط¯ظڈظ‘ ط§ظ„ط§ظپطھط±ط§ط¶ظٹ outlineVariant ظ„ط£ظ† outline (#E2E8F0) ظ„ط§ ظٹظڈط±ظ‰ ط¹ظ„ظ‰
+  /// ط§ظ„ط£ط±ط¶ظٹط© ط§ظ„ظˆط±ظ‚ظٹط© (#F4F6F9) â€” ظ†ظپط³ ظ…ط§ ط§ط³طھظ‚ط±طھ ط¹ظ„ظٹظ‡ ظ„ظˆط­ط© ط§ظ„ط·ظ„ط¨ط§طھ
+  Widget _ticketShell({
+    required Widget child,
+    Color borderColor = AppColors.outlineVariant,
+  }) {
+    return CustomPaint(
+      painter: TicketPassShadowPainter(
+        cornerRadius: _radius,
+        notchRadius: _notch,
+        notchPositionFraction: 0.5,
+        shadowColor: AppColors.slate900,
+        elevation: 3,
+      ),
+      child: CustomPaint(
+        foregroundPainter: TicketPassBorderPainter(
+          cornerRadius: _radius,
+          notchRadius: _notch,
+          notchPositionFraction: 0.5,
+          borderColor: borderColor,
+          borderWidth: 1,
+        ),
+        child: ClipPath(
+          clipper: TicketPassClipper(
+            cornerRadius: _radius,
+            notchRadius: _notch,
+            notchPositionFraction: 0.5,
+          ),
+          child: Material(color: AppColors.surfaceCard, child: child),
+        ),
+      ),
+    );
+  }
+
+  /// ظپط§طµظ„ ظ…ط«ظ‚ظ‘ط¨ ط£ظپظ‚ظٹ (ظ†ظ‚ط§ط·) ط¨ط¯ظ„ ط§ظ„ط®ط· ط§ظ„طµظ„ط¨
+  Widget _dashedRule({Color color = AppColors.outlineVariant, double gap = 0}) {
+    return Padding(
+      padding: EdgeInsets.symmetric(vertical: gap),
+      child: SizedBox(
+        height: 1,
+        child: CustomPaint(
+          painter: DashedLinePainter(color: color, dashWidth: 4, dashSpace: 4),
+        ),
+      ),
+    );
+  }
+
+  /// ط®ط· طھط«ظ‚ظٹط¨ ط±ط£ط³ظٹ ظٹظپطµظ„ ط¬ط³ظ… ط§ظ„طھط°ظƒط±ط© ط¹ظ† ظƒط¹ط¨ظ‡ط§
+  Widget _verticalRule() {
+    return SizedBox(
+      width: 1,
+      child: CustomPaint(
+        painter: VerticalDashedLinePainter(
+          color: AppColors.outlineVariant,
+          dashHeight: 5,
+          dashSpace: 4,
+        ),
+      ),
+    );
+  }
+
+  /// ط´ط§ط±ط© ط£ظٹظ‚ظˆظ†ط© ظ…طھط¯ط±ظ‘ط¬ط© ط¨ظ‡ظˆظٹط© ط§ظ„طھط°ظƒط±ط©
+  Widget _iconChip(Color color, IconData icon, {double size = 30}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color.lerp(color, Colors.white, 0.28)!, color],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(size * 0.32),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.28),
+            blurRadius: 9,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Icon(icon, color: Colors.white, size: size * 0.5),
+    );
+  }
+
+  /// ط¹ظ†ظˆط§ظ† ظ‚ط³ظ… ط¯ط§ط®ظ„ ط§ظ„طµظپط­ط©: ط´ط±ظٹط· ظ„ظˆظ†ظٹ + ط§ط³ظ… + ط³ط·ط± طھظ‚ظ†ظٹ + ط®ط· ظ…ط«ظ‚ظ‘ط¨
+  Widget _sectionHeader(String title, String code, {Widget? trailing}) {
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 3,
+              height: 13,
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cairo(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  color: AppColors.slate700,
+                ),
+              ),
+            ),
+            if (trailing != null) ...[trailing, const SizedBox(width: 8)],
+            Text(
+              code,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.technicalCode(
+                fontSize: 8.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textMuted,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ],
+        ),
+        _dashedRule(gap: 6),
+      ],
+    );
+  }
+
+  /// ط´ط§ط±ط© طµط؛ظٹط±ط©: ط£ظٹظ‚ظˆظ†ط© + ظ†طµ (ظ„ط§ طھط¶ط§ظٹظ‚ ط§ظ„ط§ط³ظ… ط£ط¨ط¯ط§ظ‹)
+  Widget _chip(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 4),
+          // Flexible: ط§ظ„ظ†طµ ط§ظ„ط·ظˆظٹظ„ ظٹظڈظ‚طھط·ط¹ ط¨ط¯ظ„ ط£ظ† ظٹظپظٹط¶ ط¯ط§ط®ظ„ Wrap ط§ظ„طھط°ط§ظƒط±
+          Flexible(
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ط³ط·ط± طھظ†ط¨ظٹظ‡ ط¯ط§ط®ظ„ ط§ظ„طھط°ظƒط±ط© ط¨ظ†ط؛ظ…ط© ظ„ظˆظ†ظٹط©
+  Widget _note({
+    required IconData icon,
+    required String text,
+    required Color color,
+    Color? background,
+    Color? border,
+    int maxLines = 3,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: background ?? color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(color: border ?? color.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: maxLines,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(fontSize: 10.5, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ظ†ط³ط®ط© ظ…ظˆط­ظ‘ط¯ط© ظ„ظ„ط­ط§ظپط¸ط© ظ…ط¹ طھط£ظƒظٹط¯ ظ…ظƒطھظˆط¨ ط¨ط§ط³ظ… ط§ظ„ط¹ظ†طµط±
+  void _copyText(String label, String value) {
+    Clipboard.setData(ClipboardData(text: value));
+    ScaffoldMessenger.of(context).showTopSnackBar(
+      SnackBar(
+        content: Text('طھظ… ظ†ط³ط® $label ظ„ظ„ط­ط§ظپط¸ط©', style: AppTypography.cairo()),
+        backgroundColor: AppColors.slate900,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // ط§ظ„ط®ط¯ظ…ط§طھ ط§ظ„ظ…ط³ظ†ط¯ط© ظ„ظ…ظ‚ط¯ظ… ط§ظ„ط®ط¯ظ…ط©: ط¥ظٹظ‚ط§ظپ ظ…ط¤ظ‚طھ / ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„
+  // ---------------------------------------------------------------------------
+
+  /// ط¹ط¯ط¯ ط§ظ„ط·ظ„ط¨ط§طھ ط؛ظٹط± ط§ظ„ظ…ظƒطھظ…ظ„ط© ط¹ظ„ظ‰ ظ‡ط°ظ‡ ط§ظ„ط®ط¯ظ…ط© (ظ…ظ† ظ‚ط§ط¦ظ…ط© ط§ظ„ظ…ط´ط±ظپ ظ†ظپط³ظ‡ط§)
+  int _openOrdersFor(String serviceId, ManualServicesProvider provider) {
+    return provider.supervisorOrders
+        .where((o) => o.productId == serviceId && !o.isCompleted)
+        .length;
+  }
+
+  /// ظ†طµ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط®ط¯ظ…ط© ط§ظ„ط¬ط§ظ‡ط² ظ„ظ„ظ†ط³ط® (ظٹظڈط³ظ„ظژظ‘ظ… ظ„ظ„ظ…ط´ط±ظپ ظ„طھط¹ط¨ط¦طھظ‡ ظ„ظ„ط¹ظ…ظٹظ„)
+  String _serviceDataForCopy(ProductModel service) {
+    final buffer = StringBuffer(service.name)
+      ..writeln()
+      ..writeln('ط§ظ„ط³ط¹ط±: \$${service.salePrice.toStringAsFixed(2)}')
+      ..writeln('ظ…ط¯ط© ط§ظ„طھظ†ظپظٹط°: ${service.estimatedMinutes} ط¯ظ‚ظٹظ‚ط©');
+    if (service.quantityLabel.isNotEmpty) {
+      buffer.writeln('ط§ظ„ظƒظ…ظٹط©: ${service.quantityLabel}');
+    }
+    if (service.requiredFields.isNotEmpty) {
+      buffer.writeln(
+        'ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©: ${service.requiredFields.join(' / ')}',
+      );
+    }
+    if (service.instructions != null && service.instructions!.isNotEmpty) {
+      buffer.write('ط§ظ„طھط¹ظ„ظٹظ…ط§طھ: ${service.instructions}');
+    }
+    return buffer.toString().trim();
+  }
+
+  Future<void> _toggleServiceActive(ProductModel service) async {
+    final provider = Provider.of<ManualServicesProvider>(
+      context,
+      listen: false,
+    );
+    final wasActive = service.isActive;
+    final ok = await provider.toggleServiceActive(service.id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showTopSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? (wasActive
+                    ? 'طھظ… ط¥ظٹظ‚ط§ظپ "${service.name}" ظ…ط¤ظ‚طھط§ظ‹ â€” ظ„ط§ طھط¸ظ‡ط± ظ„ظ„ط¹ظ…ظ„ط§ط، ط­طھظ‰ طھط¹ظٹط¯ طھظپط¹ظٹظ„ظ‡ط§'
+                    : 'طھظ… طھظپط¹ظٹظ„ "${service.name}" ظˆظ‡ظٹ ظ…طھط§ط­ط© ظ„ظ„ط¹ظ…ظ„ط§ط، ط§ظ„ط¢ظ† âœ…')
+              : (provider.errorMessage ?? 'طھط¹ط°ط± طھط¹ط¯ظٹظ„ ط­ط§ظ„ط© ط§ظ„ط®ط¯ظ…ط©'),
+          style: AppTypography.cairo(),
+        ),
+        backgroundColor: ok
+            ? (wasActive ? AppColors.secondaryBright : AppColors.tertiaryLight)
+            : AppColors.errorLight,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
+  /// ط®ط§ظ†ط© ط¨ظٹط§ظ†ط§طھ طµط؛ظٹط±ط© ط¯ط§ط®ظ„ ط§ظ„طھط°ظƒط±ط©: ط¹ظ†ظˆط§ظ† + ظ‚ظٹظ…ط© ظ„ط§ طھظپظٹط¶ ط£ط¨ط¯ط§ظ‹
+  Widget _metaCell({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 12, color: color),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cairo(
+                  fontSize: 9,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.slate500,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: AppTypography.plusJakartaSans(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: AppColors.slate900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildServiceTicket(
+    ProductModel service,
+    ManualServicesProvider provider,
+  ) {
+    final bool isActive = service.isActive;
+    final int openOrders = _openOrdersFor(service.id, provider);
+    final Color accent = isActive ? AppColors.primaryBlue : AppColors.rose;
+    final bool busy = provider.isTogglingService;
+    // طھظ†ط³ظٹظ‚ ظ„ظˆط­ط© ط§ظ„ط·ظ„ط¨ط§طھ ظ†ظپط³ظ‡: ط±ط£ط³ظŒ ظ…طµط¨ظˆط؛ظŒ ط¨ط£ط±ط¶ظٹط© ظ…طµظ…طھط© طھظ…ظٹط²ظ‡ ط¹ظ† ط§ظ„ظˆط±ظ‚ظٹط©طŒ
+    // ظˆط´ط±ظٹط· ط¥ط¬ط±ط§ط،ط§طھ ط³ظپظ„ظٹ ط¹ظ„ظ‰ ط§ظ„ط£ط¨ظٹط¶ ط§ظ„ظ†ظ‚ظٹطŒ ظˆط­ط¯ظŒظ‘ ط£ظ‚ظˆظ‰ ظ„ظ„ط­ط§ظ„ط© ط§ظ„ظ…ط¹ط·ظ‘ظ„ط©
+    final Color headSurface = Color.alphaBlend(
+      accent.withValues(alpha: 0.06),
+      AppColors.surfaceCard,
+    );
+    final Color stubSurface = Color.alphaBlend(
+      accent.withValues(alpha: 0.13),
+      AppColors.surfaceCard,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: _ticketShell(
+        borderColor: accent.withValues(alpha: isActive ? 0.5 : 0.75),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Container(
+              color: headSurface,
+              child: IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(11, 8, 9, 8),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _iconChip(
+                                  accent,
+                                  Icons.construction_rounded,
+                                  size: 26,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        service.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: AppTypography.cairo(
+                                          fontSize: 12.5,
+                                          fontWeight: FontWeight.w800,
+                                          color: AppColors.slate900,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Wrap(
+                                        spacing: 5,
+                                        runSpacing: 3,
+                                        children: [
+                                          _chip(
+                                            isActive
+                                                ? Icons.play_circle_fill_rounded
+                                                : Icons
+                                                      .pause_circle_filled_rounded,
+                                            isActive
+                                                ? 'ظ…طھط§ط­ط© ظ„ظ„ط¹ظ…ظ„ط§ط،'
+                                                : 'ظ…ظˆظ‚ظˆظپط© ظ…ط¤ظ‚طھط§ظ‹',
+                                            accent,
+                                          ),
+                                          if (service.quantityLabel.isNotEmpty)
+                                            _chip(
+                                              Icons.local_offer_outlined,
+                                              service.quantityLabel,
+                                              AppColors.slate600,
+                                            ),
+                                          if (service.isSensitive)
+                                            _chip(
+                                              Icons.lock_rounded,
+                                              'ط¨ظٹط§ظ†ط§طھ ظ…ط´ظپظ‘ط±ط©',
+                                              _violet,
+                                            ),
+                                          if (openOrders > 0)
+                                            _chip(
+                                              Icons.pending_actions_rounded,
+                                              '$openOrders ط·ظ„ط¨ ظ†ط´ط·',
+                                              AppColors.secondaryBright,
+                                            ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 7),
+                            _dashedRule(),
+                            const SizedBox(height: 6),
+                            IntrinsicHeight(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Expanded(
+                                    child: _metaCell(
+                                      icon: Icons.sell_outlined,
+                                      label: 'ط³ط¹ط± ط§ظ„ط¨ظٹط¹',
+                                      value:
+                                          '\$${service.salePrice.toStringAsFixed(2)}',
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                  ),
+                                  _verticalRule(),
+                                  Expanded(
+                                    child: _metaCell(
+                                      icon: Icons.timer_outlined,
+                                      label: 'ظ…ط¯ط© ط§ظ„طھظ†ظپظٹط°',
+                                      value: '${service.estimatedMinutes} ط¯',
+                                      color: AppColors.secondaryBright,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            if (service.requiredFields.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©: ${service.requiredFields.join(' / ')}',
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: AppTypography.cairo(
+                                        fontSize: 10,
+                                        color: AppColors.slate600,
+                                      ),
+                                    ),
+                                  ),
+                                  IconButton(
+                                    tooltip: 'ظ†ط³ط® ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©',
+                                    icon: const Icon(
+                                      Icons.copy_rounded,
+                                      size: 13,
+                                      color: AppColors.primaryBlue,
+                                    ),
+                                    padding: EdgeInsets.zero,
+                                    // shrinkWrap + minimumSize: ظ„ظ…ط³ط© ط§ظ„ظ€ 48px
+                                    // ط§ظ„ط§ظپطھط±ط§ط¶ظٹط© ظƒط§ظ†طھ ط³طھظڈط·ظٹظ„ ط§ظ„ط³ط·ط± ط¨ظ„ط§ ط³ط¨ط¨
+                                    style: const ButtonStyle(
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                      minimumSize: WidgetStatePropertyAll(
+                                        Size(26, 26),
+                                      ),
+                                    ),
+                                    constraints: const BoxConstraints.tightFor(
+                                      width: 26,
+                                      height: 26,
+                                    ),
+                                    onPressed: () => _copyText(
+                                      'ط§ظ„ط¨ظٹط§ظ†ط§طھ ط§ظ„ظ…ط·ظ„ظˆط¨ط©',
+                                      service.requiredFields.join('\n'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            if (service.instructions != null &&
+                                service.instructions!.isNotEmpty) ...[
+                              const SizedBox(height: 5),
+                              _note(
+                                icon: Icons.assignment_outlined,
+                                text: 'ط§ظ„طھط¹ظ„ظٹظ…ط§طھ: ${service.instructions}',
+                                color: AppColors.slate600,
+                              ),
+                            ],
+                            if (!isActive) ...[
+                              const SizedBox(height: 5),
+                              _note(
+                                icon: Icons.visibility_off_rounded,
+                                text:
+                                    'ط§ظ„ط®ط¯ظ…ط© ظ…ظˆظ‚ظˆظپط© ظ…ط¤ظ‚طھط§ظ‹ â€” ظ„ط§ طھط¸ظ‡ط± ظپظٹ ظˆط§ط¬ظ‡ط© ط§ظ„ط¹ظ…ظ„ط§ط، ظˆظ„ط§ طھط³طھظ‚ط¨ظ„ ط·ظ„ط¨ط§طھ ط¬ط¯ظٹط¯ط©',
+                                color: AppColors.errorLight,
+                                background: AppColors.rose.withValues(
+                                  alpha: 0.07,
+                                ),
+                                border: AppColors.rose.withValues(alpha: 0.35),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    _verticalRule(),
+                    Container(
+                      width: _serviceStubWidth,
+                      color: stubSurface,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 7,
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            isActive
+                                ? Icons.storefront_rounded
+                                : Icons.storefront_outlined,
+                            size: 14,
+                            color: accent,
+                          ),
+                          const SizedBox(height: 3),
+                          Text(
+                            'ط§ظ„ط­ط§ظ„ط©',
+                            maxLines: 1,
+                            style: AppTypography.cairo(
+                              fontSize: 8,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.slate500,
+                            ),
+                          ),
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: Text(
+                              isActive ? 'ظ†ط´ط·ط©' : 'ظ…ظˆظ‚ظˆظپط©',
+                              maxLines: 1,
+                              style: AppTypography.cairo(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w900,
+                                color: accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            // ظپط§طµظ„ ظ…ط«ظ‚ظ‘ط¨ ط¨ط­ط¯ظ‘ ظ„ظˆط­ط© ط§ظ„ط·ظ„ط¨ط§طھطŒ ط«ظ… ط´ط±ظٹط· ط§ظ„ط¥ط¬ط±ط§ط،ط§طھ ط¹ظ„ظ‰ ط§ظ„ط£ط¨ظٹط¶
+            _dashedRule(color: AppColors.outlineVariant),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(11, 6, 11, 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _copyText(
+                        'ط¨ظٹط§ظ†ط§طھ ط§ظ„ط®ط¯ظ…ط©',
+                        _serviceDataForCopy(service),
+                      ),
+                      icon: const Icon(Icons.copy_all_rounded, size: 14),
+                      label: Text(
+                        'ظ†ط³ط® ط¨ظٹط§ظ†ط§طھ ط§ظ„ط®ط¯ظ…ط©',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.primaryBlue,
+                        side: BorderSide(
+                          color: AppColors.primaryBlue.withValues(alpha: 0.35),
+                        ),
+                        backgroundColor: AppColors.primaryBlue.withValues(
+                          alpha: 0.06,
+                        ),
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 7,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: busy
+                          ? null
+                          : () => _toggleServiceActive(service),
+                      icon: busy
+                          ? const SizedBox(
+                              width: 13,
+                              height: 13,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Icon(
+                              isActive
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                              size: 15,
+                            ),
+                      label: Text(
+                        isActive ? 'ط¥ظٹظ‚ط§ظپ ظ…ط¤ظ‚طھ' : 'ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: isActive
+                            ? AppColors.errorLight
+                            : AppColors.tertiaryLight,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 7,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(11),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// ظ„ط§ ط®ط¯ظ…ط§طھ ظ…ط³ظ†ط¯ط©: طھط°ظƒط±ط© ط¥ط±ط´ط§ط¯ظٹط© ط¨ط¯ظ„ ط§ظ„ظپط±ط§ط؛
+  Widget _buildNoServicesTicket() {
+    return _ticketShell(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
+        child: Column(
+          children: [
+            _iconChip(
+              AppColors.primaryBlue,
+              Icons.construction_rounded,
+              size: 40,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'ظ„ط§ طھظˆط¬ط¯ ط®ط¯ظ…ط§طھ ظ…ط³ظ†ط¯ط© ط¥ظ„ظٹظƒ ط­ط§ظ„ظٹط§ظ‹',
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AppTypography.cairo(
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+                color: AppColors.slate900,
+              ),
+            ),
+            const SizedBox(height: 5),
+            Text(
+              'ط¹ظ†ط¯ ط¥ط³ظ†ط§ط¯ ط®ط¯ظ…ط© ظٹط¯ظˆظٹط© ط¥ظ„ظٹظƒ ظ…ظ† ط§ظ„ط¥ط¯ط§ط±ط© ط³طھط¸ظ‡ط± ظ‡ظ†ط§طŒ ظˆظٹظ…ظƒظ†ظƒ ط¥ظٹظ‚ط§ظپظ‡ط§ ظ…ط¤ظ‚طھط§ظ‹ ط£ظˆ ط¥ط¹ط§ط¯ط© طھظپط¹ظٹظ„ظ‡ط§',
+              textAlign: TextAlign.center,
+              style: AppTypography.cairo(
+                fontSize: 11.5,
+                color: AppColors.slate500,
+                height: 1.5,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

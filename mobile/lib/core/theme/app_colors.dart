@@ -217,7 +217,19 @@ class AppColors {
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
   );
+
+  /// Overlay gradient for service cards: dark top, slightly open bottom
+  static const LinearGradient serviceCardTopDarkGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xCC090D16), Colors.transparent],
+    stops: [0.0, 1.0],
+  );
+
 }
 
 /// Backward compatibility alias
+
+/// Backward compatibility alias
 typedef ChargeXTheme = AppColors;
+

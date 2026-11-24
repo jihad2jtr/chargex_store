@@ -469,7 +469,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     final badgeText = isAuto ? 'فوري وتلقائي' : 'إشراف ومتابعة';
     final description = isAuto
         ? 'أرقام سحابية مؤتمتة من عدة دول ومزودين، يصلك رمز التفعيل تلقائياً خلال دقائق. وفي حال عدم وصول الرسالة خلال المهلة، يُعاد المبلغ تلقائياً إلى محفظتك.'
-        : 'تفعيل يدوي يتم عنطريق المشرف  يقدم حساب مضمون التفعيل  عند الشراء سيتم نقلك الى شات الطلب لبدء التفعيل الفوري.';
+        : 'تفعيل يدوي يتم عن طريق المشرف، يقدّم حساباً مضمون التفعيل. عند الشراء سيتم نقلك مباشرة إلى محادثة الطلب لبدء التفعيل.';
     final icon = isAuto ? Icons.bolt_rounded : Icons.verified_user_rounded;
 
     return Container(

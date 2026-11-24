@@ -77,6 +77,7 @@ export class ProvidersService {
     return createVirtualNumberClient({
       baseUrl: provider.baseUrl,
       apiKey: provider.apiKey,
+      apiSecret: provider.apiSecret,
       providerType: provider.providerType,
       name: provider.name,
     });

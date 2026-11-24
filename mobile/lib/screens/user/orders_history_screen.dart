@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/constants/app_icon_assets.dart';
+import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/app_model.dart';
 import '../../models/order_model.dart';
@@ -18,7 +19,12 @@ import 'virtual_number_wait_screen.dart';
 
 class OrdersHistoryScreen extends StatefulWidget {
   final bool showAppBar;
-  const OrdersHistoryScreen({super.key, this.showAppBar = true});
+  final bool isActive;
+  const OrdersHistoryScreen({
+    super.key,
+    this.showAppBar = true,
+    this.isActive = true,
+  });
 
   @override
   State<OrdersHistoryScreen> createState() => _OrdersHistoryScreenState();
@@ -45,9 +51,9 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       ).fetchMyRequests();
     });
 
-    // Auto-refresh orders every 15 seconds
+    // Auto-refresh orders every 15 seconds only while this tab is active
     _autoRefreshTimer = Timer.periodic(const Duration(seconds: 15), (_) {
-      if (mounted) {
+      if (mounted && widget.isActive) {
         Provider.of<AppCatalogProvider>(context, listen: false).fetchMyOrders();
         Provider.of<VirtualNumbersProvider>(
           context,
@@ -55,6 +61,18 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         ).fetchMyRequests(quiet: true);
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant OrdersHistoryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!oldWidget.isActive && widget.isActive) {
+      Provider.of<AppCatalogProvider>(context, listen: false).fetchMyOrders();
+      Provider.of<VirtualNumbersProvider>(
+        context,
+        listen: false,
+      ).fetchMyRequests(quiet: true);
+    }
   }
 
   @override
@@ -161,7 +179,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
     final filtered = entries.where((row) => _passesFilter(row)).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: widget.showAppBar
           ? AppBar(
               backgroundColor: Colors.white,
@@ -208,7 +226,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           children: [
             // 1. Compact stats bar
             _buildExecutiveSummaryBanner(
@@ -217,7 +235,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
               pendingCount: pendingCount,
               totalSpent: totalSpent,
             ),
-            const SizedBox(height: 9),
+            const SizedBox(height: 8),
 
             // 2. البحث + قائمة الفلاتر في صف واحد: القائمة بجانب المستطيل
             _buildSearchAndFilterRow(
@@ -227,7 +245,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
               manualCount: manualCount,
               rejectedCount: rejectedCount,
             ),
-            const SizedBox(height: 11),
+            const SizedBox(height: 12),
 
             // 4. Merged list or Empty State
             if (filtered.isEmpty)
@@ -615,7 +633,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       height: 40,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(11),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: const Color(0xFFE2E8F0)),
         boxShadow: [
           BoxShadow(

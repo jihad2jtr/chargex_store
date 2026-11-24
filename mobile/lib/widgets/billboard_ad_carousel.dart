@@ -3,8 +3,10 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../core/theme/app_colors.dart';
+import '../core/theme/app_typography.dart';
 import '../models/banner_model.dart';
 import 'digital_pass_card.dart';
+import 'smooth_network_image.dart';
 
 class BillboardAdCarousel extends StatefulWidget {
   final List<BannerModel> banners;
@@ -181,9 +183,9 @@ class _BillboardAdCarouselState extends State<BillboardAdCarousel> {
                   ),
                 ),
 
-                // Banner Content (Title & Description)
+                // Banner Content (Title & Description with unified Cairo typography)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.end,
@@ -195,18 +197,11 @@ class _BillboardAdCarouselState extends State<BillboardAdCarousel> {
                               banner.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                              style: AppTypography.cairo(
                                 fontSize: 14.5,
                                 fontWeight: FontWeight.w900,
                                 color: Colors.white,
-                                letterSpacing: 0.3,
-                                shadows: [
-                                  Shadow(
-                                    color: Colors.black54,
-                                    blurRadius: 4,
-                                    offset: Offset(0, 1),
-                                  ),
-                                ],
+                                height: 1.2,
                               ),
                             ),
                           ),
@@ -226,12 +221,13 @@ class _BillboardAdCarouselState extends State<BillboardAdCarousel> {
                                 width: 0.8,
                               ),
                             ),
-                            child: const Text(
+                            child: Text(
                               'إعلان',
-                              style: TextStyle(
-                                fontSize: 9,
+                              style: AppTypography.cairo(
+                                fontSize: 9.5,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.secondaryBright,
+                                height: 1.1,
                               ),
                             ),
                           ),
@@ -243,17 +239,10 @@ class _BillboardAdCarouselState extends State<BillboardAdCarousel> {
                           banner.description,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
+                          style: AppTypography.cairo(
                             fontSize: 11,
                             height: 1.3,
-                            color: Colors.white.withValues(alpha: 0.88),
-                            shadows: const [
-                              Shadow(
-                                color: Colors.black87,
-                                blurRadius: 4,
-                                offset: Offset(0, 1),
-                              ),
-                            ],
+                            color: Colors.white.withValues(alpha: 0.90),
                           ),
                         ),
                       ],
@@ -292,24 +281,28 @@ class _BillboardAdCarouselState extends State<BillboardAdCarousel> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Row(
+                Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       'أسرع شحن رقمي موثوق ⚡',
-                      style: TextStyle(
+                      style: AppTypography.cairo(
                         fontSize: 14.5,
                         fontWeight: FontWeight.w800,
                         color: AppColors.onSurface,
                       ),
                     ),
-                    Icon(Icons.verified, color: AppColors.secondary, size: 18),
+                    const Icon(
+                      Icons.verified,
+                      color: AppColors.secondary,
+                      size: 18,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 5),
-                const Text(
+                Text(
                   'شحن فوري للألعاب والبطاقات والتطبيقات بأفضل الأسعار بالدولار.',
-                  style: TextStyle(
+                  style: AppTypography.cairo(
                     fontSize: 11.5,
                     color: AppColors.onSurfaceVariant,
                   ),
@@ -338,10 +331,12 @@ class _BillboardAdCarouselState extends State<BillboardAdCarousel> {
       }
     } else if (imageUrl.startsWith('http://') ||
         imageUrl.startsWith('https://')) {
-      return Image.network(
-        imageUrl,
+      return SmoothNetworkImage(
+        url: imageUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildImagePlaceholder(),
+        cacheHeight: 360,
+        placeholderBuilder: (_) => _buildImagePlaceholder(),
+        errorBuilder: (_) => _buildImagePlaceholder(),
       );
     }
     return _buildImagePlaceholder();

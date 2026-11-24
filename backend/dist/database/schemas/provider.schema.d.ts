@@ -13,6 +13,8 @@ export declare enum ProviderType {
     HEROSMS = "herosms",
     DOGESMS = "dogesms",
     SMSPOOL = "smspool",
+    TGLION = "tglion",
+    GEMINIPRO = "geminipro",
     CUSTOM = "custom"
 }
 export declare class Provider {

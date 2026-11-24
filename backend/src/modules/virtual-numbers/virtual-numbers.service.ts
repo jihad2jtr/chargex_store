@@ -173,6 +173,13 @@ const ENV_PROVIDER_PRESETS: Array<{
     urlVar: 'HEROSMS_BASE_URL',
     defaultUrl: HEROSMS_DEFAULT_ENDPOINT,
   },
+  {
+    type: ProviderType.TGLION,
+    label: 'TG-Lion',
+    keyVar: 'TGLION_API_KEY',
+    urlVar: 'TGLION_BASE_URL',
+    defaultUrl: 'https://tg-lion.net',
+  },
 ];
 
 @Injectable()
@@ -432,6 +439,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     return createVirtualNumberClient({
       baseUrl: provider.baseUrl,
       apiKey: provider.apiKey,
+      apiSecret: provider.apiSecret,
       providerType: provider.providerType,
       name: provider.name,
     });

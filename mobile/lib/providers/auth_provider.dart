@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants/api_constants.dart';
 import '../core/network/api_client.dart';
+import '../core/services/cache_service.dart';
 import '../core/services/fcm_service.dart';
 import '../models/user_model.dart';
 
@@ -20,17 +21,33 @@ class AuthProvider extends ChangeNotifier {
 
   final ApiClient _api = ApiClient();
 
-  Future<bool> initAuth() async {
-    _isLoading = true;
-    notifyListeners();
+  static const String _profileCacheKey = 'cached_user_profile';
 
+  Future<bool> initAuth() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final token = prefs.getString('access_token');
       if (token != null && token.isNotEmpty) {
         _api.setToken(token);
+        // استرجاع فوري من الكاش لفتح التطبيق بدون انتظار الشبكة
+        final cached = CacheService.instance.get(_profileCacheKey);
+        if (cached is Map) {
+          _currentUser = UserModel.fromJson(
+            Map<String, dynamic>.from(cached),
+            token: token,
+          );
+          _isLoading = false;
+          notifyListeners();
+          // تحديث البيانات بالخلفية للتحقق من الجلسة والرصيد
+          _refreshSessionInBackground();
+          return true;
+        }
+
+        _isLoading = true;
+        notifyListeners();
         final res = await _api.get(ApiConstants.authMe);
         _currentUser = UserModel.fromJson(res, token: token);
+        CacheService.instance.set(_profileCacheKey, _currentUser!.toJson());
         _isLoading = false;
         notifyListeners();
         return true;
@@ -65,6 +82,7 @@ class AuthProvider extends ChangeNotifier {
         refreshToken: refreshToken,
       );
       _api.setToken(accessToken);
+      CacheService.instance.set(_profileCacheKey, _currentUser!.toJson());
       FcmService.instance.syncTokenWithBackend();
 
       final prefs = await SharedPreferences.getInstance();
@@ -115,6 +133,7 @@ class AuthProvider extends ChangeNotifier {
         refreshToken: refreshToken,
       );
       _api.setToken(accessToken);
+      CacheService.instance.set(_profileCacheKey, _currentUser!.toJson());
       FcmService.instance.syncTokenWithBackend();
 
       final prefs = await SharedPreferences.getInstance();
@@ -134,6 +153,23 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<void> _refreshSessionInBackground() async {
+    try {
+      final res = await _api.get(ApiConstants.authMe);
+      _currentUser = UserModel.fromJson(
+        res,
+        token: _currentUser?.token,
+        refreshToken: _currentUser?.refreshToken,
+      );
+      CacheService.instance.set(_profileCacheKey, _currentUser!.toJson());
+      notifyListeners();
+    } on ApiException catch (e) {
+      if (e.statusCode == 401 || e.statusCode == 403) {
+        await logout();
+      }
+    } catch (_) {}
+  }
+
   Future<void> refreshProfile() async {
     try {
       final res = await _api.get(ApiConstants.authMe);
@@ -142,6 +178,7 @@ class AuthProvider extends ChangeNotifier {
         token: _currentUser?.token,
         refreshToken: _currentUser?.refreshToken,
       );
+      CacheService.instance.set(_profileCacheKey, _currentUser!.toJson());
       notifyListeners();
     } catch (_) {}
   }
@@ -216,6 +253,7 @@ class AuthProvider extends ChangeNotifier {
     } catch (_) {}
     _currentUser = null;
     _api.setToken(null);
+    await CacheService.instance.remove(_profileCacheKey);
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('access_token');
     await prefs.remove('refresh_token');

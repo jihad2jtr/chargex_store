@@ -123,17 +123,18 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                           children: [
                             Text(
                               product.name,
-                              style: const TextStyle(
-                                fontSize: 18,
+                              style: AppTypography.cairo(
+                                fontSize: 16.5,
                                 fontWeight: FontWeight.w800,
-                                color: AppColors.onSurface,
+                                color: AppColors.slate900,
                               ),
                             ),
                             Text(
                               widget.app.name,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.onSurfaceVariant,
+                              style: AppTypography.cairo(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.textSecondary,
                               ),
                             ),
                           ],
@@ -156,10 +157,11 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'سعر الشراء (من رصيدك):',
-                              style: TextStyle(
-                                color: AppColors.onSurfaceVariant,
+                              style: AppTypography.cairo(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
                               ),
                             ),
                             Row(
@@ -170,17 +172,17 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                                     padding: const EdgeInsets.only(left: 8),
                                     child: Text(
                                       '\$${product.previousPrice!.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        color: AppColors.onSurfaceVariant
-                                            .withValues(alpha: 0.5),
+                                      style: AppTypography.price(
+                                        color: AppColors.slate400,
                                         fontSize: 13,
+                                      ).copyWith(
                                         decoration: TextDecoration.lineThrough,
                                       ),
                                     ),
                                   ),
                                 Text(
                                   '\$${product.salePrice.toStringAsFixed(2)}',
-                                  style: const TextStyle(
+                                  style: AppTypography.price(
                                     color: AppColors.secondaryBright,
                                     fontSize: 18,
                                     fontWeight: FontWeight.w900,
@@ -197,16 +199,16 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                             children: [
                               Text(
                                 'سعر البيع للزبون (+${marginProvider.marginPercent.toStringAsFixed(0)}%):',
-                                style: const TextStyle(
+                                style: AppTypography.cairo(
                                   color: AppColors.tertiaryLight,
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                 ),
                               ),
                               Text(
                                 '\$${customerPrice.toStringAsFixed(2)} (ربحك: +\$${profitAmount.toStringAsFixed(2)})',
-                                style: const TextStyle(
+                                style: AppTypography.price(
                                   color: AppColors.tertiaryLight,
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -217,18 +219,20 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
+                            Text(
                               'رصيدك الحالي:',
-                              style: TextStyle(
-                                color: AppColors.onSurfaceVariant,
+                              style: AppTypography.cairo(
+                                fontSize: 13,
+                                color: AppColors.textSecondary,
                               ),
                             ),
                             Text(
                               '\$${userBalance.toStringAsFixed(2)}',
-                              style: TextStyle(
+                              style: AppTypography.price(
                                 color: userBalance >= product.salePrice
                                     ? AppColors.tertiaryLight
                                     : AppColors.errorLight,
+                                fontSize: 14,
                                 fontWeight: FontWeight.w700,
                               ),
                             ),
@@ -433,8 +437,8 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
                                     : hasEnough
                                     ? 'تأكيد الشراء (\$${product.salePrice.toStringAsFixed(2)})'
                                     : 'رصيد غير كافٍ (\$${product.salePrice.toStringAsFixed(2)})',
-                                style: const TextStyle(
-                                  fontSize: 16,
+                                style: AppTypography.cairo(
+                                  fontSize: 15,
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
@@ -662,17 +666,33 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.inventory_2_outlined,
-              size: 54,
-              color: AppColors.slate600.withValues(alpha: 0.4),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.slate100,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.inventory_2_outlined,
+                size: 40,
+                color: AppColors.slate400,
+              ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
             Text(
               'لا توجد باقات متاحة حالياً لهذه الخدمة',
               style: AppTypography.cairo(
-                color: AppColors.slate600,
+                color: AppColors.slate700,
                 fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'اسحب لأسفل أو اضغط بالأسفل للتحديث',
+              style: AppTypography.cairo(
+                color: AppColors.slate400,
+                fontSize: 12,
               ),
             ),
           ],
