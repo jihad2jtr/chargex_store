@@ -160,9 +160,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridColumns(),
-                                  crossAxisSpacing: 6,
-                                  mainAxisSpacing: 8,
-                                  mainAxisExtent: 102,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 10,
+                                  mainAxisExtent: 126,
                                 ),
                             itemBuilder: (context, index) =>
                                 _buildSectionTile(groupSections[index]),
@@ -271,9 +271,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   // --- عدد أعمدة الشبكة حسب عرض الشاشة ---
   int _gridColumns() {
     final width = MediaQuery.of(context).size.width;
-    if (width >= 1200) return 6;
-    if (width >= 700) return 5;
-    return 4;
+    if (width >= 1000) return 5;
+    if (width >= 600) return 4;
+    return 3;
   }
 
   // --- عنوان مجموعة الأقسام ---
@@ -350,7 +350,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 AdminSectionIllustration(
                   kind: item.illustration,
                   accent: accent,
-                  size: 56,
+                  size: 78,
                 ),
                 if (badgeCount != null)
                   Positioned(
@@ -387,21 +387,21 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
-                fontSize: 9.5,
+                fontSize: 10.5,
                 fontWeight: FontWeight.w800,
                 color: AppColors.textPrimary,
                 height: 1.15,
               ),
             ),
             if (item.statusText.isNotEmpty) ...[
-              const SizedBox(height: 1),
+              const SizedBox(height: 1.5),
               Text(
                 item.statusText,
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.cairo(
-                  fontSize: 8.2,
+                  fontSize: 8.8,
                   fontWeight: FontWeight.bold,
                   color: item.statusColor ?? AppColors.textSecondary,
                   height: 1.1,
