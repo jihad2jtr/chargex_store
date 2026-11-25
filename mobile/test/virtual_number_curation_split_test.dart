@@ -194,7 +194,7 @@ class _SeededVn extends VirtualNumbersProvider {
   String? get errorMessage => null;
 
   @override
-  Future<void> fetchAdminApps({bool quiet = false}) async {}
+  Future<void> fetchAdminApps({bool quiet = false, String? providerId}) async {}
 
   @override
   Future<void> fetchAdminDictionary({bool quiet = false}) async {
