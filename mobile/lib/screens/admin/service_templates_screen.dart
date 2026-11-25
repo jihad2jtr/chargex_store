@@ -29,9 +29,12 @@ class ServiceTemplatesScreen extends StatefulWidget {
 
 class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
   // مقاسات التذكرة الموحّدة في هذه الشاشة
-  static const double _radius = 16;
-  static const double _notch = 8;
-  static const double _stubWidth = 62;
+  static const double _radius = 12;
+  static const double _notch = 6;
+  static const double _stubWidth = 48;
+
+  final TextEditingController _searchCtrl = TextEditingController();
+  String _filter = 'all'; // all | active | inactive | manual | direct_api | codes
 
   @override
   void initState() {
@@ -42,6 +45,33 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
         listen: false,
       ).fetchServiceTemplates();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  List<ServiceTemplateModel> _filteredTemplates(
+    List<ServiceTemplateModel> templates,
+  ) {
+    final q = _searchCtrl.text.trim().toLowerCase();
+    return templates.where((t) {
+      if (_filter == 'active' && !t.isActive) return false;
+      if (_filter == 'inactive' && t.isActive) return false;
+      if ((_filter == 'manual' ||
+              _filter == 'direct_api' ||
+              _filter == 'codes') &&
+          t.operationType != _filter) {
+        return false;
+      }
+      if (q.isEmpty) return true;
+      final fieldsText = t.fields.map((f) => f.label).join(' ');
+      return '${t.name} ${t.description} $fieldsText'
+          .toLowerCase()
+          .contains(q);
+    }).toList();
   }
 
   // ---------------------------------------------------------------------------
@@ -122,10 +152,10 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
 
   Widget _pill(String label, Color color, {bool dot = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(color: color.withValues(alpha: 0.25)),
       ),
       child: Row(
@@ -133,11 +163,11 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
         children: [
           if (dot) ...[
             Container(
-              width: 6,
-              height: 6,
+              width: 5,
+              height: 5,
               decoration: BoxDecoration(color: color, shape: BoxShape.circle),
             ),
-            const SizedBox(width: 5),
+            const SizedBox(width: 4),
           ],
           Flexible(
             child: Text(
@@ -145,7 +175,7 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
-                fontSize: 10,
+                fontSize: 9,
                 fontWeight: FontWeight.w800,
                 color: color,
               ),
@@ -210,6 +240,7 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
     final templates = admin.serviceTemplates;
     final activeCount = templates.where((t) => t.isActive).length;
     final inactiveCount = templates.length - activeCount;
+    final filtered = _filteredTemplates(templates);
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -267,13 +298,23 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
           const SizedBox(width: 8),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _openEditor(),
-        backgroundColor: AppColors.primaryBlue,
-        foregroundColor: Colors.white,
-        elevation: 3,
-        icon: const Icon(Icons.add_rounded, size: 20),
-        label: const Text('قالب جديد'),
+      floatingActionButton: SizedBox(
+        height: 40,
+        child: FloatingActionButton.extended(
+          onPressed: () => _openEditor(),
+          backgroundColor: AppColors.primaryBlue,
+          foregroundColor: Colors.white,
+          elevation: 2,
+          extendedPadding: const EdgeInsets.symmetric(horizontal: 12),
+          icon: const Icon(Icons.add_rounded, size: 17),
+          label: Text(
+            'قالب جديد',
+            style: AppTypography.cairo(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
       ),
       body: admin.isLoading && templates.isEmpty
           ? const Center(
@@ -284,28 +325,146 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
               onRefresh: admin.fetchServiceTemplates,
               child: ListView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 96),
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 84),
                 children: [
                   _statusStrip(
                     total: templates.length,
                     active: activeCount,
                     inactive: inactiveCount,
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
+                  if (templates.isNotEmpty) ...[
+                    _searchAndFilterBar(templates, activeCount, inactiveCount),
+                    const SizedBox(height: 10),
+                  ],
                   _sectionHeader(
                     'القوالب المتاحة',
                     'TEMPLATES',
-                    '${templates.length}',
+                    '${filtered.length}',
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   if (templates.isEmpty)
                     _emptyTicket()
+                  else if (filtered.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(13),
+                        border: Border.all(color: AppColors.outline),
+                      ),
+                      child: Center(
+                        child: Text(
+                          'لا توجد قوالب مطابقة للبحث أو الفلتر الحالي',
+                          style: AppTypography.cairo(
+                            fontSize: 12.5,
+                            color: AppColors.slate600,
+                          ),
+                        ),
+                      ),
+                    )
                   else
-                    for (final template in templates)
+                    for (final template in filtered)
                       _templateTicket(admin, template),
                 ],
               ),
             ),
+    );
+  }
+
+  Widget _searchAndFilterBar(
+    List<ServiceTemplateModel> templates,
+    int activeCount,
+    int inactiveCount,
+  ) {
+    return Column(
+      children: [
+        TextField(
+          controller: _searchCtrl,
+          onChanged: (_) => setState(() {}),
+          style: AppTypography.cairo(fontSize: 12),
+          decoration: InputDecoration(
+            isDense: true,
+            hintText: 'ابحث عن قالب أو حقل...',
+            hintStyle: AppTypography.cairo(
+              fontSize: 11.5,
+              color: AppColors.slate400,
+            ),
+            prefixIcon: const Icon(
+              Icons.search_rounded,
+              size: 17,
+              color: AppColors.slate400,
+            ),
+            prefixIconConstraints: const BoxConstraints(
+              minWidth: 34,
+              minHeight: 34,
+            ),
+            suffixIcon: _searchCtrl.text.isEmpty
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.close_rounded, size: 15),
+                    onPressed: () {
+                      _searchCtrl.clear();
+                      setState(() {});
+                    },
+                  ),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 10,
+              vertical: 8,
+            ),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.outline),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.outline),
+            ),
+          ),
+        ),
+        const SizedBox(height: 7),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              _filterChip('all', 'الكل (${templates.length})'),
+              const SizedBox(width: 6),
+              _filterChip('active', 'مفعّل ($activeCount)'),
+              const SizedBox(width: 6),
+              _filterChip('inactive', 'معطّل ($inactiveCount)'),
+              const SizedBox(width: 6),
+              _filterChip('manual', 'يدوي'),
+              const SizedBox(width: 6),
+              _filterChip('direct_api', 'API'),
+              const SizedBox(width: 6),
+              _filterChip('codes', 'أكواد'),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _filterChip(String key, String label) {
+    final selected = _filter == key;
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
+      selectedColor: AppColors.primaryBlue.withValues(alpha: 0.14),
+      labelStyle: AppTypography.cairo(
+        fontSize: 10.5,
+        fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+        color: selected ? AppColors.primaryBlue : AppColors.slate600,
+      ),
+      side: BorderSide(
+        color: selected ? AppColors.primaryBlue : AppColors.outline,
+      ),
+      onSelected: (_) => setState(() => _filter = key),
     );
   }
 
@@ -363,7 +522,7 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
 
   Widget _stripDivider() {
     return SizedBox(
-      height: 46,
+      height: 36,
       child: CustomPaint(
         painter: VerticalDashedLinePainter(
           color: AppColors.outline,
@@ -376,35 +535,34 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
 
   Widget _stripCell(String label, String value, IconData icon, Color color) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       child: Column(
         children: [
           Container(
-            width: 28,
-            height: 28,
+            width: 20,
+            height: 20,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(9),
+              borderRadius: BorderRadius.circular(6),
               border: Border.all(color: color.withValues(alpha: 0.26)),
             ),
-            child: Icon(icon, size: 15, color: color),
+            child: Icon(icon, size: 11, color: color),
           ),
-          const SizedBox(height: 7),
+          const SizedBox(height: 3),
           Text(
             value,
             style: AppTypography.plusJakartaSans(
-              fontSize: 16,
+              fontSize: 13,
               fontWeight: FontWeight.w900,
               color: AppColors.slate900,
             ),
           ),
-          const SizedBox(height: 1),
           Text(
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: AppTypography.cairo(
-              fontSize: 9.5,
+              fontSize: 9,
               fontWeight: FontWeight.w700,
               color: AppColors.slate500,
             ),
@@ -422,80 +580,83 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
     final bool hasSensitive = template.fields.any((f) => f.isSensitive);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: 8),
       child: _ticketShell(
-        child: Stack(
-          children: [
-            // كعب عدد الحقول — Positioned يمتد بكامل ارتفاع التذكرة
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              child: _fieldsStub(template, opColor, hasSensitive),
-            ),
-            // خط التثقيب الفاصل بين الجسم والكعب
-            Positioned(
-              left: _stubWidth,
-              top: 12,
-              bottom: 12,
-              width: 1,
-              child: CustomPaint(
-                painter: VerticalDashedLinePainter(
-                  color: AppColors.outlineVariant,
-                  dashHeight: 5,
-                  dashSpace: 4,
+        child: InkWell(
+          onTap: () => _openEditor(template),
+          child: Stack(
+            children: [
+              // كعب عدد الحقول — Positioned يمتد بكامل ارتفاع التذكرة
+              Positioned(
+                left: 0,
+                top: 0,
+                bottom: 0,
+                child: _fieldsStub(template, opColor, hasSensitive),
+              ),
+              // خط التثقيب الفاصل بين الجسم والكعب
+              Positioned(
+                left: _stubWidth,
+                top: 10,
+                bottom: 10,
+                width: 1,
+                child: CustomPaint(
+                  painter: VerticalDashedLinePainter(
+                    color: AppColors.outlineVariant,
+                    dashHeight: 4,
+                    dashSpace: 4,
+                  ),
                 ),
               ),
-            ),
-            // جسم التذكرة
-            Padding(
-              padding: const EdgeInsets.fromLTRB(0, 12, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.only(left: _stubWidth + 12),
-                    child: _ticketHeader(admin, template, opColor),
-                  ),
-                  if (template.description.isNotEmpty)
+              // جسم التذكرة
+              Padding(
+                padding: const EdgeInsets.fromLTRB(0, 9, 10, 9),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
                     Padding(
-                      padding: EdgeInsets.only(
-                        left: _stubWidth + 12,
+                      padding: const EdgeInsets.only(left: _stubWidth + 10),
+                      child: _ticketHeader(admin, template, opColor),
+                    ),
+                    if (template.description.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          left: _stubWidth + 10,
+                          top: 4,
+                          right: 2,
+                        ),
+                        child: Text(
+                          template.description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.cairo(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                            color: AppColors.slate500,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: _stubWidth + 10,
                         top: 6,
                         right: 2,
                       ),
-                      child: Text(
-                        template.description,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.cairo(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
-                          color: AppColors.slate500,
-                          height: 1.35,
-                        ),
+                      child: _dashedRule(color: AppColors.outline),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(
+                        left: _stubWidth + 10,
+                        top: 6,
+                        right: 2,
                       ),
+                      child: _fieldsFooter(admin, template),
                     ),
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: _stubWidth + 12,
-                      top: 10,
-                      right: 2,
-                    ),
-                    child: _dashedRule(color: AppColors.outline),
-                  ),
-                  Padding(
-                    padding: EdgeInsets.only(
-                      left: _stubWidth + 12,
-                      top: 10,
-                      right: 2,
-                    ),
-                    child: _fieldsFooter(admin, template),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -508,8 +669,8 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
   ) {
     return Row(
       children: [
-        _iconChip(opColor, _opIcon(template.operationType)),
-        const SizedBox(width: 10),
+        _iconChip(opColor, _opIcon(template.operationType), size: 30),
+        const SizedBox(width: 8),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -519,12 +680,12 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.cairo(
-                  fontSize: 14,
+                  fontSize: 12.5,
                   fontWeight: FontWeight.w900,
                   color: AppColors.slate900,
                 ),
               ),
-              const SizedBox(height: 5),
+              const SizedBox(height: 3),
               Row(
                 children: [
                   Flexible(
@@ -583,6 +744,16 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
           ),
         ),
         const PopupMenuItem(
+          value: 'duplicate',
+          child: Row(
+            children: [
+              Icon(Icons.copy_rounded, size: 16, color: AppColors.slate700),
+              SizedBox(width: 8),
+              Text('نسخ القالب'),
+            ],
+          ),
+        ),
+        const PopupMenuItem(
           value: 'delete',
           child: Row(
             children: [
@@ -595,6 +766,7 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
       ],
       onSelected: (val) {
         if (val == 'edit') _openEditor(template);
+        if (val == 'duplicate') _openEditor(template, true);
         if (val == 'delete') _confirmDelete(admin, template);
       },
     );
@@ -626,35 +798,34 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
             Text(
               '${template.fields.length}',
               style: AppTypography.plusJakartaSans(
-                fontSize: 20,
+                fontSize: 16,
                 fontWeight: FontWeight.w900,
                 color: stubColor,
               ),
             ),
-            const SizedBox(height: 1),
             Text(
               template.fields.length == 1 ? 'حقل' : 'حقول',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.cairo(
-                fontSize: 9,
+                fontSize: 8.5,
                 fontWeight: FontWeight.w800,
                 color: AppColors.slate600,
               ),
             ),
-            _dashedRule(color: stubColor.withValues(alpha: 0.45), gap: 5),
+            _dashedRule(color: stubColor.withValues(alpha: 0.45), gap: 3),
             Icon(
               hasSensitive
                   ? Icons.lock_rounded
                   : template.fields.isEmpty
                   ? Icons.bolt_rounded
                   : Icons.input_rounded,
-              size: 13,
+              size: 11,
               color: hasSensitive
                   ? AppColors.secondaryBright
                   : stubColor.withValues(alpha: 0.75),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             Text(
               hasSensitive
                   ? 'ENCRYPTED'
@@ -664,10 +835,10 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppTypography.technicalCode(
-                fontSize: 7,
+                fontSize: 6.5,
                 fontWeight: FontWeight.w700,
                 color: AppColors.slate500,
-                letterSpacing: 0.4,
+                letterSpacing: 0.3,
               ),
             ),
           ],
@@ -713,9 +884,10 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
         ),
         const SizedBox(width: 6),
         Transform.scale(
-          scale: 0.78,
+          scale: 0.70,
           child: Switch(
             value: template.isActive,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             activeThumbColor: AppColors.accentGreen,
             onChanged: admin.isLoading
                 ? null
@@ -730,19 +902,19 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
     final color = f.isSensitive ? AppColors.ticketAmber : AppColors.primaryBlue;
     return ConstrainedBox(
       // سقف عرض حتى لا تتجاوز رقاقة واحدة عرض الجسم على الشاشات الضيقة
-      constraints: const BoxConstraints(maxWidth: 150),
+      constraints: const BoxConstraints(maxWidth: 140),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(6),
           border: Border.all(color: color.withValues(alpha: 0.22)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(_fieldChipIcon(f.type), size: 13, color: color),
-            const SizedBox(width: 5),
+            Icon(_fieldChipIcon(f.type), size: 11, color: color),
+            const SizedBox(width: 4),
             Flexible(
               child: Text(
                 f.label,
@@ -1056,10 +1228,10 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
   // ---------------------------------------------------------------------------
   // محرّر القالب (إضافة / تعديل)
   // ---------------------------------------------------------------------------
-  void _openEditor([ServiceTemplateModel? template]) {
+  void _openEditor([ServiceTemplateModel? template, bool duplicate = false]) {
     final admin = Provider.of<AdminProvider>(context, listen: false);
-    final bool isEditing = template != null;
-    final String? templateId = template?.id;
+    final bool isEditing = template != null && !duplicate;
+    final String? templateId = isEditing ? template.id : null;
     String operationType = template?.operationType ?? 'manual';
     final List<ServiceFieldDef> fields = List<ServiceFieldDef>.from(
       template?.fields ?? const [],
@@ -1078,7 +1250,9 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
         // المتحكمات النصية يملكها Widget خاص كي يُتلفها عند زوال العنصر،
         // لأن pop ينهي مسار الشيت قبل نهاية أنيميشن الخروج.
         return _SheetControllers(
-          initialName: template?.name ?? '',
+          initialName: template == null
+              ? ''
+              : (duplicate ? '${template.name} (نسخة)' : template.name),
           initialDescription: template?.description ?? '',
           builder: (nameCtrl, descCtrl) {
             return StatefulBuilder(

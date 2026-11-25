@@ -32,6 +32,9 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
   final ScrollController _chatScrollCtrl = ScrollController();
   List<OrderChatMessageModel> _messages = [];
   bool _isLoadingMessages = false;
+  bool _isSending = false;
+  bool _showScrollDown = false;
+  bool _hasMessageText = false;
 
   // نظام الرسائل المثبتة: الشات هو الشاشة، والمثبت يُحفظ في بيانات الطلب
   bool _pinMode = false;
@@ -59,6 +62,8 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
   void initState() {
     super.initState();
     _currentOrder = widget.order;
+    _chatScrollCtrl.addListener(_onChatScroll);
+    _messageCtrl.addListener(_onMessageChanged);
     _loadOrderDetails();
     _loadMessages();
 
@@ -113,9 +118,25 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
     });
   }
 
+  void _onChatScroll() {
+    final shouldShow = !_isChatNearBottom;
+    if (shouldShow != _showScrollDown && mounted) {
+      setState(() => _showScrollDown = shouldShow);
+    }
+  }
+
+  void _onMessageChanged() {
+    final hasText = _messageCtrl.text.trim().isNotEmpty;
+    if (hasText != _hasMessageText && mounted) {
+      setState(() => _hasMessageText = hasText);
+    }
+  }
+
   @override
   void dispose() {
     _chatRefreshTimer?.cancel();
+    _chatScrollCtrl.removeListener(_onChatScroll);
+    _messageCtrl.removeListener(_onMessageChanged);
     _messageCtrl.dispose();
     _chatScrollCtrl.dispose();
     super.dispose();
@@ -194,7 +215,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
 
   void _sendMessage() async {
     // الدردشة مقفلة على العميل بعد إغلاق الطلب (حارس مزدوج مع الواجهة)
-    if (_chatClosedForOwner) return;
+    if (_chatClosedForOwner || _isSending) return;
     final text = _messageCtrl.text.trim();
     if (text.isEmpty) return;
 
@@ -202,6 +223,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
     final pin = _canPin && _pinMode;
 
     _messageCtrl.clear();
+    setState(() => _isSending = true);
     final provider = Provider.of<ManualServicesProvider>(
       context,
       listen: false,
@@ -212,8 +234,10 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
       isPinned: pin,
       pinLabel: pin ? _pinLabel : null,
     );
+    if (!mounted) return;
+    setState(() => _isSending = false);
 
-    if (sent != null && mounted) {
+    if (sent != null) {
       setState(() {
         _messages.add(sent);
         if (pin) _pinMode = false;
@@ -1426,7 +1450,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
         : _currentOrder.id.substring(_currentOrder.id.length - 6);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: const BoxDecoration(
         color: Colors.white,
         border: Border(bottom: BorderSide(color: AppColors.outline)),
@@ -1434,18 +1458,18 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
       child: Row(
         children: [
           Container(
-            width: 40,
-            height: 40,
+            width: 38,
+            height: 38,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [headerColor, headerColor.withValues(alpha: 0.7)],
+                colors: [headerColor, headerColor.withValues(alpha: 0.72)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: headerColor.withValues(alpha: 0.3),
+                  color: headerColor.withValues(alpha: 0.28),
                   blurRadius: 8,
                   offset: const Offset(0, 3),
                 ),
@@ -1455,7 +1479,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
               child: Text(
                 initial,
                 style: AppTypography.cairo(
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w800,
                   color: Colors.white,
                 ),
@@ -1477,7 +1501,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                     color: AppColors.slate900,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 1.5),
                 Row(
                   children: [
                     Container(
@@ -1489,15 +1513,15 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                       ),
                     ),
                     const SizedBox(width: 5),
-                    // Flexible لا Text عارياً: العنوان الفرعي يطول على
-                    // الشاشات الضيقة فيفيض صفُّ النقطة ويُصرخ RenderFlex
                     Flexible(
                       child: Text(
-                        subtitle,
+                        _currentOrder.productName.isNotEmpty
+                            ? '$subtitle • ${_currentOrder.productName}'
+                            : subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: AppTypography.cairo(
-                          fontSize: 11,
+                          fontSize: 10.5,
                           fontWeight: FontWeight.w600,
                           color: AppColors.slate500,
                         ),
@@ -1508,22 +1532,36 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.primaryBlue.withValues(alpha: 0.08),
-              borderRadius: BorderRadius.circular(9),
-              border: Border.all(
-                color: AppColors.primaryBlue.withValues(alpha: 0.25),
+          const SizedBox(width: 6),
+          StatusPill(status: _currentOrder.status),
+          const SizedBox(width: 6),
+          InkWell(
+            borderRadius: BorderRadius.circular(9),
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: '#$orderRef'));
+              ScaffoldMessenger.of(context).showTopSnackBar(
+                const SnackBar(
+                  content: Text('تم نسخ رقم الطلب'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primaryBlue.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(
+                  color: AppColors.primaryBlue.withValues(alpha: 0.25),
+                ),
               ),
-            ),
-            child: Text(
-              '#$orderRef',
-              style: AppTypography.spaceMono(
-                fontSize: 10.5,
-                fontWeight: FontWeight.w700,
-                color: AppColors.primaryBlue,
+              child: Text(
+                '#$orderRef',
+                style: AppTypography.spaceMono(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryBlue,
+                ),
               ),
             ),
           ),
@@ -1647,30 +1685,49 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
     final isImage =
         msg.attachmentUrl != null && _isChatImageUrl(msg.attachmentUrl!);
 
-    final content = Container(
-      constraints: BoxConstraints(maxWidth: maxWidth),
-      padding: const EdgeInsets.fromLTRB(10, 7, 10, 6),
-      decoration: BoxDecoration(
-        color: bubbleColor,
-        borderRadius: BorderRadius.only(
-          topLeft: const Radius.circular(12),
-          topRight: const Radius.circular(12),
-          bottomLeft: Radius.circular(isMe && isLast ? 0 : 12),
-          bottomRight: Radius.circular(!isMe && isLast ? 0 : 12),
-        ),
-        border: isMe && !msg.isPinned
-            ? null
-            : Border.all(
-                color: msg.isPinned ? AppColors.ticketAmber : AppColors.outline,
-              ),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.05),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
+    final content = GestureDetector(
+      onLongPress: msg.message.isEmpty
+          ? null
+          : () {
+              Clipboard.setData(ClipboardData(text: msg.message));
+              ScaffoldMessenger.of(context).showTopSnackBar(
+                const SnackBar(
+                  content: Text('تم نسخ الرسالة'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+      child: Container(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        padding: const EdgeInsets.fromLTRB(11, 8, 11, 6),
+        decoration: BoxDecoration(
+          color: (isMe && !msg.isPinned) ? null : bubbleColor,
+          gradient: (isMe && !msg.isPinned)
+              ? const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.primaryBlue, Color(0xFF1D4ED8)],
+                )
+              : null,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(15),
+            topRight: const Radius.circular(15),
+            bottomLeft: Radius.circular(isMe && isLast ? 2 : 15),
+            bottomRight: Radius.circular(!isMe && isLast ? 2 : 15),
           ),
-        ],
-      ),
+          border: isMe && !msg.isPinned
+              ? null
+              : Border.all(
+                  color: msg.isPinned ? AppColors.ticketAmber : AppColors.outline,
+                ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF0F172A).withValues(alpha: 0.05),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
       child: Column(
         crossAxisAlignment: isMe
             ? CrossAxisAlignment.end
@@ -1809,6 +1866,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
           ),
         ],
       ),
+    ),
     );
 
     final tail = isLast
@@ -1861,54 +1919,223 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
     );
   }
 
-  // --- Chat Tab (بنمط واتساب) ---
+  // --- Chat Tab (محدّث: شريط مثبت، زر نزول للأسفل، وردود سريعة) ---
+  Widget _buildPinnedBanner() {
+    final pinned = _messages.where((m) => m.isPinned).toList();
+    if (pinned.isEmpty) return const SizedBox.shrink();
+    final latest = pinned.last;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      decoration: const BoxDecoration(
+        color: AppColors.amberWash,
+        border: Border(bottom: BorderSide(color: AppColors.ticketAmber)),
+      ),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.push_pin_rounded,
+            size: 15,
+            color: AppColors.secondaryBright,
+          ),
+          const SizedBox(width: 7),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  latest.pinLabel.isNotEmpty
+                      ? latest.pinLabel
+                      : 'بيانات مثبتة',
+                  style: AppTypography.cairo(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.secondaryBright,
+                  ),
+                ),
+                Text(
+                  latest.message,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.cairo(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.slate900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 6),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: () {
+              Clipboard.setData(ClipboardData(text: latest.message));
+              ScaffoldMessenger.of(context).showTopSnackBar(
+                const SnackBar(
+                  content: Text('تم نسخ البيانات المثبتة'),
+                  duration: Duration(seconds: 1),
+                ),
+              );
+            },
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: AppColors.ticketAmber.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.copy_rounded,
+                    size: 12,
+                    color: AppColors.slate700,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    'نسخ',
+                    style: AppTypography.cairo(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.slate800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildQuickRepliesBar() {
+    final replies = _isOrderOwner
+        ? const ['شكراً لك', 'تم الاستلام', 'متى يكتمل الطلب؟', 'هل تحتاج بيانات أخرى؟']
+        : const ['جاري التنفيذ الآن', 'يرجى تزويدي بالكود', 'تم التنفيذ بنجاح'];
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: SizedBox(
+        height: 28,
+        child: ListView.separated(
+          scrollDirection: Axis.horizontal,
+          itemCount: replies.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 6),
+          itemBuilder: (_, i) {
+            final text = replies[i];
+            return InkWell(
+              borderRadius: BorderRadius.circular(14),
+              onTap: () {
+                _messageCtrl.text = text;
+                _messageCtrl.selection = TextSelection.fromPosition(
+                  TextPosition(offset: text.length),
+                );
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.slate50,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.outline),
+                ),
+                child: Text(
+                  text,
+                  style: AppTypography.cairo(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.slate700,
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   Widget _buildChatTab() {
     return Column(
       children: [
         _buildChatHeader(),
+        _buildPinnedBanner(),
         Expanded(
-          child: Container(
-            color: const Color(0xFFEDF2F7),
-            child: _isLoadingMessages
-                ? const Center(child: CircularProgressIndicator())
-                : _messages.isEmpty
-                ? _buildChatEmptyState()
-                : ListView.builder(
-                    controller: _chatScrollCtrl,
-                    padding: const EdgeInsets.fromLTRB(12, 12, 12, 16),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      final msg = _messages[index];
-                      final isMe = _isChatMine(msg);
-                      final prev = index > 0 ? _messages[index - 1] : null;
-                      final next = index < _messages.length - 1
-                          ? _messages[index + 1]
-                          : null;
-                      final showDate =
-                          prev == null ||
-                          !_sameChatDay(prev.createdAt, msg.createdAt);
-                      // المثبتة تقف وحدها: لا تُجمَّع مع ما قبلها ولا بعدها،
-                      // فهي «بيانات طلب» لا رسالة عابرة في السيل
-                      final isFirst =
-                          msg.isPinned ||
-                          showDate ||
-                          !_sameChatGroup(prev, msg);
-                      final isLast = msg.isPinned || !_sameChatGroup(msg, next);
+          child: Stack(
+            children: [
+              Container(
+                color: const Color(0xFFF1F5F9),
+                child: _isLoadingMessages
+                    ? const Center(child: CircularProgressIndicator())
+                    : _messages.isEmpty
+                    ? _buildChatEmptyState()
+                    : ListView.builder(
+                        controller: _chatScrollCtrl,
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 18),
+                        itemCount: _messages.length,
+                        itemBuilder: (context, index) {
+                          final msg = _messages[index];
+                          final isMe = _isChatMine(msg);
+                          final prev = index > 0 ? _messages[index - 1] : null;
+                          final next = index < _messages.length - 1
+                              ? _messages[index + 1]
+                              : null;
+                          final showDate =
+                              prev == null ||
+                              !_sameChatDay(prev.createdAt, msg.createdAt);
+                          // المثبتة تقف وحدها: لا تُجمَّع مع ما قبلها ولا بعدها،
+                          // فهي «بيانات طلب» لا رسالة عابرة في السيل
+                          final isFirst =
+                              msg.isPinned ||
+                              showDate ||
+                              !_sameChatGroup(prev, msg);
+                          final isLast =
+                              msg.isPinned || !_sameChatGroup(msg, next);
 
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (showDate) _buildChatDateSeparator(msg.createdAt),
-                          _buildChatBubble(
-                            msg,
-                            isMe: isMe,
-                            isFirst: isFirst,
-                            isLast: isLast,
-                          ),
-                        ],
-                      );
-                    },
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (showDate)
+                                _buildChatDateSeparator(msg.createdAt),
+                              _buildChatBubble(
+                                msg,
+                                isMe: isMe,
+                                isFirst: isFirst,
+                                isLast: isLast,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+              ),
+              if (_showScrollDown)
+                PositionedDirectional(
+                  end: 14,
+                  bottom: 12,
+                  child: Material(
+                    color: Colors.white,
+                    shape: const CircleBorder(),
+                    elevation: 4,
+                    shadowColor: Colors.black26,
+                    child: InkWell(
+                      customBorder: const CircleBorder(),
+                      onTap: () => _scrollChatToBottom(),
+                      child: const SizedBox(
+                        width: 36,
+                        height: 36,
+                        child: Icon(
+                          Icons.keyboard_arrow_down_rounded,
+                          color: AppColors.primaryBlue,
+                          size: 22,
+                        ),
+                      ),
+                    ),
                   ),
+                ),
+            ],
           ),
         ),
 
@@ -1927,6 +2154,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 if (_canPin) _buildPinComposer(),
+                if (!_hasMessageText) _buildQuickRepliesBar(),
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
@@ -1982,20 +2210,35 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                         width: 44,
                         height: 44,
                         child: Material(
-                          color: AppColors.primaryBlue,
+                          color: _hasMessageText && !_isSending
+                              ? AppColors.primaryBlue
+                              : AppColors.slate300,
                           shape: const CircleBorder(),
-                          elevation: 2,
+                          elevation: _hasMessageText ? 2 : 0,
                           shadowColor: AppColors.primaryBlue.withValues(
                             alpha: 0.4,
                           ),
                           child: InkWell(
                             customBorder: const CircleBorder(),
-                            onTap: _sendMessage,
-                            child: const Icon(
-                              Icons.send_rounded,
-                              color: Colors.white,
-                              size: 20,
-                            ),
+                            onTap: (_hasMessageText && !_isSending)
+                                ? _sendMessage
+                                : null,
+                            child: _isSending
+                                ? const Center(
+                                    child: SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.send_rounded,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
                           ),
                         ),
                       ),

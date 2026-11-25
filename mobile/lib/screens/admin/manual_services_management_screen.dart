@@ -20,8 +20,10 @@ class ManualServicesManagementScreen extends StatefulWidget {
 
 class _ManualServicesManagementScreenState
     extends State<ManualServicesManagementScreen> {
+  final TextEditingController _searchCtrl = TextEditingController();
   String _selectedFilter = 'all';
   String? _selectedSupervisorId;
+  String _sortMode = 'priority'; // priority | newest | price
 
   @override
   void initState() {
@@ -29,6 +31,12 @@ class _ManualServicesManagementScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadData();
     });
+  }
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -51,13 +59,39 @@ class _ManualServicesManagementScreenState
       )
       .toList();
 
+  int _orderPriority(OrderModel o) {
+    if (o.isDelayed && !o.isCompleted) return 0;
+    if (o.isDisputed ||
+        o.status == 'revision_requested' ||
+        o.status == 'rejected') {
+      return 1;
+    }
+    if (o.status == 'assigned' || o.status == 'pending') return 2;
+    if (o.status == 'in_progress' || o.status == 'accepted') return 3;
+    if (o.status == 'delivered' || o.status == 'info_requested') return 4;
+    return 5;
+  }
+
   List<OrderModel> _filterOrders(List<OrderModel> orders) {
+    final q = _searchCtrl.text.trim().toLowerCase();
     var result = orders;
 
     // Filter by supervisor if selected
     if (_selectedSupervisorId != null && _selectedSupervisorId != 'all') {
       result = result
           .where((o) => o.assignedSupervisorId == _selectedSupervisorId)
+          .toList();
+    }
+
+    // Filter by search query
+    if (q.isNotEmpty) {
+      result = result
+          .where(
+            (o) =>
+                '${o.orderNumber} ${o.productName} ${o.userName ?? ''} ${o.assignedSupervisorName ?? ''}'
+                    .toLowerCase()
+                    .contains(q),
+          )
           .toList();
     }
 
@@ -91,7 +125,20 @@ class _ManualServicesManagementScreenState
       result = result.where((o) => o.status == 'refunded').toList();
     }
 
-    return result;
+    final sorted = List<OrderModel>.from(result);
+    if (_sortMode == 'priority') {
+      sorted.sort((a, b) {
+        final p = _orderPriority(a).compareTo(_orderPriority(b));
+        if (p != 0) return p;
+        return b.createdAt.compareTo(a.createdAt);
+      });
+    } else if (_sortMode == 'price') {
+      sorted.sort((a, b) => b.amount.compareTo(a.amount));
+    } else {
+      sorted.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    }
+
+    return sorted;
   }
 
   @override
@@ -199,15 +246,15 @@ class _ManualServicesManagementScreenState
               ),
               const SizedBox(height: 12),
 
-              // Supervisor Filter Dropdown
-              _buildSupervisorFilter(_supervisorList(admin)),
+              // Search + Supervisor Filter
+              _buildSearchAndSupervisorCard(_supervisorList(admin)),
               const SizedBox(height: 10),
 
               // Status Filter Chips
               _buildStatusFilterChips(),
               const SizedBox(height: 12),
 
-              // Orders List Header
+              // Orders List Header + Sort Selector
               Row(
                 children: [
                   Container(
@@ -222,7 +269,7 @@ class _ManualServicesManagementScreenState
                   Text(
                     'الطلبات اليدوية',
                     style: AppTypography.cairo(
-                      fontSize: 15,
+                      fontSize: 14.5,
                       fontWeight: FontWeight.w800,
                       color: AppColors.slate900,
                     ),
@@ -243,7 +290,7 @@ class _ManualServicesManagementScreenState
                     child: Text(
                       '${filteredOrders.length}',
                       style: AppTypography.plusJakartaSans(
-                        fontSize: 11.5,
+                        fontSize: 11,
                         fontWeight: FontWeight.w900,
                         color: AppColors.primaryBlue,
                       ),
@@ -251,14 +298,18 @@ class _ManualServicesManagementScreenState
                   ),
                   const Spacer(),
                   if (admin.isLoading)
-                    const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: AppColors.primaryBlue,
+                    const Padding(
+                      padding: EdgeInsets.only(left: 8),
+                      child: SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.primaryBlue,
+                        ),
                       ),
                     ),
+                  _buildSortMenu(),
                 ],
               ),
               const SizedBox(height: 12),
@@ -294,9 +345,20 @@ class _ManualServicesManagementScreenState
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.darkNav,
-        borderRadius: BorderRadius.circular(16),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F172A), Color(0xFF1E293B)],
+        ),
+        borderRadius: BorderRadius.circular(15),
         border: Border.all(color: AppColors.slate800),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0F172A).withValues(alpha: 0.16),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -409,13 +471,122 @@ class _ManualServicesManagementScreenState
     );
   }
 
-  Widget _buildSupervisorFilter(List<Map<String, dynamic>> supervisors) {
+  Widget _buildSearchAndSupervisorCard(List<Map<String, dynamic>> supervisors) {
     return Container(
-      height: 44,
-      padding: const EdgeInsets.symmetric(horizontal: 10),
+      padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        children: [
+          TextField(
+            controller: _searchCtrl,
+            onChanged: (_) => setState(() {}),
+            style: AppTypography.cairo(fontSize: 12),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: 'ابحث برقم الطلب أو الخدمة أو العميل...',
+              hintStyle: AppTypography.cairo(
+                fontSize: 11.5,
+                color: AppColors.slate400,
+              ),
+              prefixIcon: const Icon(
+                Icons.search_rounded,
+                size: 17,
+                color: AppColors.slate400,
+              ),
+              prefixIconConstraints: const BoxConstraints(
+                minWidth: 34,
+                minHeight: 34,
+              ),
+              suffixIcon: _searchCtrl.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 15),
+                      onPressed: () {
+                        _searchCtrl.clear();
+                        setState(() {});
+                      },
+                    ),
+              filled: true,
+              fillColor: AppColors.slate50,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.outline),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: const BorderSide(color: AppColors.outline),
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          _buildSupervisorFilter(supervisors),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSortMenu() {
+    final label = _sortMode == 'priority'
+        ? 'الأهم أولاً'
+        : (_sortMode == 'price' ? 'الأعلى سعراً' : 'الأحدث');
+    return PopupMenuButton<String>(
+      tooltip: 'ترتيب الطلبات',
+      onSelected: (v) => setState(() => _sortMode = v),
+      color: Colors.white,
+      shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
+        side: const BorderSide(color: AppColors.outline),
+      ),
+      itemBuilder: (_) => const [
+        PopupMenuItem(value: 'priority', child: Text('الأهم أولاً (تأخير/أولوية)')),
+        PopupMenuItem(value: 'newest', child: Text('الأحدث أولاً')),
+        PopupMenuItem(value: 'price', child: Text('الأعلى سعراً')),
+      ],
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.outline),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.sort_rounded,
+              size: 14,
+              color: AppColors.primaryBlue,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: AppTypography.cairo(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSupervisorFilter(List<Map<String, dynamic>> supervisors) {
+    return Container(
+      height: 38,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      decoration: BoxDecoration(
+        color: AppColors.slate50,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(color: AppColors.outline),
       ),
       child: Row(
@@ -877,9 +1048,9 @@ class _ManualServicesManagementScreenState
         onTap: () => _openOrderDetails(order),
         child: Stack(
           children: [
-            // شريط لون الحالة على الحافة
-            Positioned(
-              left: 0,
+            // شريط لون الحالة على بداية الصف (RTL/LTR)
+            PositionedDirectional(
+              start: 0,
               top: 0,
               bottom: 0,
               width: 4,
@@ -888,13 +1059,13 @@ class _ManualServicesManagementScreenState
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [color, Color.lerp(color, Colors.white, 0.55)!],
+                    colors: [color, Color.lerp(color, Colors.white, 0.45)!],
                   ),
                 ),
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              padding: const EdgeInsets.fromLTRB(12, 11, 14, 11),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -939,13 +1110,14 @@ class _ManualServicesManagementScreenState
                                         vertical: 1.5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: const Color(
-                                          0xFF7C3AED,
-                                        ).withValues(alpha: 0.10),
+                                        color: AppColors.violet.withValues(
+                                          alpha: 0.10,
+                                        ),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
-                                          color: AppColors.primaryBlue
-                                              .withValues(alpha: 0.25),
+                                          color: AppColors.violet.withValues(
+                                            alpha: 0.28,
+                                          ),
                                         ),
                                       ),
                                       child: Row(
@@ -953,7 +1125,7 @@ class _ManualServicesManagementScreenState
                                           const Icon(
                                             Icons.lock_rounded,
                                             size: 10,
-                                            color: AppColors.primaryBlue,
+                                            color: AppColors.violet,
                                           ),
                                           const SizedBox(width: 3),
                                           Text(
@@ -961,7 +1133,7 @@ class _ManualServicesManagementScreenState
                                             style: AppTypography.cairo(
                                               fontSize: 9,
                                               fontWeight: FontWeight.w800,
-                                              color: AppColors.primaryBlue,
+                                              color: AppColors.violet,
                                             ),
                                           ),
                                         ],
