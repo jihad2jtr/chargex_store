@@ -225,6 +225,7 @@ describe('ProvidersService — مزود الخدمات (Gemini Pro)', () => {
     const { service } = makeResellerService([]);
     expect(gemini(service).isGeminiPro(makeGeminiProvider())).toBe(true);
     expect(gemini(service).isGeminiPro(makeProvider({ providerType: undefined, baseUrl: 'https://api-geminipro.ignorelist.com' }))).toBe(true);
+    expect(gemini(service).isGeminiPro(makeProvider({ providerType: undefined, baseUrl: 'https://api.renqis.online' }))).toBe(true);
     expect(gemini(service).isGeminiPro(makeProvider({ providerType: undefined, name: 'Gemini Pro للخدمات', baseUrl: 'https://example.com' }))).toBe(true);
     expect(gemini(service).isGeminiPro(makeProvider({ providerType: undefined }))).toBe(false);
   });
@@ -247,7 +248,7 @@ describe('ProvidersService — مزود الخدمات (Gemini Pro)', () => {
 
     expect(res.syncedCount).toBe(2);
     expect(String(getSpy.mock.calls[0][0])).toBe(
-      'https://api-geminipro.ignorelist.com/api/reseller/v1/products',
+      'https://api.renqis.online/api/reseller/v1/products',
     );
     expect((getSpy.mock.calls as any[][])[0][1].headers['X-API-Key']).toBe('rsp_test_key');
     expect(upserts[0]).toMatchObject({
@@ -283,7 +284,7 @@ describe('ProvidersService — مزود الخدمات (Gemini Pro)', () => {
     expect(res.raw.order.value).toBe('mail|x|otp');
     expect(postSpy).toHaveBeenCalledOnce();
     const calls = postSpy.mock.calls as any[][];
-    expect(calls[0][0]).toBe('https://api-geminipro.ignorelist.com/api/reseller/v1/orders');
+    expect(calls[0][0]).toBe('https://api.renqis.online/api/reseller/v1/orders');
     expect(calls[0][1]).toEqual({ productId: 285, quantity: 1 });
     expect(calls[0][2].headers['X-Idempotency-Key']).toBe('ORD-20261106-ABC');
   });
@@ -349,7 +350,7 @@ describe('ProvidersService — مزود الخدمات (Gemini Pro)', () => {
     expect(inspection.state).toBe('delivered');
     expect(inspection.codes).toEqual(['mail|pass']);
     expect(String(getSpy.mock.calls[0][0])).toBe(
-      'https://api-geminipro.ignorelist.com/api/reseller/v1/orders/rs_abc',
+      'https://api.renqis.online/api/reseller/v1/orders/rs_abc',
     );
   });
 

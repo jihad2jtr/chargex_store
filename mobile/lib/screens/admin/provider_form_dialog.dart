@@ -254,7 +254,7 @@ class _ProviderFormDialogState extends State<ProviderFormDialog> {
                     color: AppColors.accentGreen,
                     onTap: () => _fillQuick(
                       name: 'Gemini Pro',
-                      url: 'https://api-geminipro.ignorelist.com',
+                      url: 'https://api.renqis.online',
                     ),
                   ),
                 ],

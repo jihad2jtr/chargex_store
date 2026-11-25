@@ -62,6 +62,7 @@ export class ProvidersService {
     return (
       provider.providerType === ProviderType.GEMINIPRO ||
       provider.baseUrl?.toLowerCase().includes('geminipro') ||
+      provider.baseUrl?.toLowerCase().includes('renqis') ||
       provider.name?.toLowerCase().includes('geminipro') ||
       provider.name?.toLowerCase().includes('gemini pro')
     );
@@ -102,11 +103,15 @@ export class ProvidersService {
   }
 
   // واجهة الـ reseller تُخدم دائماً تحت البادئة /api/reseller/v1
-  private static readonly GEMINIPRO_DEFAULT_URL = 'https://api-geminipro.ignorelist.com';
+  private static readonly GEMINIPRO_DEFAULT_URL = 'https://api.renqis.online';
 
   private getGeminiProBaseUrl(provider: ProviderDocument): string {
     let raw = (provider.baseUrl || '').trim().replace(/\/+$/, '');
-    if (!raw) raw = ProvidersService.GEMINIPRO_DEFAULT_URL;
+    // النطاق القديم api-geminipro.ignorelist.com انتقل إلى api.renqis.online
+    if (!raw || raw.toLowerCase().includes('api-geminipro.ignorelist.com')) {
+      raw = ProvidersService.GEMINIPRO_DEFAULT_URL;
+    }
+    raw = raw.replace(/\/api\/reseller\/docs$/i, '/api/reseller/v1');
     if (!raw.includes('/api/reseller')) {
       raw = `${raw}/api/reseller/v1`;
     }
@@ -195,6 +200,7 @@ export class ProvidersService {
     const isGemini =
       createDto.providerType === ProviderType.GEMINIPRO ||
       createDto.baseUrl?.toLowerCase().includes('geminipro') ||
+      createDto.baseUrl?.toLowerCase().includes('renqis') ||
       createDto.name?.toLowerCase().includes('geminipro') ||
       createDto.name?.toLowerCase().includes('gemini pro');
 
