@@ -245,8 +245,6 @@ class _ManualServicesManagementScreenState
                 delayed: delayedCount,
                 issues: issuesCount,
               ),
-              const SizedBox(height: 10),
-              _buildProviderWalletAdminCard(admin),
               const SizedBox(height: 12),
 
               // Provider Wallet & Admin Profit Banner

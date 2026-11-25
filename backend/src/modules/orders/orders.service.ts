@@ -1985,6 +1985,9 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     order.adminNotes = notes || 'تم الشحن بنجاح';
     order.completedAt = new Date();
     await order.save();
+    if (this.providerWalletService) {
+      await this.providerWalletService.creditForCompletedOrder(order);
+    }
     return { message: 'تم قبول الطلب بنجاح', order };
   }
 
