@@ -161,9 +161,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridColumns(),
-                                  crossAxisSpacing: 2,
-                                  mainAxisSpacing: 2,
-                                  mainAxisExtent: 120,
+                                  crossAxisSpacing: 4,
+                                  mainAxisSpacing: 4,
+                                  mainAxisExtent: 100,
                                 ),
                             itemBuilder: (context, index) =>
                                 _buildSectionTile(groupSections[index]),
@@ -273,8 +273,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
   int _gridColumns() {
     final width = MediaQuery.of(context).size.width;
     if (width >= 1000) return 5;
-    if (width >= 600) return 4;
-    return 3;
+    return 4;
   }
 
   // --- عنوان مجموعة الأقسام ---
@@ -326,17 +325,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  // --- Section Tile: صور رسومية تعبيرية كبيرة بدون إطار كرت ---
+  // --- Section Tile: صور رسومية تعبيرية مع شارة رقمية/حالة على زاوية الأيقونة ---
   Widget _buildSectionTile(_AdminSectionItem item) {
     final Color accent = item.isAlert ? const Color(0xFFEF4444) : item.color;
 
-    // شارة رقمية على غرار إشعارات التطبيقات: تُعرض فقط للأقسام التي تحتاج تدخلاً
-    final RegExpMatch? countMatch = RegExp(
-      r'^\s*(\d+)',
-    ).firstMatch(item.statusText);
-    final String? badgeCount = (item.isAlert && countMatch != null)
-        ? countMatch.group(1)
+    // استخراج الإشارة/العدّاد من statusText لعرضه كشارة على زاوية الأيقونة بدل النص تحتها
+    final RegExpMatch? countMatch = RegExp(r'(\d+)').firstMatch(item.statusText);
+    final int? parsedCount = countMatch != null
+        ? int.tryParse(countMatch.group(1)!)
         : null;
+    final bool showCheckBadge =
+        item.statusText.contains('✅') && parsedCount == null;
+    final String? badgeText = parsedCount != null
+        ? (parsedCount > 99 ? '99+' : '$parsedCount')
+        : null;
+    final Color badgeColor = item.isAlert
+        ? const Color(0xFFEF4444)
+        : (item.statusColor ?? accent);
 
     return RepaintBoundary(
       child: TactileScale(
@@ -351,37 +356,50 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 AdminSectionIllustration(
                   kind: item.illustration,
                   accent: accent,
-                  size: 78,
+                  size: 62,
                 ),
-                if (badgeCount != null)
+                if (badgeText != null || showCheckBadge)
                   Positioned(
-                    top: -2,
+                    top: -4,
                     right: -4,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: showCheckBadge ? 3.5 : 5.5,
+                        vertical: showCheckBadge ? 3.5 : 1.5,
                       ),
-                      constraints: const BoxConstraints(minWidth: 17),
+                      constraints: const BoxConstraints(minWidth: 19),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEF4444),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.white, width: 1.3),
+                        color: badgeColor,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.white, width: 1.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: badgeColor.withValues(alpha: 0.35),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1.5),
+                          ),
+                        ],
                       ),
-                      child: Text(
-                        badgeCount,
-                        textAlign: TextAlign.center,
-                        style: AppTypography.plusJakartaSans(
-                          fontSize: 8.5,
-                          fontWeight: FontWeight.w900,
-                          color: Colors.white,
-                        ),
-                      ),
+                      child: showCheckBadge
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 10,
+                              color: Colors.white,
+                            )
+                          : Text(
+                              badgeText!,
+                              textAlign: TextAlign.center,
+                              style: AppTypography.plusJakartaSans(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
                     ),
                   ),
               ],
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 6),
             Text(
               item.title,
               textAlign: TextAlign.center,
@@ -394,21 +412,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 height: 1.15,
               ),
             ),
-            if (item.statusText.isNotEmpty) ...[
-              const SizedBox(height: 1.5),
-              Text(
-                item.statusText,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: AppTypography.cairo(
-                  fontSize: 8.8,
-                  fontWeight: FontWeight.bold,
-                  color: item.statusColor ?? AppColors.textSecondary,
-                  height: 1.1,
-                ),
-              ),
-            ],
           ],
         ),
       ),
@@ -503,9 +506,9 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             : (quality.watching > 0
                   ? '${quality.watching} دولة تحت المراقبة'
                   : '${quality.active} دولة بحالة جيدة'),
-        statusColor: quality.disabled > 0 || quality.watching > 0
-            ? AppColors.rose
-            : null,
+        statusColor: quality.disabled > 0
+            ? AppColors.error
+            : (quality.watching > 0 ? AppColors.ticketAmber : AppColors.tertiary),
         isAlert: quality.disabled > 0,
         onTap: () {
           Navigator.of(context).push(

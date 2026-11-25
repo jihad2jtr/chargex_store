@@ -1141,6 +1141,19 @@ class AdminProvider extends ChangeNotifier {
     }
   }
 
+  /// حذف حساب مستخدم (عميل/مشرف/وكيل) نهائياً من لوحة الإدارة
+  Future<bool> deleteUser(String userId) async {
+    try {
+      await _api.delete('${ApiConstants.usersList}/$userId');
+      await fetchAllUsers(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = _failMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
   /// تعديل بيانات المستخدم الأساسية (الاسم / البريد / الهاتف)
   Future<bool> updateUserDetails(
     String userId, {

@@ -243,4 +243,50 @@ export class UsersService {
       },
     };
   }
+
+  // حذف حساب مستخدم (عميل/مشرف/وكيل) من لوحة الإدارة مع حماية حساب الأدمن
+  // ومنع الحذف إذا كان مرتبطاً بخدمات أو طلبات مسندة أو عملاء تابعين
+  async remove(id: string, actorId?: string) {
+    const cleanId = id ? id.trim() : '';
+    let user = await this.userModel.findOne(userIdFilter(cleanId));
+    if (!user && Types.ObjectId.isValid(cleanId)) {
+      user = await this.userModel.findById(cleanId);
+    }
+    if (!user) throw new NotFoundException('المستخدم غير موجود');
+
+    if (user.role === Role.ADMIN) {
+      throw new BadRequestException('لا يمكن حذف حساب الأدمن');
+    }
+    if (actorId && String(user._id) === String(actorId)) {
+      throw new BadRequestException('لا يمكن حذف حسابك الحالي');
+    }
+
+    const [assignedProducts, activeOrders, linkedCustomers] =
+      await Promise.all([
+        this.productModel.countDocuments({ assignedSupervisorId: user._id }),
+        this.orderModel.countDocuments({
+          assignedSupervisorId: user._id,
+          status: { $nin: CLOSED_ORDER_STATUSES },
+        }),
+        this.userModel.countDocuments({ parentAgentId: user._id }),
+      ]);
+
+    if (assignedProducts > 0 || activeOrders > 0) {
+      throw new BadRequestException(
+        'لا يمكن حذف هذا المستخدم لأنه ما زال مسؤولاً عن خدمات أو طلبات مسندة إليه. ألغِ إسناده أولاً.',
+      );
+    }
+    if (linkedCustomers > 0) {
+      throw new BadRequestException(
+        `لا يمكن حذف الوكيل لأن لديه ${linkedCustomers} عميل مرتبط به. انقل عملاءه أولاً.`,
+      );
+    }
+
+    await this.userModel.deleteOne({ _id: user._id });
+    this.logger.log(`تم حذف حساب المستخدم ${user.email} (${user.userId})`);
+    return {
+      message: `تم حذف حساب "${user.name}" بنجاح`,
+      deletedId: user._id,
+    };
+  }
 }

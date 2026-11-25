@@ -35,9 +35,36 @@ class AdminSectionIllustration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       width: size,
       height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(size * 0.28),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white,
+            Color.lerp(Colors.white, accent, 0.14)!,
+          ],
+        ),
+        border: Border.all(
+          color: accent.withValues(alpha: 0.38),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: accent.withValues(alpha: 0.18),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
       child: CustomPaint(
         painter: _IllustrationPainter(kind: kind, accent: accent),
       ),
@@ -51,10 +78,10 @@ class _IllustrationPainter extends CustomPainter {
 
   const _IllustrationPainter({required this.kind, required this.accent});
 
-  static const Color _ink = Color(0xFF334155);
+  static const Color _ink = Color(0xFF0F172A);
   static const Color _body = Color(0xFFE2E8F0);
   static const Color _bodyMid = Color(0xFFCBD5E1);
-  static const Color _bodyDark = Color(0xFF94A3B8);
+  static const Color _bodyDark = Color(0xFF64748B);
   static const Color _orange = Color(0xFFF59E0B);
 
   @override
@@ -70,33 +97,16 @@ class _IllustrationPainter extends CustomPainter {
     final orangePaint = Paint()..color = _orange;
     final whitePaint = Paint()..color = Colors.white;
     final borderPaint = Paint()
-      ..color = Colors.black
+      ..color = _ink
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.2
+      ..strokeWidth = 1.85
       ..strokeJoin = StrokeJoin.round
       ..strokeCap = StrokeCap.round;
 
-    // إطار دائري واضح للأيقونة بحد أسود صريح لوضوح التباين
-    final circleCenter = Offset(w * 0.5, h * 0.5);
-    final circleRadius = w * 0.46;
-    canvas.drawCircle(
-      circleCenter,
-      circleRadius,
-      Paint()..color = Color.lerp(Colors.white, accent, 0.08)!,
-    );
-    canvas.drawCircle(
-      circleCenter,
-      circleRadius,
-      Paint()
-        ..color = Colors.black
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.0,
-    );
-
-    // تصغير الرسم الداخلي قليلاً ليتوسط الدائرة بهامش مريح دون ملامسة الحد الأسود
+    // توسيط الرسم الداخلي بحجم واضح وتباين عالٍ داخل الإطار
     canvas.save();
     canvas.translate(w * 0.5, h * 0.5);
-    canvas.scale(0.84);
+    canvas.scale(0.86);
     canvas.translate(-w * 0.5, -h * 0.5);
 
     switch (kind) {

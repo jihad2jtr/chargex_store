@@ -1,8 +1,18 @@
-import { Controller, Get, Param, Patch, Body, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Role } from '../../common/interfaces/role.enum';
 
 @Controller('users')
@@ -42,5 +52,13 @@ export class UsersController {
   @Patch(':id/toggle-active')
   async toggleActive(@Param('id') id: string) {
     return this.usersService.toggleActive(id);
+  }
+
+  @Delete(':id')
+  async remove(@Param('id') id: string, @CurrentUser() currentUser: any) {
+    return this.usersService.remove(
+      id,
+      currentUser?.userId || currentUser?._id || currentUser?.sub,
+    );
   }
 }

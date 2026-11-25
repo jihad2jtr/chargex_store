@@ -1059,6 +1059,64 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
     );
   }
 
+  Future<void> _deleteUser() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          'حذف الحساب',
+          style: AppTypography.cairo(
+            fontSize: 16,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+          ),
+        ),
+        content: Text(
+          'هل أنت متأكد من حذف حساب "$_name" نهائياً؟'
+          '${_balance > 0 ? '\nتنبيه: الرصيد الحالي \$${_balance.toStringAsFixed(2)}.' : ''}',
+          style: AppTypography.cairo(
+            fontSize: 13,
+            color: AppColors.slate700,
+            height: 1.5,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.rose),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('حذف نهائي'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final ok = await widget.admin.deleteUser(_id);
+    if (!mounted) return;
+
+    if (ok) {
+      navigator.pop();
+      messenger.showTopSnackBar(
+        SnackBar(
+          content: Text(
+            'تم حذف حساب "$_name" بنجاح',
+            style: AppTypography.cairo(fontSize: 13, color: Colors.white),
+          ),
+          backgroundColor: AppColors.tertiary,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      _snack(widget.admin.errorMessage ?? 'تعذر حذف الحساب', ok: false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final roleColor = _roleColorOf(_role);
@@ -1244,6 +1302,13 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                         label: _isActive ? 'إيقاف الحساب' : 'تفعيل الحساب',
                         color: _isActive ? AppColors.rose : AppColors.tertiary,
                         onTap: _toggleActive,
+                      ),
+                      const SizedBox(height: 10),
+                      _buildOutlineButton(
+                        icon: Icons.delete_outline_rounded,
+                        label: 'حذف الحساب',
+                        color: AppColors.rose,
+                        onTap: _deleteUser,
                       ),
                     ],
                   ],

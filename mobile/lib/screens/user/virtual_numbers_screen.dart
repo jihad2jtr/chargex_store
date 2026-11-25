@@ -320,8 +320,6 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _buildCategoryToggle(options.length, manuals.length),
-        const SizedBox(height: 10),
-        _buildTypeExplanation(),
         const SizedBox(height: 12),
         if (cards.isEmpty)
           _buildEmptySection(isAuto)
@@ -458,89 +456,6 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildTypeExplanation() {
-    final isAuto = _selectedCategory == VirtualNumberCategory.auto;
-    final tone = isAuto ? AppColors.ticketAmber : AppColors.emerald;
-    final title = isAuto ? 'التفعيلات التلقائية' : 'التفعيلات اليدوية';
-    final badgeText = isAuto ? 'فوري وتلقائي' : 'إشراف ومتابعة';
-    final description = isAuto
-        ? 'أرقام سحابية مؤتمتة من عدة دول ومزودين، يصلك رمز التفعيل تلقائياً خلال دقائق. وفي حال عدم وصول الرسالة خلال المهلة، يُعاد المبلغ تلقائياً إلى محفظتك.'
-        : 'تفعيل يدوي يتم عن طريق المشرف، يقدّم حساباً مضمون التفعيل. عند الشراء سيتم نقلك مباشرة إلى محادثة الطلب لبدء التفعيل.';
-    final icon = isAuto ? Icons.bolt_rounded : Icons.verified_user_rounded;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: tone.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: tone.withValues(alpha: 0.25)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: tone.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(icon, size: 18, color: tone),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: AppTypography.cairo(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.slate900,
-                        ),
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 1.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: tone.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        badgeText,
-                        style: AppTypography.cairo(
-                          fontSize: 9.5,
-                          fontWeight: FontWeight.w800,
-                          color: tone,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  description,
-                  style: AppTypography.cairo(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AppColors.slate700,
-                    height: 1.4,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
       ),
     );
   }

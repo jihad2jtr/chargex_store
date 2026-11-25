@@ -37,6 +37,7 @@ const makeService = (
       matchesUserId(query, user.userId) ? user : null,
     findById: async (id: any) => (id === user._id.toString() ? user : null),
     countDocuments: async () => counts.linkedCustomers ?? 0,
+    deleteOne: vi.fn(async () => ({ deletedCount: 1 })),
   } as any;
   const productModel = {
     countDocuments: async () => counts.products ?? 0,
@@ -204,5 +205,53 @@ describe('UsersService.updateRole', () => {
     await expect(
       service.updateRole('jgo00000000000', Role.AGENT),
     ).rejects.toThrow(NotFoundException);
+  });
+});
+
+describe('UsersService.remove', () => {
+  it('deletes a customer account successfully', async () => {
+    const user = makeUser({ role: Role.USER });
+    const service = makeService(user);
+
+    const res = await service.remove(user.userId);
+
+    expect(res.deletedId).toEqual(user._id);
+    expect(res.message).toContain(user.name);
+  });
+
+  it('rejects deleting an admin account', async () => {
+    const admin = makeUser({ role: Role.ADMIN });
+    const service = makeService(admin);
+
+    await expect(service.remove(admin.userId)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects deleting a supervisor with assigned products or orders', async () => {
+    const sup = makeUser({ role: Role.SUPERVISOR });
+    const service = makeService(sup, { products: 1 });
+
+    await expect(service.remove(sup.userId)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('rejects deleting an agent with linked customers', async () => {
+    const agent = makeUser({ role: Role.AGENT });
+    const service = makeService(agent, { linkedCustomers: 2 });
+
+    await expect(service.remove(agent.userId)).rejects.toThrow(
+      BadRequestException,
+    );
+  });
+
+  it('throws when the user does not exist', async () => {
+    const user = makeUser();
+    const service = makeService(user);
+
+    await expect(service.remove('jgo00000000000')).rejects.toThrow(
+      NotFoundException,
+    );
   });
 });
