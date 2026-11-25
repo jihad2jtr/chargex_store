@@ -841,6 +841,8 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
             marginText: hasMargin
                 ? '+${marginProvider.marginPercent.toStringAsFixed(0)}% للزبون'
                 : null,
+            appName: widget.app.name,
+            appIconUrl: widget.app.iconUrl,
             onTap: () => _openPurchaseDialog(product),
           ),
         );

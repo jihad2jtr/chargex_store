@@ -61,7 +61,9 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
       _populateGroups(cached);
       _isLoading = false;
     }
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadData();
+    });
   }
 
   @override

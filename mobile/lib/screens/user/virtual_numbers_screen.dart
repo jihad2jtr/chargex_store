@@ -576,12 +576,12 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
     );
   }
 
-  /// ثلاثة كروت في الصف ثابتة: على الشاشة العريضة يكبر الكرت ولا يقلّ عدد
-  /// الكروت، والفراغ بين الكروت متساوٍ في الاتجاهين لأنها كروت لا أيقونات
+  /// أربعة كروت في الصف بقياس مضغوط: مساحة كافية للشعار الواضح مع عرض
+  /// أربع خدمات جنباً إلى جنب دون تزاحم
   Widget _buildCardsGrid(List<_NumberCardItem> cards) {
-    const double spacing = 8;
-    const int columns = 3;
-    const double infoHeight = 68;
+    const double spacing = 6;
+    const int columns = 4;
+    const double infoHeight = 56;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1154,6 +1154,7 @@ class _NumberServiceCard extends StatelessWidget {
       foreign: item.foreign,
       metaText: item.metaText,
       sensitive: item.sensitive,
+      compact: true,
       onTap: onTap,
     );
   }

@@ -41,6 +41,9 @@ class ServiceTicketCard extends StatelessWidget {
   /// خدمة تطلب بيانات سرية: قفل صغير في الزاوية المقابلة
   final bool sensitive;
 
+  /// وضع مضغوط لكروت الشبكة الرباعية في صفحة الأرقام: كرت أصغر وأيقونة أوضح
+  final bool compact;
+
   final VoidCallback onTap;
 
   const ServiceTicketCard({
@@ -56,6 +59,7 @@ class ServiceTicketCard extends StatelessWidget {
     this.foreign = '',
     this.metaText = '',
     this.sensitive = false,
+    this.compact = false,
   });
 
   /// رمز التطبيق الذي يملأ الكرت: الرمز المخزّن ثم الأسماء العربي والإنجليزي
@@ -84,15 +88,16 @@ class ServiceTicketCard extends StatelessWidget {
     return null;
   }
 
-  // هندسة التذكرة: حافة 15 مع فتحتي تثقيب عند خط الكعب السفلي
-  static const double _radius = 15;
-  static const double _notch = 5.5;
+  // هندسة التذكرة: حافة مع فتحتي تثقيب عند خط الكعب السفلي
   static const double _seamHeight = 1;
-  static const double _stubBodyHeight = 28;
-  static const double _stubHeight = _seamHeight + _stubBodyHeight;
+
+  double get _radius => compact ? 12 : 15;
+  double get _notch => compact ? 4.5 : 5.5;
+  double get _stubBodyHeight => compact ? 23 : 28;
+  double get _stubHeight => _seamHeight + _stubBodyHeight;
 
   /// ارتفاع الكعب السفلي تحت خط التثقيب
-  static const double tabsHeight = _stubHeight;
+  static const double tabsHeight = 29;
 
   @override
   Widget build(BuildContext context) {
@@ -188,16 +193,18 @@ class ServiceTicketCard extends StatelessWidget {
         fit: StackFit.expand,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(7, 23, 7, 5),
+            padding: compact
+                ? const EdgeInsets.fromLTRB(4, 17, 4, 3)
+                : const EdgeInsets.fromLTRB(7, 23, 7, 5),
             child: _artworkContent(
               iconAsset: iconAsset,
               networkCover: networkCover,
             ),
           ),
           PositionedDirectional(
-            top: 5,
-            start: 6,
-            end: 6,
+            top: compact ? 4 : 5,
+            start: compact ? 4 : 6,
+            end: compact ? 4 : 6,
             child: Row(
               children: [
                 Flexible(child: _typeTag()),
@@ -260,8 +267,8 @@ class ServiceTicketCard extends StatelessWidget {
       builder: (context, constraints) {
         final double side = math
             .min(constraints.maxWidth, constraints.maxHeight)
-            .clamp(32.0, 56.0);
-        final double r = (side * 0.27).clamp(10.0, 15.0);
+            .clamp(compact ? 36.0 : 32.0, compact ? 62.0 : 56.0);
+        final double r = (side * 0.27).clamp(9.0, 15.0);
 
         return Container(
           width: side,
@@ -316,7 +323,9 @@ class ServiceTicketCard extends StatelessWidget {
     return ColoredBox(
       color: Colors.white,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+        padding: compact
+            ? const EdgeInsets.fromLTRB(4, 3.5, 4, 3.5)
+            : const EdgeInsets.fromLTRB(6, 5, 6, 5),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -327,14 +336,14 @@ class ServiceTicketCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: AppTypography.cairo(
-                fontSize: 10.4,
+                fontSize: compact ? 9.2 : 10.4,
                 fontWeight: FontWeight.w800,
                 color: AppColors.slate900,
-                height: 1.15,
+                height: compact ? 1.12 : 1.15,
               ),
             ),
             if (hasForeign) ...[
-              const SizedBox(height: 1),
+              SizedBox(height: compact ? 0.5 : 1),
               Text(
                 foreign,
                 maxLines: 1,
@@ -342,25 +351,25 @@ class ServiceTicketCard extends StatelessWidget {
                 textAlign: TextAlign.center,
                 textDirection: TextDirection.ltr,
                 style: AppTypography.cairo(
-                  fontSize: 8.2,
+                  fontSize: compact ? 7.4 : 8.2,
                   fontWeight: FontWeight.w600,
                   color: AppColors.slate400,
-                  height: 1.15,
+                  height: compact ? 1.12 : 1.15,
                 ),
               ),
             ],
             if (hasMeta) ...[
-              const SizedBox(height: 1.5),
+              SizedBox(height: compact ? 1 : 1.5),
               Text(
                 metaText,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: AppTypography.cairo(
-                  fontSize: 8.6,
+                  fontSize: compact ? 7.8 : 8.6,
                   fontWeight: FontWeight.w700,
                   color: AppColors.slate500,
-                  height: 1.15,
+                  height: compact ? 1.12 : 1.15,
                 ),
               ),
             ],
@@ -375,7 +384,7 @@ class ServiceTicketCard extends StatelessWidget {
     return ColoredBox(
       color: AppColors.amberCream,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: _notch + 2),
+        padding: EdgeInsets.symmetric(horizontal: _notch + 2),
         child: CustomPaint(
           painter: DashedLinePainter(
             color: AppColors.slate300,
@@ -395,7 +404,7 @@ class ServiceTicketCard extends StatelessWidget {
     return Container(
       height: _stubBodyHeight,
       alignment: Alignment.center,
-      padding: const EdgeInsets.symmetric(horizontal: 6),
+      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -409,10 +418,10 @@ class ServiceTicketCard extends StatelessWidget {
         children: [
           Icon(
             isBundle ? Icons.layers_outlined : Icons.bolt_rounded,
-            size: isBundle ? 10.5 : 11.5,
+            size: compact ? (isBundle ? 9.0 : 9.5) : (isBundle ? 10.5 : 11.5),
             color: AppColors.secondaryBright,
           ),
-          const SizedBox(width: 2.5),
+          SizedBox(width: compact ? 2 : 2.5),
           Flexible(
             child: Text(
               priceText,
@@ -420,7 +429,9 @@ class ServiceTicketCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: AppTypography.cairo(
-                fontSize: isBundle ? 9.8 : 10.8,
+                fontSize: compact
+                    ? (isBundle ? 8.8 : 9.6)
+                    : (isBundle ? 9.8 : 10.8),
                 fontWeight: FontWeight.w900,
                 color: AppColors.slate900,
                 height: 1.15,
@@ -435,15 +446,15 @@ class ServiceTicketCard extends StatelessWidget {
   /// قفل على زاوية كرت الخدمة التي تطلب بيانات سرية
   Widget _sensitiveLock() {
     return Container(
-      padding: const EdgeInsets.all(2.5),
+      padding: EdgeInsets.all(compact ? 2 : 2.5),
       decoration: BoxDecoration(
         color: AppColors.roseWash,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(compact ? 5 : 6),
         border: Border.all(color: AppColors.roseBorder, width: 0.8),
       ),
-      child: const Icon(
+      child: Icon(
         Icons.lock_outline_rounded,
-        size: 10,
+        size: compact ? 9 : 10,
         color: AppColors.roseDeep,
       ),
     );
@@ -455,10 +466,13 @@ class ServiceTicketCard extends StatelessWidget {
     final Color fg = Color.lerp(tagColor, AppColors.slate900, 0.45)!;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 4 : 5.5,
+        vertical: compact ? 1 : 1.5,
+      ),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(compact ? 5 : 6),
         border: Border.all(color: tagColor.withValues(alpha: 0.30), width: 0.7),
       ),
       child: Text(
@@ -466,7 +480,7 @@ class ServiceTicketCard extends StatelessWidget {
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: AppTypography.cairo(
-          fontSize: 7.6,
+          fontSize: compact ? 6.8 : 7.6,
           fontWeight: FontWeight.w900,
           color: fg,
           height: 1.2,

@@ -79,6 +79,8 @@ void main() {
                   marginText: '+10% للزبون',
                   sypPriceText: '≈ 14,500 ل.س',
                   balance: 5.0,
+                  appName: 'ببجي موبايل',
+                  appIconUrl: 'assets/cards/pubg-mobile.png',
                   onTap: () {},
                 ),
                 ProductListCard(

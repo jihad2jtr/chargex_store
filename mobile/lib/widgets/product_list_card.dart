@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 
+import '../core/constants/app_icon_assets.dart';
 import '../core/theme/app_colors.dart';
 import '../core/theme/app_typography.dart';
 import '../models/product_model.dart';
 import 'digital_pass_card.dart';
+import 'smooth_network_image.dart';
 import 'tactile_scale.dart';
 
-/// بطاقة باقة (منتج) في شاشة التطبيق: تذكرة سويسرية فاتحة بأيقونة نوع التسليم،
-/// عنوان ووصف واضحين، خط تثقيب رأسي بين الجسم وكعب السعر، وزر شحن بارز.
+/// بطاقة باقة (منتج) داخل شاشة التطبيق/اللعبة: تصميم تذكرة مستطيلة حديثة
+/// تجمع شعار التطبيق أو نوع التسليم مع شريط لوني جانبي، وعنواناً بارزاً
+/// يسهل مسحه سريعاً، مع خط تثقيب وكعب سعر واضح وزر شحن بارز.
 class ProductListCard extends StatelessWidget {
   final ProductModel product;
 
@@ -26,6 +29,10 @@ class ProductListCard extends StatelessWidget {
   /// المقابل بالليرة السورية: سطر خافت تحت السعر بالدولار (اختياري)
   final String? sypPriceText;
 
+  /// اسم التطبيق/اللعبة ورابط أو مسار أيقونتها لإظهار الهوية البصرية على الباقة
+  final String? appName;
+  final String? appIconUrl;
+
   final VoidCallback onTap;
 
   const ProductListCard({
@@ -37,12 +44,14 @@ class ProductListCard extends StatelessWidget {
     this.marginText,
     this.balance,
     this.sypPriceText,
+    this.appName,
+    this.appIconUrl,
   });
 
-  static const double _radius = 16;
-  static const double _notchRadius = 7;
-  static const double _minHeight = 98;
-  static const double _stubWidth = 104;
+  static const double _radius = 18;
+  static const double _notchRadius = 6.5;
+  static const double _minHeight = 104;
+  static const double _stubWidth = 110;
 
   // ------------------------------------------------------------ TYPE META
 
@@ -77,6 +86,26 @@ class ProductListCard extends StatelessWidget {
     }
   }
 
+  String? _resolveAppAsset() {
+    final cleanIcon = (appIconUrl ?? '').trim();
+    final cleanName = (appName ?? '').trim();
+    if (cleanIcon.isEmpty && cleanName.isEmpty) return null;
+
+    final matched = iconAssetForApp(
+      iconUrl: cleanIcon,
+      name: cleanName.isNotEmpty ? cleanName : product.name,
+    );
+    if (matched != null) return matched;
+    if (cleanIcon.startsWith('assets/')) return cleanIcon;
+    return null;
+  }
+
+  String? get _networkIcon {
+    final raw = (appIconUrl ?? '').trim();
+    if (raw.startsWith('http://') || raw.startsWith('https://')) return raw;
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final meta = _meta();
@@ -88,7 +117,7 @@ class ProductListCard extends StatelessWidget {
         costPrice != null && (costPrice! - displayPrice).abs() > 0.001;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.only(bottom: 11),
       child: RepaintBoundary(
         child: TactileScale(
           onTap: onTap,
@@ -98,7 +127,7 @@ class ProductListCard extends StatelessWidget {
               notchPositionFraction: 0.5,
               notchRadius: _notchRadius,
               shadowColor: AppColors.slate900.withValues(alpha: 0.14),
-              elevation: 3.0,
+              elevation: 3.5,
             ),
             child: CustomPaint(
               foregroundPainter: TicketPassBorderPainter(
@@ -124,20 +153,23 @@ class ProductListCard extends StatelessWidget {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // ---------------- جسم البطاقة (الأيقونة + الاسم + النوع + الوصف)
+                            // شريط لوني جانبي يربط الكرت بهوية نوع التنفيذ
+                            Container(width: 4, color: meta.fg),
+
+                            // ---------------- جسم البطاقة
                             Expanded(
                               child: Padding(
                                 padding: const EdgeInsets.fromLTRB(
                                   10,
                                   12,
-                                  12,
+                                  11,
                                   12,
                                 ),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.center,
                                   children: [
-                                    _leadingBadge(meta),
-                                    const SizedBox(width: 10),
+                                    _leadingVisual(meta),
+                                    const SizedBox(width: 11),
                                     Expanded(
                                       child: Column(
                                         crossAxisAlignment:
@@ -145,6 +177,19 @@ class ProductListCard extends StatelessWidget {
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
                                         children: [
+                                          // اسم الباقة أولاً وبخط واضح بارز
+                                          Text(
+                                            product.name,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: AppTypography.cairo(
+                                              fontSize: 14.5,
+                                              fontWeight: FontWeight.w900,
+                                              color: AppColors.slate900,
+                                              height: 1.18,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 5),
                                           Wrap(
                                             spacing: 5,
                                             runSpacing: 4,
@@ -172,19 +217,7 @@ class ProductListCard extends StatelessWidget {
                                                 ),
                                             ],
                                           ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            product.name,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: AppTypography.cairo(
-                                              fontSize: 14.2,
-                                              fontWeight: FontWeight.w900,
-                                              color: AppColors.slate900,
-                                              height: 1.18,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 4),
+                                          const SizedBox(height: 5),
                                           Text(
                                             (product.description != null &&
                                                     product.description!
@@ -219,25 +252,25 @@ class ProductListCard extends StatelessWidget {
                               ),
                             ),
 
-                            // ---------------- كعب السعر + زر الشحن
+                            // ---------------- كعب السعر وزر الشحن
                             SizedBox(
                               width: _stubWidth,
                               child: Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 6,
+                                  horizontal: 8,
                                   vertical: 10,
                                 ),
                                 decoration: BoxDecoration(
                                   gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
                                     colors: insufficient
                                         ? const [
                                             AppColors.roseMist,
-                                            AppColors.roseBorder,
+                                            Color(0xFFFFE4E6),
                                           ]
                                         : const [
-                                            Color(0xFFFFFDF5),
+                                            Color(0xFFFFFBEB),
                                             Color(0xFFFEF3C7),
                                           ],
                                   ),
@@ -280,7 +313,7 @@ class ProductListCard extends StatelessWidget {
                                     Text(
                                       '\$${displayPrice.toStringAsFixed(2)}',
                                       style: AppTypography.price(
-                                        fontSize: 17.5,
+                                        fontSize: 18,
                                         fontWeight: FontWeight.w900,
                                         color: insufficient
                                             ? AppColors.roseInk
@@ -302,48 +335,59 @@ class ProductListCard extends StatelessWidget {
                                         ),
                                       ),
                                     ],
-                                    const SizedBox(height: 5),
+                                    const SizedBox(height: 6),
                                     Container(
+                                      width: double.infinity,
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 8,
-                                        vertical: 3.5,
+                                        vertical: 4.5,
                                       ),
                                       decoration: BoxDecoration(
+                                        gradient: insufficient
+                                            ? null
+                                            : const LinearGradient(
+                                                colors: [
+                                                  AppColors.darkNav,
+                                                  AppColors.slate800,
+                                                ],
+                                              ),
                                         color: insufficient
                                             ? AppColors.roseDeep
-                                            : AppColors.darkNav,
-                                        borderRadius: BorderRadius.circular(8),
+                                            : null,
+                                        borderRadius: BorderRadius.circular(9),
                                         boxShadow: [
                                           BoxShadow(
                                             color: (insufficient
                                                     ? AppColors.roseDeep
                                                     : AppColors.darkNav)
-                                                .withValues(alpha: 0.18),
-                                            blurRadius: 4,
-                                            offset: const Offset(0, 1.5),
+                                                .withValues(alpha: 0.22),
+                                            blurRadius: 5,
+                                            offset: const Offset(0, 2),
                                           ),
                                         ],
                                       ),
                                       child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
                                           Icon(
                                             insufficient
                                                 ? Icons.lock_outline_rounded
                                                 : Icons.bolt_rounded,
-                                            size: 10.5,
+                                            size: 11,
                                             color: insufficient
                                                 ? Colors.white
                                                 : AppColors.amberBright,
                                           ),
-                                          const SizedBox(width: 2),
+                                          const SizedBox(width: 2.5),
                                           Flexible(
                                             child: Text(
                                               insufficient ? 'رصيد ناقص' : 'شحن',
                                               maxLines: 1,
                                               overflow: TextOverflow.ellipsis,
                                               style: AppTypography.cairo(
-                                                fontSize: 9.2,
+                                                fontSize: 9.5,
                                                 fontWeight: FontWeight.w900,
                                                 color: Colors.white,
                                               ),
@@ -370,22 +414,86 @@ class ProductListCard extends StatelessWidget {
     );
   }
 
-  /// شارة مربعة ناعمة تميّز نوع الباقة بصرياً على يسار/يمين النص
-  Widget _leadingBadge(
+  /// أيقونة التطبيق/اللعبة إن وُجدت مع نقطة نوع التنفيذ، وإلا أيقونة نوع الباقة
+  Widget _leadingVisual(
     ({IconData icon, String label, String hint, Color bg, Color fg}) meta,
   ) {
+    final asset = _resolveAppAsset();
+    final net = asset == null ? _networkIcon : null;
+
+    if (asset != null || net != null) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: AppColors.slate100,
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(color: Colors.white, width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.slate900.withValues(alpha: 0.10),
+                  blurRadius: 7,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(11.5),
+              child: asset != null
+                  ? Image.asset(
+                      asset,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) =>
+                          _fallbackTile(meta, size: 46),
+                    )
+                  : SmoothNetworkImage(
+                      url: net!,
+                      fit: BoxFit.cover,
+                      cacheWidth: 160,
+                      placeholderBuilder: (_) => _fallbackTile(meta, size: 46),
+                      errorBuilder: (_) => _fallbackTile(meta, size: 46),
+                    ),
+            ),
+          ),
+          PositionedDirectional(
+            bottom: -3,
+            end: -3,
+            child: Container(
+              padding: const EdgeInsets.all(2.5),
+              decoration: BoxDecoration(
+                color: meta.fg,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 1.5),
+              ),
+              child: Icon(meta.icon, size: 9, color: Colors.white),
+            ),
+          ),
+        ],
+      );
+    }
+
+    return _fallbackTile(meta, size: 44);
+  }
+
+  Widget _fallbackTile(
+    ({IconData icon, String label, String hint, Color bg, Color fg}) meta, {
+    required double size,
+  }) {
     return Container(
-      width: 40,
-      height: 40,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: meta.bg,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(13),
         border: Border.all(
-          color: meta.fg.withValues(alpha: 0.22),
+          color: meta.fg.withValues(alpha: 0.24),
           width: 1,
         ),
       ),
-      child: Icon(meta.icon, size: 20, color: meta.fg),
+      child: Icon(meta.icon, size: 21, color: meta.fg),
     );
   }
 

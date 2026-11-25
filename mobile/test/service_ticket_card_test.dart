@@ -225,6 +225,14 @@ void main() {
     await w.pump(const Duration(milliseconds: 400));
 
     expect(find.byType(ServiceTicketCard), findsOneWidget);
+    final GridView grid = w.widget<GridView>(find.byType(GridView));
+    final SliverGridDelegateWithFixedCrossAxisCount delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
+    expect(
+      w.widget<ServiceTicketCard>(find.byType(ServiceTicketCard)).compact,
+      isTrue,
+    );
     expect(find.textContaining('الرمز: 49120'), findsOneWidget);
 
     await w.tap(find.text('التفعيلات اليدوية'));
