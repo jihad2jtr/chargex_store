@@ -207,16 +207,16 @@ class _VirtualNumbersManagementScreenState
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0891B2).withValues(alpha: 0.12),
+                    color: AppColors.primaryBlue.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
-                      color: const Color(0xFF0891B2).withValues(alpha: 0.22),
+                      color: AppColors.primaryBlue.withValues(alpha: 0.24),
                     ),
                   ),
                   child: const Icon(
                     Icons.numbers_rounded,
                     size: 18,
-                    color: Color(0xFF0891B2),
+                    color: AppColors.primaryBlue,
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -247,7 +247,7 @@ class _VirtualNumbersManagementScreenState
                 _kpi(
                   '\$${stats.revenue.toStringAsFixed(2)}',
                   'إيراد',
-                  const Color(0xFFFDE047),
+                  AppColors.ticketAmber,
                 ),
                 _kpi(
                   '\$${stats.cost.toStringAsFixed(2)}',
@@ -257,7 +257,7 @@ class _VirtualNumbersManagementScreenState
                 _kpi(
                   '\$${stats.profit.toStringAsFixed(2)}',
                   'ربح',
-                  const Color(0xFF6EE7B7),
+                  AppColors.accentGreen,
                 ),
               ],
             ),

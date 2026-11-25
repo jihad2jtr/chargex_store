@@ -135,7 +135,7 @@ class _ProvidersManagementScreenState extends State<ProvidersManagementScreen> {
     final suspendedCount = providers.where((p) => !p.isActive).length;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,

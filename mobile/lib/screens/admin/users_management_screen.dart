@@ -19,8 +19,8 @@ class UsersManagementScreen extends StatefulWidget {
   State<UsersManagementScreen> createState() => _UsersManagementScreenState();
 }
 
-/// هوية رتبة الوكيل البصرية في هذه الصفحة
-const Color _agentColor = Color(0xFF8B5CF6);
+/// هوية رتبة الوكيل البصرية في هذه الصفحة (متطابقة مع هوية التطبيق)
+const Color _agentColor = AppColors.accentGreen;
 
 class _UsersManagementScreenState extends State<UsersManagementScreen> {
   final _searchCtrl = TextEditingController();
@@ -83,7 +83,7 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
     final suspendedCount = all.where((u) => u['isActive'] == false).length;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -525,16 +525,16 @@ class _UsersManagementScreenState extends State<UsersManagementScreen> {
     required int admins,
   }) {
     final filters = <Map<String, dynamic>>[
-      {'key': 'all', 'label': 'الكل ($total)', 'color': AppColors.primaryBlue},
+      {'key': 'all', 'label': 'الكل ($total)', 'color': AppColors.darkNav},
       {
         'key': 'user',
         'label': 'عملاء ($customers)',
-        'color': const Color(0xFF6366F1),
+        'color': AppColors.slate700,
       },
       {
         'key': 'supervisor',
         'label': 'مشرفون ($supervisors)',
-        'color': const Color(0xFF38BDF8),
+        'color': AppColors.primaryBlue,
       },
       {'key': 'agent', 'label': 'وكلاء ($agents)', 'color': _agentColor},
       {
@@ -1199,8 +1199,8 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                               icon: Icons.support_agent_rounded,
                               label: 'ترقية إلى وكيل',
                               colors: const [
-                                Color(0xFF7C3AED),
-                                Color(0xFF8B5CF6),
+                                AppColors.tertiaryLight,
+                                AppColors.accentGreen,
                               ],
                               onTap: () => _changeRole('agent'),
                             ),
@@ -2044,11 +2044,11 @@ Color _roleColorOf(String role) {
     case 'admin':
       return AppColors.ticketAmber;
     case 'supervisor':
-      return const Color(0xFF38BDF8);
+      return AppColors.primaryBlue;
     case 'agent':
       return _agentColor;
     default:
-      return const Color(0xFF6366F1);
+      return AppColors.slate700;
   }
 }
 

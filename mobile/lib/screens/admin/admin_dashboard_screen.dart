@@ -152,22 +152,23 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           _buildGroupHeader(key, groupSections.length),
-                          const SizedBox(height: 3),
+                          const SizedBox(height: 2),
                           GridView.builder(
+                            padding: EdgeInsets.zero,
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: groupSections.length,
                             gridDelegate:
                                 SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: _gridColumns(),
-                                  crossAxisSpacing: 8,
-                                  mainAxisSpacing: 10,
-                                  mainAxisExtent: 126,
+                                  crossAxisSpacing: 2,
+                                  mainAxisSpacing: 2,
+                                  mainAxisExtent: 120,
                                 ),
                             itemBuilder: (context, index) =>
                                 _buildSectionTile(groupSections[index]),
                           ),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: 3),
                         ],
                       );
                     }),
@@ -380,7 +381,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               item.title,
               textAlign: TextAlign.center,
@@ -443,7 +444,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'مزودو الأرقام الوهمية',
         icon: Icons.perm_phone_msg_rounded,
         illustration: AdminIllustrationKind.numProviders,
-        color: const Color(0xFF155E75), // Cyan 800
+        color: AppColors.primaryBlue,
         category: 'numbers',
         statusText: '',
         statusColor: numbers.stats.provider != null ? AppColors.tertiary : null,
@@ -462,7 +463,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'معجم تطبيقات الأرقام',
         icon: Icons.menu_book_rounded,
         illustration: AdminIllustrationKind.numDictionary,
-        color: const Color(0xFF1D4ED8), // Blue 800 — هوية المعجم والإتاحة
+        color: AppColors.darkNav,
         category: 'numbers',
         statusText: '',
         onTap: () {
@@ -480,7 +481,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'منتجات الأرقام',
         icon: Icons.apps_rounded,
         illustration: AdminIllustrationKind.numApps,
-        color: const Color(0xFF0D9488), // Teal — هوية صفحة الانتقاء نفسها
+        color: AppColors.accentGreen,
         category: 'numbers',
         statusText: '',
         onTap: () {
@@ -495,7 +496,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'مراقبة جودة الأرقام',
         icon: Icons.monitor_heart_rounded,
         illustration: AdminIllustrationKind.numQuality,
-        color: const Color(0xFFBE123C), // Rose 700 — هوية المراقبة والتنبيه
+        color: AppColors.primaryBlue,
         category: 'numbers',
         statusText: quality.disabled > 0
             ? '${quality.disabled} موقوف • ${quality.watching} مراقَب'
@@ -521,7 +522,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'خدمات التفعيل المضمون',
         icon: Icons.verified_user_rounded,
         illustration: AdminIllustrationKind.numManual,
-        color: const Color(0xFF059669), // Emerald — هوية قسم العميل
+        color: AppColors.accentGreen,
         category: 'numbers',
         statusText: '',
         onTap: () {
@@ -538,7 +539,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'سجل التفعيلات التلقائية',
         icon: Icons.sim_card_rounded,
         illustration: AdminIllustrationKind.numLogs,
-        color: const Color(0xFF0891B2), // Deep Cyan
+        color: AppColors.primaryBlue,
         category: 'numbers',
         statusText: numbers.stats.total > 0
             ? '${numbers.stats.total} طلب • $liveNumbers نشط'
@@ -560,7 +561,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'مزودو خدمات الشحن',
         icon: Icons.hub_rounded,
         illustration: AdminIllustrationKind.storeProviders,
-        color: const Color(0xFF6366F1), // Electric Indigo
+        color: AppColors.primaryBlue,
         category: 'catalog',
         statusText:
             '${stats?.providersTotal ?? 0} مزود ($onlineProviders متصل)',
@@ -579,7 +580,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'التطبيقات والمنتجات',
         icon: Icons.grid_view_rounded,
         illustration: AdminIllustrationKind.storeApps,
-        color: const Color(0xFF0EA5E9), // Cyan / Sky Blue
+        color: AppColors.ticketAmber,
         category: 'catalog',
         statusText: '',
         onTap: () {
@@ -596,7 +597,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'الطلبات والمراجعة',
         icon: Icons.fact_check_rounded,
         illustration: AdminIllustrationKind.orders,
-        color: const Color(0xFFF43F5E), // Rose / Red
+        color: AppColors.ticketAmber,
         category: 'catalog',
         isAlert: totalPending > 0,
         statusText: totalPending > 0 ? '$totalPending معلق' : 'مكتمل ✅',
@@ -615,7 +616,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'حسابات الدفع',
         icon: Icons.account_balance_wallet_rounded,
         illustration: AdminIllustrationKind.paymentAccounts,
-        color: const Color(0xFF10B981), // Emerald
+        color: AppColors.accentGreen,
         category: 'finance',
         statusText: '$activeAccounts مفعل',
         statusColor: AppColors.tertiary,
@@ -631,7 +632,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'أنواع قوالب الخدمة',
         icon: Icons.description_outlined,
         illustration: AdminIllustrationKind.templates,
-        color: const Color(0xFF7C3AED), // Violet
+        color: AppColors.darkNav,
         category: 'general',
         statusText: '',
         onTap: () {
@@ -646,7 +647,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'لوحة إدارة الأعلانات',
         icon: Icons.view_carousel_rounded,
         illustration: AdminIllustrationKind.banners,
-        color: const Color(0xFFF59E0B), // Amber Gold
+        color: AppColors.ticketAmber,
         category: 'general',
         statusText: '',
         onTap: () {
@@ -660,7 +661,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'أكواد الشحن',
         icon: Icons.confirmation_number_rounded,
         illustration: AdminIllustrationKind.shippingCodes,
-        color: const Color(0xFF8B5CF6), // Purple
+        color: AppColors.primaryBlue,
         category: 'finance',
         statusText: '$unusedCodes كود متاح',
         onTap: () {
@@ -676,7 +677,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'إدارة المستخدمين',
         icon: Icons.manage_accounts_rounded,
         illustration: AdminIllustrationKind.users,
-        color: const Color(0xFF0EA5E9), // Sky Blue
+        color: AppColors.primaryBlue,
         category: 'people',
         statusText: '${stats?.usersTotal ?? 0} مستخدم',
         onTap: () {
@@ -691,7 +692,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         title: 'الخدمات اليدوية والمشرفين',
         icon: Icons.assignment_ind_rounded,
         illustration: AdminIllustrationKind.manualServices,
-        color: const Color(0xFF0D9488), // Teal
+        color: AppColors.accentGreen,
         category: 'people',
         statusText: '$supervisorsCount مشرف • متابعة SLA',
         statusColor: AppColors.secondary,

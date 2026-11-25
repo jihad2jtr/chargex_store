@@ -95,7 +95,7 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
     ).where(_matchesBatchFilter).toList();
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -140,13 +140,14 @@ class _ShippingCodesScreenState extends State<ShippingCodesScreen> {
                   Container(
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: AppColors.slate900,
-                      borderRadius: BorderRadius.circular(18),
+                      color: AppColors.darkNav,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.slate800),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.slate900.withValues(alpha: 0.15),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),

@@ -1078,23 +1078,19 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
 
   Widget _buildProviderInfoHeader() {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF1E1B4B)],
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.darkNav,
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.2),
-            blurRadius: 14,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: AppColors.slate800),
       ),
       child: Column(
         children: [
@@ -1104,19 +1100,19 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
               Row(
                 children: [
                   Container(
-                    width: 42,
-                    height: 42,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
-                      color: const Color(0xFF6366F1).withValues(alpha: 0.25),
-                      borderRadius: BorderRadius.circular(12),
+                      color: AppColors.primaryBlue.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(11),
                       border: Border.all(
-                        color: const Color(0xFF818CF8).withValues(alpha: 0.4),
+                        color: AppColors.primaryBlue.withValues(alpha: 0.35),
                       ),
                     ),
                     child: const Icon(
                       Icons.hub_rounded,
-                      color: Color(0xFFA5B4FC),
-                      size: 22,
+                      color: AppColors.primarySky,
+                      size: 20,
                     ),
                   ),
                   const SizedBox(width: 12),

@@ -116,7 +116,7 @@ class _ManualServicesManagementScreenState
         .length;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
@@ -338,7 +338,7 @@ class _ManualServicesManagementScreenState
               'اعتراضات',
               issues.toString(),
               Icons.report_problem_rounded,
-              AppColors.violetBright,
+              AppColors.ticketAmber,
               active: _selectedFilter == 'issues',
               onTap: () => setState(() => _selectedFilter = 'issues'),
             ),
@@ -514,7 +514,7 @@ class _ManualServicesManagementScreenState
       {
         'key': 'issues',
         'label': 'اعتراضات/رفض',
-        'color': AppColors.violet,
+        'color': AppColors.rose,
       },
       {'key': 'completed', 'label': 'مكتملة', 'color': AppColors.accentGreen},
       {'key': 'refunded', 'label': 'مسترجعة', 'color': AppColors.slate500},
@@ -595,7 +595,7 @@ class _ManualServicesManagementScreenState
     if (order.isDisputed ||
         order.status == 'revision_requested' ||
         order.status == 'rejected') {
-      return AppColors.violet;
+      return AppColors.rose;
     }
     if (order.isDelayed && !order.isCompleted) return AppColors.rose;
     if (order.status == 'in_progress' || order.status == 'accepted') {
@@ -944,9 +944,8 @@ class _ManualServicesManagementScreenState
                                         ).withValues(alpha: 0.10),
                                         borderRadius: BorderRadius.circular(6),
                                         border: Border.all(
-                                          color: const Color(
-                                            0xFF7C3AED,
-                                          ).withValues(alpha: 0.25),
+                                          color: AppColors.primaryBlue
+                                              .withValues(alpha: 0.25),
                                         ),
                                       ),
                                       child: Row(
@@ -954,7 +953,7 @@ class _ManualServicesManagementScreenState
                                           const Icon(
                                             Icons.lock_rounded,
                                             size: 10,
-                                            color: Color(0xFF7C3AED),
+                                            color: AppColors.primaryBlue,
                                           ),
                                           const SizedBox(width: 3),
                                           Text(
@@ -962,7 +961,7 @@ class _ManualServicesManagementScreenState
                                             style: AppTypography.cairo(
                                               fontSize: 9,
                                               fontWeight: FontWeight.w800,
-                                              color: const Color(0xFF7C3AED),
+                                              color: AppColors.primaryBlue,
                                             ),
                                           ),
                                         ],

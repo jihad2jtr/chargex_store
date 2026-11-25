@@ -581,7 +581,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   Widget _buildCardsGrid(List<_NumberCardItem> cards) {
     const double spacing = 8;
     const int columns = 3;
-    const double infoHeight = 52;
+    const double infoHeight = 68;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -980,83 +980,148 @@ class _ActiveNumberStrip extends StatelessWidget {
   Widget build(BuildContext context) {
     final hasCode = request.hasCode;
     final tone = hasCode ? AppColors.emerald : AppColors.ticketAmber;
+    final toneInk = hasCode ? AppColors.successDeep : AppColors.amberInk;
+    final toneBg = hasCode ? AppColors.successWash : AppColors.amberWash;
     final detail = hasCode
         ? (request.smsCode ?? '')
         : (request.phoneNumber ?? 'جارٍ تجهيز الرقم…');
 
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: tone.withValues(alpha: 0.45), width: 1.3),
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        border: Border.all(color: tone.withValues(alpha: 0.35), width: 1.1),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.slate900.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          child: Row(
-            children: [
-              Text(request.flag, style: const TextStyle(fontSize: 18)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${request.title} • ${request.countryName}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cairo(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.slate900,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      hasCode ? 'الرمز: $detail' : detail,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.technicalCode(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                        color: hasCode ? AppColors.emerald : AppColors.slate600,
-                      ),
-                    ),
-                  ],
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                border: BorderDirectional(
+                  start: BorderSide(color: tone, width: 3.5),
                 ),
               ),
-              const SizedBox(width: 8),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
+              child: Row(
                 children: [
-                  Text(
-                    _clock(),
-                    style: AppTypography.technicalCode(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                      color: tone,
+                  Container(
+                    width: 36,
+                    height: 36,
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: AppColors.slate50,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.slate200),
+                    ),
+                    child: Text(request.flag, style: const TextStyle(fontSize: 18)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${request.title} • ${request.countryName}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: AppTypography.cairo(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.slate900,
+                          ),
+                        ),
+                        const SizedBox(height: 3),
+                        if (hasCode)
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 7,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: toneBg,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: tone.withValues(alpha: 0.35),
+                              ),
+                            ),
+                            child: Text(
+                              'الرمز: $detail',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppTypography.technicalCode(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w800,
+                                color: toneInk,
+                              ),
+                            ),
+                          )
+                        else
+                          Text(
+                            detail,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.technicalCode(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                              color: AppColors.slate600,
+                            ),
+                          ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    hasCode ? 'اضغط للرمز' : 'بانتظار الرمز',
-                    style: AppTypography.cairo(
-                      fontSize: 8.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.slate500,
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 5,
                     ),
+                    decoration: BoxDecoration(
+                      color: toneBg,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: tone.withValues(alpha: 0.25)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          _clock(),
+                          style: AppTypography.technicalCode(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w900,
+                            color: toneInk,
+                          ),
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          hasCode ? 'اضغط للرمز' : 'بانتظار الرمز',
+                          style: AppTypography.cairo(
+                            fontSize: 8.2,
+                            fontWeight: FontWeight.w800,
+                            color: toneInk,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_left_rounded,
+                    size: 18,
+                    color: AppColors.slate400,
                   ),
                 ],
               ),
-              const Icon(
-                Icons.chevron_left_rounded,
-                size: 18,
-                color: AppColors.slate400,
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -1982,67 +2047,81 @@ class _CountrySheetState extends State<_CountrySheet> {
     int index,
     int total,
   ) {
-    return Material(
-      color: selected ? const Color(0xFFFFF7E6) : Colors.white,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () => setState(() {
-          _offer = offer;
-        }),
-        child: Container(
-          width: 132,
-          padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: selected
-                  ? AppColors.secondaryBright
-                  : AppColors.outlineVariant,
-              width: selected ? 1.4 : 1,
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(13),
+        boxShadow: selected
+            ? [
+                BoxShadow(
+                  color: AppColors.ticketAmber.withValues(alpha: 0.14),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ]
+            : null,
+      ),
+      child: Material(
+        color: selected ? AppColors.amberWash : Colors.white,
+        borderRadius: BorderRadius.circular(13),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(13),
+          onTap: () => setState(() {
+            _offer = offer;
+          }),
+          child: Container(
+            width: 132,
+            padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(13),
+              border: Border.all(
+                color: selected
+                    ? AppColors.secondaryBright
+                    : AppColors.outline,
+                width: selected ? 1.4 : 1,
+              ),
             ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    selected
-                        ? Icons.check_circle_rounded
-                        : Icons.cloud_outlined,
-                    size: 14,
-                    color: selected
-                        ? AppColors.secondaryBright
-                        : AppColors.slate400,
-                  ),
-                  const SizedBox(width: 5),
-                  Expanded(
-                    child: Text(
-                      // الاسم المعروض: مبهم «سيرفر N» حين تعدّدت بطاقات
-                      // الدولة، وإلا اسم السيرفر الوهمي للمزود
-                      total > 1 ? 'سيرفر ${index + 1}' : offer.label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AppTypography.cairo(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w900,
-                        color: AppColors.slate900,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      selected
+                          ? Icons.check_circle_rounded
+                          : Icons.cloud_outlined,
+                      size: 14,
+                      color: selected
+                          ? AppColors.secondaryBright
+                          : AppColors.slate400,
+                    ),
+                    const SizedBox(width: 5),
+                    Expanded(
+                      child: Text(
+                        // الاسم المعروض: مبهم «سيرفر N» حين تعدّدت بطاقات
+                        // الدولة، وإلا اسم السيرفر الوهمي للمزود
+                        total > 1 ? 'سيرفر ${index + 1}' : offer.label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTypography.cairo(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.slate900,
+                        ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '\$${offer.salePrice.toStringAsFixed(2)}',
-                style: AppTypography.price(
-                  color: affordable ? AppColors.slate900 : AppColors.rose,
-                  fontSize: 13,
+                  ],
                 ),
-              ),
-            ],
+                const SizedBox(height: 5),
+                Text(
+                  '\$${offer.salePrice.toStringAsFixed(2)}',
+                  style: AppTypography.price(
+                    color: affordable ? AppColors.slate900 : AppColors.rose,
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

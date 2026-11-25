@@ -33,7 +33,7 @@ class _AppProductsManagementScreenState
   final TextEditingController _searchCtrl = TextEditingController();
 
   /// لون هوية باقات الأكواد/البطاقات في اللوحة
-  static const Color _violet = Color(0xFF8B5CF6);
+  static const Color _violet = AppColors.primaryBlue;
 
   /// خيارات ترتيب الباقات في شريط الأدوات
   static const List<({String key, String label, IconData icon})> _sortOptions =
@@ -410,7 +410,7 @@ class _AppProductsManagementScreenState
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xFFF0FDFA),
+                          color: AppColors.slate50,
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
                             color: AppColors.secondary.withValues(alpha: 0.3),

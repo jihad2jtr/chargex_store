@@ -510,14 +510,60 @@ class _UserMainScreenState extends State<UserMainScreen> {
         crossAxisCount: 3,
         crossAxisSpacing: 8,
         mainAxisSpacing: 8,
-        childAspectRatio: 0.68,
+        childAspectRatio: 0.62,
       ),
       itemCount: 6,
       itemBuilder: (context, index) => Container(
         decoration: BoxDecoration(
-          color: AppColors.slate200.withValues(alpha: 0.55),
-          borderRadius: BorderRadius.circular(14),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(15),
           border: Border.all(color: AppColors.outline),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            Expanded(
+              child: Container(
+                color: AppColors.slate100.withValues(alpha: 0.8),
+                alignment: Alignment.center,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.slate200.withValues(alpha: 0.65),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Column(
+                children: [
+                  Container(
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: AppColors.slate200.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Container(
+                    height: 7,
+                    width: 46,
+                    decoration: BoxDecoration(
+                      color: AppColors.slate100,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              height: 28,
+              color: AppColors.amberWash,
+            ),
+          ],
         ),
       ),
     );
@@ -534,7 +580,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
   Widget _buildTicketGrid(List<AppItemModel> apps) {
     const double spacing = 8;
     const int columns = 3;
-    const double infoHeight = 52;
+    const double infoHeight = 68;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -694,49 +740,57 @@ class _UserMainScreenState extends State<UserMainScreen> {
             ],
           ),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Row(
-                children: [
-                  Container(
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFECFDF5),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFFA7F3D0)),
-                    ),
-                    child: const Icon(
-                      Icons.support_agent_rounded,
-                      color: Color(0xFF059669),
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        "دعم فني مباشر على مدار الساعة 24/7",
-                        style: AppTypography.cairo(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: const Color(0xFF0F172A),
-                        ),
+              Expanded(
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFECFDF5),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFFA7F3D0)),
                       ),
-                      const SizedBox(height: 2),
-                      Text(
-                        "قناة المساعدة والتواصل: @JGO_STORE",
-                        style: AppTypography.cairo(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: const Color(0xFF64748B),
-                        ),
+                      child: const Icon(
+                        Icons.support_agent_rounded,
+                        color: Color(0xFF059669),
+                        size: 20,
                       ),
-                    ],
-                  ),
-                ],
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            "دعم فني مباشر على مدار الساعة 24/7",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            "قناة المساعدة والتواصل: @JGO_STORE",
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: AppTypography.cairo(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: const Color(0xFF64748B),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
+              const SizedBox(width: 8),
               const Icon(
                 Icons.arrow_forward_ios_rounded,
                 size: 14,

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../core/constants/app_icon_assets.dart';
@@ -7,10 +9,9 @@ import 'digital_pass_card.dart';
 import 'smooth_network_image.dart';
 import 'tactile_scale.dart';
 
-/// كرت خدمة بأسلوب التذكرة: صورة تملأ أعلى التذكرة، وفوق خطّ الفتحتين شريط
-/// الاسم المتدرّج وأسفله تبويب السعر، مع وسم نوع في الزاوية. التصميم واحد
-/// لصفحة الأرقام الوهمية وصفحة الخدمات والاشتراكات، فلا يقرأ العميل نمطين
-/// مختلفين لتذكرة واحدة.
+/// كرت خدمة موحّد بأسلوب التذكرة السويسرية الفاتحة (صفحة الأرقام + صفحة الخدمات):
+/// منصة عرض هادئة للشعار، بطاقة بيضاء واضحة للاسم والتفاصيل، خط تثقيب متناسق
+/// مع فتحتي الجنب، وكعب سفلي دافئ للسعر أو خيارات الباقات.
 class ServiceTicketCard extends StatelessWidget {
   /// الاسم العربي الذي يملأ تبويب الاسم
   final String name;
@@ -31,10 +32,10 @@ class ServiceTicketCard extends StatelessWidget {
   /// بذرة الحرف الذي يملأ أرض التذكرة حين لا صورة ولا اسم
   final String letterSeed;
 
-  /// سطر أجنبي خافت فوق الاسم (يُرسم لتيكست الاتجاه ltr)
+  /// سطر أجنبي خافت تحت الاسم (يُرسم باتجاه ltr)
   final String foreign;
 
-  /// سطر مساعد تحت السطر الأجنبي: دول أو وصف
+  /// سطر مساعد إضافي: عدد الدول أو وصف الخدمة
   final String metaText;
 
   /// خدمة تطلب بيانات سرية: قفل صغير في الزاوية المقابلة
@@ -83,18 +84,15 @@ class ServiceTicketCard extends StatelessWidget {
     return null;
   }
 
-  // غلاف التذكرة: فتحتان على الحافتين وحوافة 14، والصورة تملأ الكرت إلى خطّ
-  // تبويبي الاسم والسعر لا إلى آخره
-  static const double _radius = 14;
-  static const double _notch = 6;
+  // هندسة التذكرة: حافة 15 مع فتحتي تثقيب عند خط الكعب السفلي
+  static const double _radius = 15;
+  static const double _notch = 5.5;
+  static const double _seamHeight = 1;
+  static const double _stubBodyHeight = 28;
+  static const double _stubHeight = _seamHeight + _stubBodyHeight;
 
-  // تبويبا الكرت: شريط اسم وشريط سعر أسفل التذكرة، والفتحتان على خطّهما
-  static const double _stubHeight = 22;
-  static const double _nameHeight = 22;
-  static const double _tabsHeight = _stubHeight + _nameHeight;
-
-  /// ارتفاع التبويبين تحت الفتحتين: تعده الشبكة لتبقى الكروت أطول من عرضها
-  static const double tabsHeight = _tabsHeight;
+  /// ارتفاع الكعب السفلي تحت خط التثقيب
+  static const double tabsHeight = _stubHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -103,14 +101,14 @@ class ServiceTicketCard extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        // الفتحتان تنزلان إلى خطّ القصّ فوق تبويبي الاسم والسعر، فتنقسم
-        // التذكرة إلى صورةٍ أعلى وجنبٍ مقصوصٍ أسفل لا إلى كرتٍ بفتحةٍ في وسطه
         final double height = constraints.maxHeight;
-        final double ceiling = (height - _radius - _notch) / height;
+        final double ceiling = height > 0
+            ? (height - _radius - _notch) / height
+            : 0.78;
         final double upper = ceiling > 0.55 ? ceiling : 0.55;
-        final double notchFraction = ((height - _tabsHeight) / height)
-            .clamp(0.55, upper)
-            .toDouble();
+        final double notchFraction = height > 0
+            ? ((height - _stubHeight) / height).clamp(0.55, upper).toDouble()
+            : 0.80;
 
         return RepaintBoundary(
           child: TactileScale(
@@ -120,17 +118,16 @@ class ServiceTicketCard extends StatelessWidget {
                 cornerRadius: _radius,
                 notchRadius: _notch,
                 notchPositionFraction: notchFraction,
-                // ظلّ بلون هادئ متناسق مع هوية التذكرة
-                shadowColor: tagColor.withValues(alpha: 0.28),
-                elevation: 3.5,
+                shadowColor: AppColors.slate900.withValues(alpha: 0.14),
+                elevation: 3.0,
               ),
               child: CustomPaint(
                 foregroundPainter: TicketPassBorderPainter(
                   cornerRadius: _radius,
                   notchRadius: _notch,
                   notchPositionFraction: notchFraction,
-                  borderColor: Colors.white.withValues(alpha: 0.75),
-                  borderWidth: 1,
+                  borderColor: AppColors.outline,
+                  borderWidth: 1.0,
                 ),
                 child: ClipPath(
                   clipper: TicketPassClipper(
@@ -138,112 +135,26 @@ class ServiceTicketCard extends StatelessWidget {
                     notchRadius: _notch,
                     notchPositionFraction: notchFraction,
                   ),
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // أرض التذكرة: تدرّج وحرف، كي لا تترك البطاقةُ بلا رمز
-                      // بياضاً على حوافها، ولكي يبقى تحت تبويبي الاسم والسعر ما يسده
-                      _letterBackdrop(),
-                      // الصورة وقدرُها ما فوق التبويبين: حدُّها السفلي خطُّ الاسم
-                      // نفسه، فلا اسمَ ولا سعرَ يُقرأ فوق جزء منها
-                      PositionedDirectional(
-                        top: 0,
-                        start: 0,
-                        end: 0,
-                        bottom: _tabsHeight,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            if (iconAsset != null)
-                              Positioned.fill(
-                                child: Image.asset(
-                                  iconAsset,
-                                  fit: BoxFit.cover,
-                                  errorBuilder: (context, error, stackTrace) =>
-                                      const SizedBox.shrink(),
-                                ),
-                              )
-                            else if (networkCover != null)
-                              Positioned.fill(
-                                child: SmoothNetworkImage(
-                                  url: networkCover,
-                                  fit: BoxFit.cover,
-                                  cacheWidth: 360,
-                                  placeholderBuilder: (_) =>
-                                      const SizedBox.shrink(),
-                                  errorBuilder: (_) => const SizedBox.shrink(),
-                                ),
-                              ),
-                            // تعتيم أسفل الصورة: الأسطر الصغيرة تُقرأ فوق أي رمز
-                            const Positioned.fill(
-                              child: IgnorePointer(
-                                child: DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      stops: [0.0, 0.4, 0.7, 0.86],
-                                      colors: [
-                                        Color(0x00000000),
-                                        Color(0x0D000000),
-                                        Color(0x66000000),
-                                        Color(0xB3000000),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // أعلى الصورة للقفل والشارة، وأسفلها الأسطر الصغيرة
-                            Positioned.fill(
-                              child: Padding(
-                                padding: const EdgeInsets.fromLTRB(7, 20, 7, 4),
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.stretch,
-                                  mainAxisAlignment: MainAxisAlignment.end,
-                                  children: [
-                                    // الاسم الأجنبي والسطر المساعد يبقيان على
-                                    // الصورة، أما الاسم والسعر فلكلٍّ تبويبه
-                                    if (foreign.isNotEmpty)
-                                      _subLine(foreign, ltr: true),
-                                    if (metaText.isNotEmpty) _subLine(metaText),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(color: Colors.white),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        // 1. منصة عرض الشعار وشارة النوع
+                        Expanded(
+                          child: _visualStage(
+                            iconAsset: iconAsset,
+                            networkCover: networkCover,
+                          ),
                         ),
-                      ),
-                      // تبويب الاسم فوق تبويب السعر: شريطاهما الآن على أرض التذكرة
-                      // لا على الصورة
-                      PositionedDirectional(
-                        bottom: _stubHeight,
-                        start: 0,
-                        end: 0,
-                        child: _nameTab(),
-                      ),
-                      // تبويب السعر أسفل الكرت: السعر وحده، أكبر وأبين من قبل
-                      PositionedDirectional(
-                        bottom: 0,
-                        start: 0,
-                        end: 0,
-                        child: _priceStub(),
-                      ),
-                      // وسم النوع في زاوية الكرت: هو وحده ما يفرّق نوع الخدمة
-                      PositionedDirectional(
-                        top: 4,
-                        start: 4,
-                        child: _typeTag(),
-                      ),
-                      if (sensitive)
-                        // قفل صغير في الزاوية المقابلة: الخدمة تطلب بيانات سرية
-                        PositionedDirectional(
-                          top: 4,
-                          end: 4,
-                          child: _sensitiveLock(),
-                        ),
-                    ],
+                        // 2. شريط الاسم والتفاصيل على خلفية بيضاء صافية
+                        _infoBand(),
+                        // 3. خط التثقيب الواصل بين فتحتي التذكرة
+                        _perforationSeam(),
+                        // 4. كعب السعر أو خيارات الباقات أسفل التذكرة
+                        _priceStub(),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -254,83 +165,269 @@ class ServiceTicketCard extends StatelessWidget {
     );
   }
 
-  /// سطر مساعد فوق الاسم: الاسم الأجنبي أو التفاصيل، بخطّ خافت صغير
-  Widget _subLine(String text, {bool ltr = false}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 2),
-      child: Text(
-        text,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        textDirection: ltr ? TextDirection.ltr : null,
-        style: AppTypography.cairo(
-          fontSize: 8.5,
-          fontWeight: FontWeight.w700,
-          color: Colors.white70,
-          height: 1.15,
+  /// خلفية ناعمة فوق الكرت تُبرز الشعار وتحمل شارة النوع وقفل الخصوصية
+  Widget _visualStage({
+    required String? iconAsset,
+    required String? networkCover,
+  }) {
+    final Color topWash = Color.lerp(tagColor, Colors.white, 0.90)!;
+    final Color bottomWash = Color.lerp(tagColor, Colors.white, 0.96)!;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [topWash, bottomWash],
         ),
+        border: const Border(
+          bottom: BorderSide(color: AppColors.slate100, width: 0.9),
+        ),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(7, 23, 7, 5),
+            child: _artworkContent(
+              iconAsset: iconAsset,
+              networkCover: networkCover,
+            ),
+          ),
+          PositionedDirectional(
+            top: 5,
+            start: 6,
+            end: 6,
+            child: Row(
+              children: [
+                Flexible(child: _typeTag()),
+                if (sensitive) ...[
+                  const SizedBox(width: 4),
+                  _sensitiveLock(),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  /// تبويب الاسم: شريط متدرّج رأسي من أسفل الكرت إلى أعلاه، الاسمُ فيه وحده
-  /// بخطّ أبيض بائن، فلا يقرأه أحد فوق صورة داكنة
-  Widget _nameTab() {
-    return Container(
-      height: _nameHeight,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        // التدرّج من أسفل الكرت إلى أعلاه: سواد عند تبويب السعر يفتح شيئاً
-        // فشيئاً نحو الصورة، فالتبويبان طبقة واحدة لا شريطان بنفس اللون
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [Colors.black, AppColors.slate700],
-        ),
-        border: Border(top: BorderSide(color: Colors.white38, width: 0.8)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
-        child: Text(
-          name,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: AppTypography.cairo(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w900,
-            color: Colors.white,
-            height: 1.15,
+  Widget _artworkContent({
+    required String? iconAsset,
+    required String? networkCover,
+  }) {
+    if (iconAsset != null) {
+      final bool isLandscapeCard = iconAsset.startsWith('assets/cards/');
+      if (isLandscapeCard) {
+        return _showcaseFrame(
+          Image.asset(
+            iconAsset,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _monogramContent(),
+          ),
+        );
+      }
+      return Center(
+        child: _squircleFrame(
+          Image.asset(
+            iconAsset,
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _monogramContent(),
           ),
         ),
+      );
+    }
+
+    if (networkCover != null) {
+      return _showcaseFrame(
+        SmoothNetworkImage(
+          url: networkCover,
+          fit: BoxFit.cover,
+          cacheWidth: 360,
+          placeholderBuilder: (_) => _monogramContent(),
+          errorBuilder: (_) => _monogramContent(),
+        ),
+      );
+    }
+
+    return Center(child: _squircleFrame(_monogramContent()));
+  }
+
+  /// إطار مربع ناعم للشعارات المربعة أو الحرف البديل
+  Widget _squircleFrame(Widget child) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final double side = math
+            .min(constraints.maxWidth, constraints.maxHeight)
+            .clamp(32.0, 56.0);
+        final double r = (side * 0.27).clamp(10.0, 15.0);
+
+        return Container(
+          width: side,
+          height: side,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(r),
+            border: Border.all(color: Colors.white, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.slate900.withValues(alpha: 0.11),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular((r - 1.5).clamp(8.0, 14.0)),
+            child: child,
+          ),
+        );
+      },
+    );
+  }
+
+  /// إطار عرض أفقي للبطاقات العريضة والصور الخارجية
+  Widget _showcaseFrame(Widget child) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: AppColors.slate100,
+        borderRadius: BorderRadius.circular(11),
+        border: Border.all(color: Colors.white, width: 1.4),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.slate900.withValues(alpha: 0.08),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: ClipRRect(borderRadius: BorderRadius.circular(9.5), child: child),
+    );
+  }
+
+  /// منطقة الاسم العربي والأسطر المساعدة بخطوط واضحة فوق خلفية بيضاء
+  Widget _infoBand() {
+    final bool hasForeign = foreign.isNotEmpty;
+    final bool hasMeta = metaText.isNotEmpty;
+
+    return ColoredBox(
+      color: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(6, 5, 6, 5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              name,
+              maxLines: (hasForeign && hasMeta) ? 1 : 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTypography.cairo(
+                fontSize: 10.4,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate900,
+                height: 1.15,
+              ),
+            ),
+            if (hasForeign) ...[
+              const SizedBox(height: 1),
+              Text(
+                foreign,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.ltr,
+                style: AppTypography.cairo(
+                  fontSize: 8.2,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.slate400,
+                  height: 1.15,
+                ),
+              ),
+            ],
+            if (hasMeta) ...[
+              const SizedBox(height: 1.5),
+              Text(
+                metaText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: AppTypography.cairo(
+                  fontSize: 8.6,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.slate500,
+                  height: 1.15,
+                ),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
 
-  /// شريط أسفل التذكرة: أرضية داكنة مصمتة وخطّ كبير بلون التطبيق المميز،
-  /// فالسعر أول ما تقرأه العين ولا ينافسه سطرُ الوصف ولا الاسم
-  Widget _priceStub() {
-    return Container(
-      height: _stubHeight,
-      alignment: Alignment.center,
-      decoration: const BoxDecoration(
-        color: AppColors.slate900,
-        // نفس الخيط الأبيض الرفيع الذي فوق تبويب الاسم: خطّان متماثلان
-        // يفصلان الصورة عن الاسم عن السعر
-        border: Border(top: BorderSide(color: Colors.white38, width: 0.8)),
-      ),
-      child: Text(
-        priceText,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        textAlign: TextAlign.center,
-        style: AppTypography.cairo(
-          fontSize: 11.5,
-          fontWeight: FontWeight.w900,
-          color: AppColors.ticketAmber,
-          height: 1.15,
+  /// خط التثقيب الأفقي بين جسم التذكرة وكعب السعر
+  Widget _perforationSeam() {
+    return ColoredBox(
+      color: AppColors.amberCream,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: _notch + 2),
+        child: CustomPaint(
+          painter: DashedLinePainter(
+            color: AppColors.slate300,
+            dashWidth: 4,
+            dashSpace: 3,
+          ),
+          size: const Size(double.infinity, _seamHeight),
         ),
+      ),
+    );
+  }
+
+  /// كعب السعر أسفل التذكرة: خلفية كهرمانية دافئة موحّدة مع بطاقة الباقات
+  Widget _priceStub() {
+    final bool isBundle = priceText == 'باقات متعددة';
+
+    return Container(
+      height: _stubBodyHeight,
+      alignment: Alignment.center,
+      padding: const EdgeInsets.symmetric(horizontal: 6),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFFFFDF5), Color(0xFFFEF3C7)],
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            isBundle ? Icons.layers_outlined : Icons.bolt_rounded,
+            size: isBundle ? 10.5 : 11.5,
+            color: AppColors.secondaryBright,
+          ),
+          const SizedBox(width: 2.5),
+          Flexible(
+            child: Text(
+              priceText,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTypography.cairo(
+                fontSize: isBundle ? 9.8 : 10.8,
+                fontWeight: FontWeight.w900,
+                color: AppColors.slate900,
+                height: 1.15,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -338,57 +435,66 @@ class ServiceTicketCard extends StatelessWidget {
   /// قفل على زاوية كرت الخدمة التي تطلب بيانات سرية
   Widget _sensitiveLock() {
     return Container(
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(2.5),
       decoration: BoxDecoration(
-        color: AppColors.slate100,
-        borderRadius: BorderRadius.circular(5),
+        color: AppColors.roseWash,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: AppColors.roseBorder, width: 0.8),
       ),
       child: const Icon(
         Icons.lock_outline_rounded,
-        size: 9,
-        color: AppColors.rose,
+        size: 10,
+        color: AppColors.roseDeep,
       ),
     );
   }
 
-  /// وسم صغير أعلى الكرت: يفرّق نوع الخدمة بلون واحد مع الظلّ
+  /// وسم صغير أعلى الكرت: خلفية ناعمة وحد رقيق بلون الفئة مع خط مقروء داكن
   Widget _typeTag() {
+    final Color bg = Color.lerp(tagColor, Colors.white, 0.86)!;
+    final Color fg = Color.lerp(tagColor, AppColors.slate900, 0.45)!;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 1.5),
       decoration: BoxDecoration(
-        color: tagColor,
+        color: bg,
         borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: tagColor.withValues(alpha: 0.30), width: 0.7),
       ),
       child: Text(
         tag,
         maxLines: 1,
+        overflow: TextOverflow.ellipsis,
         style: AppTypography.cairo(
-          fontSize: 7,
+          fontSize: 7.6,
           fontWeight: FontWeight.w900,
-          color: Colors.white,
+          color: fg,
           height: 1.2,
         ),
       ),
     );
   }
 
-  /// خلفية التذكرة: تدرّج بحرف كبير من اسم الخدمة، تُمدّ فوقها الصورة عند وجودها
-  Widget _letterBackdrop() {
+  /// حرف بديل بتدرج متناسق مع هوية الفئة عند عدم توفر صورة للخدمة
+  Widget _monogramContent() {
     final letter = name.isNotEmpty
         ? name.substring(0, 1)
         : (letterSeed.isEmpty ? '#' : letterSeed.substring(0, 1).toUpperCase());
+    final Color start = Color.lerp(tagColor, AppColors.slate800, 0.25)!;
+    final Color end = Color.lerp(tagColor, AppColors.slate900, 0.65)!;
+
     return DecoratedBox(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFF1E293B), Color(0xFF475569)],
+          colors: [start, end],
         ),
       ),
       child: Center(
         child: Text(
           letter,
-          style: AppTypography.fintechBadge(color: Colors.white, fontSize: 30),
+          style: AppTypography.fintechBadge(color: Colors.white, fontSize: 22),
         ),
       ),
     );

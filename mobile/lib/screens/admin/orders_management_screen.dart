@@ -147,7 +147,7 @@ class _OrdersManagementScreenState extends State<OrdersManagementScreen>
         return (
           label: 'كود شحن',
           icon: Icons.qr_code_2_rounded,
-          color: const Color(0xFF7C3AED),
+          color: AppColors.darkNav,
           brand: null,
         );
       default:
