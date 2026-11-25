@@ -3297,7 +3297,7 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
   }
 
   /** تطبيقات الأرقام مع عدّ منتجاتها — لشاشة «إدارة الأرقام» */
-  async listAdminApps() {
+  async listAdminApps(providerId?: string) {
     await this.ensureDictionaryIndex();
     const allApps = await this.appModel
       .find()
@@ -3305,7 +3305,46 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
     // اللوحة تُعرض تطبيقات المعجم المتاحة فقط: الوثاقات الموقوفة من المعجم
     // أو المجهولة خارجة عن الشبكة بلا حذف لمنتجاتها
     const offered = await this.getOfferedSet();
-    const apps = allApps.filter((app) => this.isOfferedApp(app, offered));
+    let apps = allApps.filter((app) => this.isOfferedApp(app, offered));
+
+    // عند فتح شاشة الانتقاء لمزود محدد (مثل TG-Lion المختص بالتيليجرام فقط)،
+    // نُظهر التطبيقات التي يدعمها هذا المزود فعلياً بدل إغراق القائمة بكل التطبيقات
+    if (providerId && Types.ObjectId.isValid(providerId)) {
+      const targetProvider = await this.providerModel.findById(providerId);
+      if (targetProvider) {
+        if (targetProvider.providerType === ProviderType.TGLION) {
+          apps = apps.filter((app) => {
+            const key = app.appKey || this.appMeta(app.serviceCode).key;
+            return (
+              key === 'telegram' ||
+              app.serviceCode === 'telegram' ||
+              app.serviceCode === 'tg'
+            );
+          });
+        } else {
+          const catalog = await this.catalogModel.findOne({
+            providerId: targetProvider._id,
+          });
+          const services = (catalog?.services ?? []) as VirtualNumberService[];
+          if (services.length > 0) {
+            const supportedCodes = new Set(services.map((s) => s.code));
+            const supportedKeys = new Set(
+              services
+                .map((s) => this.appMeta(s.code, targetProvider.providerType).key)
+                .filter(Boolean),
+            );
+            apps = apps.filter((app) => {
+              const key = app.appKey || this.appMeta(app.serviceCode).key;
+              return (
+                supportedCodes.has(app.serviceCode) ||
+                (!!key && supportedKeys.has(key))
+              );
+            });
+          }
+        }
+      }
+    }
+
     if (apps.length === 0) return [];
 
     // أجلب كل المنتجات (الدول) لكل التطبيقات ثم أجمّعها يدويًا

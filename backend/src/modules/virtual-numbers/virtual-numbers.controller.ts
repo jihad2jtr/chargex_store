@@ -153,8 +153,8 @@ export class VirtualNumbersController {
   @Get('admin/apps')
   @UseGuards(RolesGuard)
   @Roles(Role.ADMIN)
-  async listApps() {
-    return this.service.listAdminApps();
+  async listApps(@Query('providerId') providerId?: string) {
+    return this.service.listAdminApps(providerId);
   }
 
   @Post('admin/apps')

@@ -106,6 +106,37 @@ describe('normalizeTgLionCatalog', () => {
     expect(normalizeTgLionCatalog([])).toEqual([]);
     expect(normalizeTgLionCatalog({ countries: [] })).toEqual([]);
   });
+
+  it('يفك استجابة available_countries عندما تكون countries كائناً بمفاتيح الدول', () => {
+    const raw = {
+      status: 'ok',
+      countries: {
+        UA: {
+          name: 'Ukraine 🇺🇦',
+          code_Num: '1',
+          code: 'UA',
+          qty: 425,
+          price: '1.5',
+        },
+        SA: {
+          name: 'Saudi Arabia 🇸🇦',
+          code_Num: '53',
+          code: 'SA',
+          qty: 630,
+          price: '1.1',
+        },
+      },
+    };
+    const entries = normalizeTgLionCatalog(raw);
+    expect(entries).toHaveLength(1);
+    expect(entries[0].code).toBe('telegram');
+    expect(entries[0].countries).toHaveLength(2);
+    const ua = entries[0].countries.find((c) => c.code === 'ua');
+    expect(ua).toBeDefined();
+    expect(ua!.cost).toBe(1.5);
+    expect(ua!.count).toBe(425);
+    expect(ua!.nameEn).not.toContain('🇺🇦');
+  });
 });
 
 describe('parseTgLionNumberResponse', () => {

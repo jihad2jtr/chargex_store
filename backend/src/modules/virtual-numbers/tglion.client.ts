@@ -100,15 +100,28 @@ export function normalizeTgLionCatalog(raw: any): VirtualNumberServiceEntry[] {
   const payload = unwrapPayload(raw);
   if (!payload) return [];
 
+  const mapToList = (obj: any): any[] =>
+    toEntries(obj)
+      .map((e) =>
+        e.value && typeof e.value === 'object' && !Array.isArray(e.value)
+          ? { code: e.key, ...e.value }
+          : null,
+      )
+      .filter(Boolean);
+
   let list: any[] = [];
   if (Array.isArray(payload)) {
     list = payload;
   } else if (Array.isArray(payload.countries)) {
     list = payload.countries;
+  } else if (payload.countries && typeof payload.countries === 'object') {
+    list = mapToList(payload.countries);
   } else if (Array.isArray(payload.data)) {
     list = payload.data;
+  } else if (payload.data && typeof payload.data === 'object') {
+    list = mapToList(payload.data);
   } else if (typeof payload === 'object') {
-    list = toEntries(payload).map((e) => (typeof e.value === 'object' ? { ...e.value, code: e.key } : null)).filter(Boolean);
+    list = mapToList(payload);
   }
 
   const countriesList: VirtualNumberServiceEntry['countries'] = [];
@@ -117,7 +130,9 @@ export function normalizeTgLionCatalog(raw: any): VirtualNumberServiceEntry[] {
     if (!item || typeof item !== 'object') continue;
 
     const rawCode = pickStringValue(item, ['code', 'country_code', 'iso', 'code_Num']) ?? '';
-    const rawName = pickStringValue(item, ['name', 'country', 'country_name']) ?? '';
+    const rawName = (pickStringValue(item, ['name', 'country', 'country_name']) ?? '')
+      .replace(/[\u{1F1E6}-\u{1F1FF}]/gu, '')
+      .trim();
     const cost = toNumberValue(item.price ?? item.cost ?? item.rate);
     const count = toNumberValue(item.qty ?? item.count ?? item.stock ?? 0);
 
@@ -348,16 +363,22 @@ export class TgLionClient implements VirtualNumberClient {
   async getCatalog(): Promise<VirtualNumberServiceEntry[]> {
     try {
       const url = `${this.apiRoot}/?action=available_countries&apiKey=${encodeURIComponent(this.apiKey)}&YourID=${encodeURIComponent(this.yourId)}`;
-      let res: any;
+      let entries: VirtualNumberServiceEntry[] = [];
       try {
-        res = await axios.get(url, this.requestConfig());
-      } catch (err: any) {
-        // إذا لم يدعم available_countries نجرب country_info
-        const fallbackUrl = `${this.apiRoot}/?action=country_info&apiKey=${encodeURIComponent(this.apiKey)}&YourID=${encodeURIComponent(this.yourId)}`;
-        res = await axios.get(fallbackUrl, this.requestConfig());
+        const res = await axios.get(url, this.requestConfig());
+        entries = normalizeTgLionCatalog(res.data);
+      } catch {
+        // نتابع إلى country_info كبديل
       }
 
-      return normalizeTgLionCatalog(res.data);
+      if (entries.length === 0) {
+        // إذا لم يدعم available_countries أو أعاد استجابة فارغة/غير متوقعة نجرب country_info
+        const fallbackUrl = `${this.apiRoot}/?action=country_info&apiKey=${encodeURIComponent(this.apiKey)}&YourID=${encodeURIComponent(this.yourId)}`;
+        const fallbackRes = await axios.get(fallbackUrl, this.requestConfig());
+        entries = normalizeTgLionCatalog(fallbackRes.data);
+      }
+
+      return entries;
     } catch (err: any) {
       this.logger.error(`فشل جلب كتالوج TG-Lion: ${providerErrorMessage(err)}`);
       return [];

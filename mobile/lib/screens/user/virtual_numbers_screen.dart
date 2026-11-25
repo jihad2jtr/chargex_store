@@ -1194,6 +1194,11 @@ class _NumberCardItem {
       priceText: '\$${s.price.toStringAsFixed(2)}',
       tag: 'يدوي مضمون',
       tagColor: AppColors.emerald,
+      foreign: _hasArabicText(s.name) &&
+              s.appName.trim().isNotEmpty &&
+              !_hasArabicText(s.appName)
+          ? s.appName.trim()
+          : '',
       // الخدمة التي تطلب بيانات سرية تُنبَّه بقفل على الكرت، لا بنص يقرأه المار
       sensitive: s.isSensitive,
       manual: s,

@@ -554,14 +554,17 @@ class VirtualNumbersProvider extends ChangeNotifier {
   // تفعيل/إلغاء تفعيل لكل دولة يتحكم فيما يراه العميل في صفحة الأرقام
   // ===========================================================================
 
-  Future<void> fetchAdminApps({bool quiet = false}) async {
+  Future<void> fetchAdminApps({bool quiet = false, String? providerId}) async {
     if (!quiet) {
       _isAppsLoading = true;
       _errorMessage = null;
       notifyListeners();
     }
     try {
-      final res = await _api.get(ApiConstants.adminVirtualNumberApps);
+      final path = (providerId != null && providerId.isNotEmpty)
+          ? '${ApiConstants.adminVirtualNumberApps}?providerId=${Uri.encodeQueryComponent(providerId)}'
+          : ApiConstants.adminVirtualNumberApps;
+      final res = await _api.get(path);
       _adminApps = (res is List)
           ? res
                 .whereType<Map>()

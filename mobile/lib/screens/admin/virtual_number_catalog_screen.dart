@@ -52,7 +52,7 @@ class _VirtualNumberCatalogScreenState
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // التطبيقات من قاعدة بياناتنا: شبكة فورية بلا كتالوج المزود
-      _vn.fetchAdminApps().then((_) {
+      _vn.fetchAdminApps(providerId: widget.providerId).then((_) {
         if (mounted && _selectedAppId != null) _fetchCountries();
       });
     });
@@ -68,7 +68,7 @@ class _VirtualNumberCatalogScreenState
   Future<void> _reload() {
     final appId = _selectedAppId;
     return appId == null
-        ? _vn.fetchAdminApps()
+        ? _vn.fetchAdminApps(providerId: widget.providerId)
         : _vn.fetchAppCountries(appId: appId, providerId: widget.providerId);
   }
 
@@ -90,7 +90,10 @@ class _VirtualNumberCatalogScreenState
       ),
     );
     if (message != null) {
-      await provider.fetchAdminApps(quiet: true);
+      await provider.fetchAdminApps(
+        quiet: true,
+        providerId: widget.providerId,
+      );
       final appId = _selectedAppId;
       if (appId != null) {
         await provider.fetchAppCountries(
@@ -744,7 +747,10 @@ class _VirtualNumberCatalogScreenState
     setState(() => _busy = false);
     await _reload();
     // يُعاد قراءة Messenger بعد التمر (تحديث context عبر await)
-    await provider.fetchAdminApps(quiet: true);
+    await provider.fetchAdminApps(
+      quiet: true,
+      providerId: widget.providerId,
+    );
     if (!mounted) return;
     ScaffoldMessenger.of(context).showTopSnackBar(
       SnackBar(

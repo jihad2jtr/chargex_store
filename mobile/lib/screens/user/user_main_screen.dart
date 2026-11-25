@@ -646,6 +646,11 @@ class _UserMainScreenState extends State<UserMainScreen> {
   String _foreignNameFor(AppItemModel app) {
     final stored = app.name.trim();
     if (stored.isEmpty) return '';
+    final explicitEn = (app.nameEn ?? '').trim();
+    if (explicitEn.isNotEmpty &&
+        explicitEn.toLowerCase() != stored.toLowerCase()) {
+      return explicitEn;
+    }
     if (!RegExp(r'[\u0600-\u06FF]').hasMatch(stored)) return '';
     final en = englishNameForApp(iconUrl: app.iconUrl, name: stored);
     if (en == null || en.isEmpty) return '';

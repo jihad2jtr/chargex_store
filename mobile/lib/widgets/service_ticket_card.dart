@@ -194,7 +194,7 @@ class ServiceTicketCard extends StatelessWidget {
         children: [
           Padding(
             padding: compact
-                ? const EdgeInsets.fromLTRB(3, 16, 3, 2)
+                ? const EdgeInsets.all(2.5)
                 : const EdgeInsets.fromLTRB(7, 23, 7, 5),
             child: _artworkContent(
               iconAsset: iconAsset,
@@ -226,7 +226,7 @@ class ServiceTicketCard extends StatelessWidget {
   }) {
     if (iconAsset != null) {
       final bool isLandscapeCard = iconAsset.startsWith('assets/cards/');
-      if (isLandscapeCard) {
+      if (compact || isLandscapeCard) {
         return _showcaseFrame(
           Image.asset(
             iconAsset,
@@ -258,7 +258,9 @@ class ServiceTicketCard extends StatelessWidget {
       );
     }
 
-    return Center(child: _squircleFrame(_monogramContent()));
+    return compact
+        ? _showcaseFrame(_monogramContent())
+        : Center(child: _squircleFrame(_monogramContent()));
   }
 
   /// إطار مربع ناعم للشعارات المربعة أو الحرف البديل
@@ -397,9 +399,13 @@ class ServiceTicketCard extends StatelessWidget {
     );
   }
 
-  /// كعب أسفل التذكرة: في الوضع المضغوط يعرض اسم التطبيق، وفي القياسي يعرض السعر
+  /// كعب أسفل التذكرة: في الوضع المضغوط يعرض اسم التطبيق بالعربي والأجنبي،
+  /// وفي القياسي يعرض السعر
   Widget _priceStub() {
     if (compact) {
+      final bool hasForeign =
+          foreign.trim().isNotEmpty &&
+          foreign.trim().toLowerCase() != name.trim().toLowerCase();
       return Container(
         height: _stubBodyHeight,
         alignment: Alignment.center,
@@ -411,17 +417,39 @@ class ServiceTicketCard extends StatelessWidget {
             colors: [Color(0xFFFFFDF5), Color(0xFFFEF3C7)],
           ),
         ),
-        child: Text(
-          name,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          textAlign: TextAlign.center,
-          style: AppTypography.cairo(
-            fontSize: 9.2,
-            fontWeight: FontWeight.w800,
-            color: AppColors.slate900,
-            height: 1.12,
-          ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              name,
+              maxLines: hasForeign ? 1 : 2,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: AppTypography.cairo(
+                fontSize: hasForeign ? 8.8 : 9.2,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate900,
+                height: 1.10,
+              ),
+            ),
+            if (hasForeign) ...[
+              const SizedBox(height: 0.5),
+              Text(
+                foreign,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.ltr,
+                style: AppTypography.cairo(
+                  fontSize: 7.4,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.slate500,
+                  height: 1.10,
+                ),
+              ),
+            ],
+          ],
         ),
       );
     }
