@@ -574,13 +574,12 @@ class _UserMainScreenState extends State<UserMainScreen> {
   // ---------------------------------------------------------------------------
 
   /// كروت التطبيقات والألعاب والخدمات والاشتراكات تُرسم بالتصميم نفسه الذي
-  /// ترسم به كروت صفحة الأرقام (ServiceTicketCard): عرض الصف ثابت ثلاثة،
-  /// والارتفاع مربع الصورة زائد شريطي الاسم والتبويب، فلا يختلف الشكل بين
-  /// صفحتين
+  /// ترسم به كروت صفحة الأرقام (ServiceTicketCard): أربعة كروت في الصف بقياس
+  /// مضغوط وأيقونة أوضح، فلا يختلف الشكل بين صفحتين
   Widget _buildTicketGrid(List<AppItemModel> apps) {
-    const double spacing = 8;
-    const int columns = 3;
-    const double infoHeight = 68;
+    const double spacing = 6;
+    const int columns = 4;
+    const double infoHeight = 34;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -627,6 +626,7 @@ class _UserMainScreenState extends State<UserMainScreen> {
                   : app.name,
               foreign: _foreignNameFor(app),
               metaText: _cardSubtitle(app),
+              compact: true,
               onTap: () {
                 Navigator.of(context).push(
                   MaterialPageRoute(

@@ -581,7 +581,7 @@ class _VirtualNumbersScreenState extends State<VirtualNumbersScreen> {
   Widget _buildCardsGrid(List<_NumberCardItem> cards) {
     const double spacing = 6;
     const int columns = 4;
-    const double infoHeight = 56;
+    const double infoHeight = 34;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1152,7 +1152,6 @@ class _NumberServiceCard extends StatelessWidget {
       iconSeeds: item.iconSeeds,
       letterSeed: item.letterSeed,
       foreign: item.foreign,
-      metaText: item.metaText,
       sensitive: item.sensitive,
       compact: true,
       onTap: onTap,
@@ -1177,7 +1176,6 @@ class _NumberCardItem {
     required this.tag,
     required this.tagColor,
     this.foreign = '',
-    this.metaText = '',
     this.sensitive = false,
     this.manual,
     this.option,
@@ -1219,7 +1217,6 @@ class _NumberCardItem {
       iconSeeds: <String>[s.nameAr, s.nameEn, s.name],
       letterSeed: s.code,
       priceText: 'من \$${s.bestPrice.toStringAsFixed(2)}',
-      metaText: '${s.countries.length} دولة',
       tag: 'تلقائي',
       tagColor: AppColors.ticketAmber,
       foreign: showForeign ? foreign : '',
@@ -1236,7 +1233,6 @@ class _NumberCardItem {
 
   /// السعر وحده: يُرسم في تبويب أسفل الكرت لا مختلطاً بغيره
   final String priceText;
-  final String metaText;
   final String tag;
   final Color tagColor;
   final bool sensitive;

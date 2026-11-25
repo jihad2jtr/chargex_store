@@ -93,7 +93,7 @@ class ServiceTicketCard extends StatelessWidget {
 
   double get _radius => compact ? 12 : 15;
   double get _notch => compact ? 4.5 : 5.5;
-  double get _stubBodyHeight => compact ? 23 : 28;
+  double get _stubBodyHeight => 28;
   double get _stubHeight => _seamHeight + _stubBodyHeight;
 
   /// ارتفاع الكعب السفلي تحت خط التثقيب
@@ -152,11 +152,11 @@ class ServiceTicketCard extends StatelessWidget {
                             networkCover: networkCover,
                           ),
                         ),
-                        // 2. شريط الاسم والتفاصيل على خلفية بيضاء صافية
-                        _infoBand(),
+                        // 2. شريط الاسم والتفاصيل على خلفية بيضاء صافية (في الوضع القياسي فقط)
+                        if (!compact) _infoBand(),
                         // 3. خط التثقيب الواصل بين فتحتي التذكرة
                         _perforationSeam(),
-                        // 4. كعب السعر أو خيارات الباقات أسفل التذكرة
+                        // 4. كعب السعر (القياسي) أو اسم التطبيق (المضغوط) أسفل التذكرة
                         _priceStub(),
                       ],
                     ),
@@ -194,7 +194,7 @@ class ServiceTicketCard extends StatelessWidget {
         children: [
           Padding(
             padding: compact
-                ? const EdgeInsets.fromLTRB(4, 17, 4, 3)
+                ? const EdgeInsets.fromLTRB(3, 16, 3, 2)
                 : const EdgeInsets.fromLTRB(7, 23, 7, 5),
             child: _artworkContent(
               iconAsset: iconAsset,
@@ -267,7 +267,7 @@ class ServiceTicketCard extends StatelessWidget {
       builder: (context, constraints) {
         final double side = math
             .min(constraints.maxWidth, constraints.maxHeight)
-            .clamp(compact ? 36.0 : 32.0, compact ? 62.0 : 56.0);
+            .clamp(compact ? 40.0 : 32.0, compact ? 68.0 : 56.0);
         final double r = (side * 0.27).clamp(9.0, 15.0);
 
         return Container(
@@ -397,14 +397,41 @@ class ServiceTicketCard extends StatelessWidget {
     );
   }
 
-  /// كعب السعر أسفل التذكرة: خلفية كهرمانية دافئة موحّدة مع بطاقة الباقات
+  /// كعب أسفل التذكرة: في الوضع المضغوط يعرض اسم التطبيق، وفي القياسي يعرض السعر
   Widget _priceStub() {
+    if (compact) {
+      return Container(
+        height: _stubBodyHeight,
+        alignment: Alignment.center,
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [Color(0xFFFFFDF5), Color(0xFFFEF3C7)],
+          ),
+        ),
+        child: Text(
+          name,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: TextAlign.center,
+          style: AppTypography.cairo(
+            fontSize: 9.2,
+            fontWeight: FontWeight.w800,
+            color: AppColors.slate900,
+            height: 1.12,
+          ),
+        ),
+      );
+    }
+
     final bool isBundle = priceText == 'باقات متعددة';
 
     return Container(
       height: _stubBodyHeight,
       alignment: Alignment.center,
-      padding: EdgeInsets.symmetric(horizontal: compact ? 4 : 6),
+      padding: const EdgeInsets.symmetric(horizontal: 6),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -418,10 +445,10 @@ class ServiceTicketCard extends StatelessWidget {
         children: [
           Icon(
             isBundle ? Icons.layers_outlined : Icons.bolt_rounded,
-            size: compact ? (isBundle ? 9.0 : 9.5) : (isBundle ? 10.5 : 11.5),
+            size: isBundle ? 10.5 : 11.5,
             color: AppColors.secondaryBright,
           ),
-          SizedBox(width: compact ? 2 : 2.5),
+          const SizedBox(width: 2.5),
           Flexible(
             child: Text(
               priceText,
@@ -429,9 +456,7 @@ class ServiceTicketCard extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.center,
               style: AppTypography.cairo(
-                fontSize: compact
-                    ? (isBundle ? 8.8 : 9.6)
-                    : (isBundle ? 9.8 : 10.8),
+                fontSize: isBundle ? 9.8 : 10.8,
                 fontWeight: FontWeight.w900,
                 color: AppColors.slate900,
                 height: 1.15,

@@ -233,11 +233,14 @@ void main() {
       w.widget<ServiceTicketCard>(find.byType(ServiceTicketCard)).compact,
       isTrue,
     );
+    expect(find.text('من \$0.50'), findsNothing);
+    expect(find.text('12 دولة'), findsNothing);
     expect(find.textContaining('الرمز: 49120'), findsOneWidget);
 
     await w.tap(find.text('التفعيلات اليدوية'));
     await w.pump();
     expect(find.text('تفعيل واتساب يدوي'), findsOneWidget);
+    expect(find.text('\$2.50'), findsNothing);
     expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
 
     _expectNoOverflow(w);
@@ -246,7 +249,7 @@ void main() {
     await w.pump(const Duration(milliseconds: 400));
   });
 
-  testWidgets('تبويب خدمات يعرض كروت التذاكر بالشبكة الثلاثية المحدّثة', (
+  testWidgets('تبويب خدمات يعرض كروت التذاكر بالشبكة الرباعية المضغوطة', (
     WidgetTester w,
   ) async {
     SharedPreferences.setMockInitialValues(<String, Object>{});
@@ -314,9 +317,16 @@ void main() {
     await w.pump(const Duration(milliseconds: 200));
 
     expect(find.byType(ServiceTicketCard), findsNWidgets(2));
+    final GridView grid = w.widget<GridView>(find.byType(GridView));
+    final SliverGridDelegateWithFixedCrossAxisCount delegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(delegate.crossAxisCount, 4);
+    for (final card in w.widgetList<ServiceTicketCard>(find.byType(ServiceTicketCard))) {
+      expect(card.compact, isTrue);
+    }
     expect(find.text('شاهد VIP'), findsOneWidget);
     expect(find.text('تصميم شعار'), findsOneWidget);
-    expect(find.text('باقات متعددة'), findsNWidgets(2));
+    expect(find.text('باقات متعددة'), findsNothing);
 
     _expectNoOverflow(w);
 
