@@ -223,7 +223,7 @@ describe('ProviderWalletService', () => {
         amount: -20,
       }),
     );
-    expect(res).toBeDefined();
+    expect(res.withdrawal._id).toBe(withdrawalId);
   });
 
   it('rejects withdrawal and refunds providerBalance', async () => {
