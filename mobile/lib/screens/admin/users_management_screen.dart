@@ -905,8 +905,6 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
       (_u['shamCashAccountName'] ?? '').toString().trim();
   String get _shamCashAccountId =>
       (_u['shamCashAccountId'] ?? '').toString().trim();
-  String get _shamCashAccountId =>
-      (_u['shamCashAccountId'] ?? '').toString().trim();
 
   void _snack(String msg, {bool ok = true}) {
     if (!mounted) return;
@@ -1056,92 +1054,6 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
     if (!mounted || newBalance == null) return;
     setState(() => _u['balance'] = newBalance);
     _snack('تم تحديث رصيد "$_name" إلى \$${newBalance.toStringAsFixed(2)}');
-  }
-
-  Future<void> _openSupervisorProfitDialog() async {
-    final ctrl = TextEditingController(
-      text: _supervisorProfitPercent > 0
-          ? _supervisorProfitPercent.toStringAsFixed(1)
-          : '',
-    );
-    final pct = await showDialog<double>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.percent_rounded, color: AppColors.primaryBlue),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                'نسبة أرباح الأدمن (%)',
-                style: AppTypography.cairo(
-                  fontSize: 15.5,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.slate900,
-                ),
-              ),
-            ),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'تُطبّق هذه النسبة على جميع الخدمات اليدوية المسندة إلى "$_name" '
-              '(أرقام، خدمات، اشتراكات) وتُحدّث أسعار البيع تلقائياً.',
-              style: AppTypography.cairo(
-                fontSize: 12,
-                color: AppColors.slate600,
-                height: 1.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: ctrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                labelText: 'النسبة المئوية (0 - 100)',
-                suffixText: '%',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إلغاء'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final val = double.tryParse(ctrl.text.trim());
-              if (val == null || val < 0 || val > 100) {
-                return;
-              }
-              Navigator.pop(ctx, val);
-            },
-            child: const Text('حفظ وتطبيق'),
-          ),
-        ],
-      ),
-    );
-    ctrl.dispose();
-    if (pct == null || !mounted) return;
-    final ok = await widget.admin.updateSupervisorProfitPercent(_id, pct);
-    if (!mounted) return;
-    if (ok) {
-      setState(() => _u['supervisorProfitPercent'] = pct);
-    }
-    _snack(
-      ok
-          ? 'تم تحديث نسبة أرباح الأدمن إلى ${pct.toStringAsFixed(1)}% وتحديث الخدمات المسندة'
-          : (widget.admin.errorMessage ?? 'تعذر تحديث النسبة'),
-      ok: ok,
-    );
   }
 
   Future<void> _openSupervisorProfitDialog() async {
