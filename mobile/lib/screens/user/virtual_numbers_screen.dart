@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../../core/constants/app_icon_assets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 import '../../models/order_model.dart';
@@ -12,6 +11,7 @@ import '../../providers/app_catalog_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/virtual_numbers_provider.dart';
 import '../../providers/wallet_provider.dart';
+import '../../widgets/app_sheet_header.dart';
 import '../../widgets/service_ticket_card.dart';
 import '../../widgets/top_notice.dart';
 import 'manual_order_details_screen.dart';
@@ -1367,25 +1367,22 @@ class _ManualServiceSheetState extends State<_ManualServiceSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Center(
-                child: Container(
-                  width: 42,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: AppColors.slate200,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ),
+              AppSheetHeader(
+                title: service.name,
+                subtitle: service.appName,
+                iconRaw: service.appIcon,
+                iconSeeds: <String>[
+                  service.appName,
+                  service.name,
+                  service.appServiceCode,
+                ],
+                letterSeed: service.appName.isNotEmpty
+                    ? service.appName
+                    : service.name,
+                balance: widget.balance,
+                requiredAmount: service.price,
               ),
-              const SizedBox(height: 14),
-              Text(
-                service.name,
-                style: AppTypography.cairo(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w900,
-                  color: AppColors.slate900,
-                ),
-              ),
+              const SizedBox(height: 8),
               const SizedBox(height: 4),
               Text(
                 service.description.isNotEmpty
@@ -1625,75 +1622,56 @@ class _CountrySheetState extends State<_CountrySheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            width: 42,
-            height: 4,
-            alignment: Alignment.center,
-            margin: const EdgeInsets.only(top: 10, bottom: 8),
-            decoration: BoxDecoration(
-              color: AppColors.slate300,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: AppSheetHeader(
+              title:
+                  'أرقام ${widget.service.nameAr.isNotEmpty ? widget.service.nameAr : widget.service.name}',
+              subtitle: widget.service.nameEn,
+              iconRaw: widget.service.icon,
+              iconSeeds: <String>[
+                widget.service.nameAr,
+                widget.service.nameEn,
+                widget.service.name,
+              ],
+              letterSeed: widget.service.code,
+              balance: widget.balance,
+              requiredAmount: _offer?.salePrice,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: AppColors.slate50,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: AppColors.outlineVariant),
+            ),
             child: Row(
               children: [
-                _buildSheetAppIcon(widget.service),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'أرقام ${widget.service.nameAr.isNotEmpty ? widget.service.nameAr : widget.service.name}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: AppTypography.cairo(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w900,
-                          color: AppColors.slate900,
-                        ),
-                      ),
-                      if (widget.service.nameEn.isNotEmpty &&
-                          widget.service.nameEn != widget.service.nameAr)
-                        Text(
-                          widget.service.nameEn,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: AppTypography.cairo(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.slate400,
-                          ),
-                        ),
-                    ],
-                  ),
+                const Icon(
+                  Icons.shield_outlined,
+                  size: 16,
+                  color: AppColors.primaryBlue,
                 ),
-                Text(
-                  'رصيدك \$${widget.balance.toStringAsFixed(2)}',
-                  style: AppTypography.balance(
-                    fontSize: 11.5,
-                    color: AppColors.slate600,
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'اختر الدولة — وإن كانت متاحة اختر السيرفر. '
+                    'يُرجَع المبلغ تلقائياً إن مرّت ${widget.waitMinutes} دقيقة بلا رمز.',
+                    style: AppTypography.cairo(
+                      fontSize: 10.5,
+                      height: 1.45,
+                      color: AppColors.slate600,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
-          const SizedBox(height: 4),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            child: Text(
-              'اختر الدولة — وإن كانت متاحة اختر المشغّل. '
-              'تُرجَع المبلغ تلقائياً إن مرّت ${widget.waitMinutes} دقيقة بلا رمز.',
-              style: AppTypography.cairo(
-                fontSize: 10.5,
-                height: 1.5,
-                color: AppColors.slate500,
-              ),
-            ),
-          ),
-          if (total > 8) ...[const SizedBox(height: 10), _searchField()],
+          if (total > 5) ...[const SizedBox(height: 10), _searchField()],
           const SizedBox(height: 8),
           if (total == 0)
             const Padding(
@@ -1962,58 +1940,6 @@ class _CountrySheetState extends State<_CountrySheet> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSheetAppIcon(VirtualNumberServiceOption svc) {
-    String? asset;
-    final clean = svc.icon.trim();
-    if (clean.isNotEmpty) {
-      if (clean.startsWith('assets/')) {
-        asset = clean;
-      } else {
-        asset = builtinIconAssetExact(clean) ?? builtinIconAssetForQuery(clean);
-      }
-    }
-    asset ??= iconAssetForApp(
-      iconUrl: svc.icon,
-      name: svc.nameAr.isNotEmpty ? svc.nameAr : svc.name,
-    );
-
-    if (asset != null) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(9),
-        child: Image.asset(
-          asset,
-          width: 32,
-          height: 32,
-          fit: BoxFit.cover,
-          errorBuilder: (context, error, stackTrace) => _sheetFallback(svc),
-        ),
-      );
-    }
-    return _sheetFallback(svc);
-  }
-
-  Widget _sheetFallback(VirtualNumberServiceOption svc) {
-    final letter = svc.nameAr.isNotEmpty
-        ? svc.nameAr.substring(0, 1)
-        : (svc.code.isEmpty ? '#' : svc.code.substring(0, 1).toUpperCase());
-    return Container(
-      width: 32,
-      height: 32,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.slate900,
-        borderRadius: BorderRadius.circular(9),
-      ),
-      child: Text(
-        letter,
-        style: AppTypography.fintechBadge(
-          color: const Color(0xFFFDE047),
-          fontSize: 12,
         ),
       ),
     );

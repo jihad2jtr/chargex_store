@@ -11,6 +11,7 @@ import '../../providers/app_catalog_provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/exchange_rate_provider.dart';
 import '../../providers/margin_provider.dart';
+import '../../widgets/app_sheet_header.dart';
 import '../../widgets/balance_badge.dart';
 import '../../widgets/product_list_card.dart';
 import '../../widgets/top_notice.dart';
@@ -91,58 +92,32 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
           builder: (context, setSheetState) {
             return Padding(
               padding: EdgeInsets.only(
-                left: 20,
-                right: 20,
-                top: 24,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                left: 16,
+                right: 16,
+                top: 4,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 20,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Title
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.primaryContainer.withValues(
-                            alpha: 0.2,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.shopping_bag_outlined,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              product.name,
-                              style: AppTypography.cairo(
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w800,
-                                color: AppColors.slate900,
-                              ),
-                            ),
-                            Text(
-                              widget.app.name,
-                              style: AppTypography.cairo(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                  AppSheetHeader(
+                    title: product.name,
+                    subtitle: widget.app.name,
+                    iconRaw: widget.app.iconUrl,
+                    iconSeeds: <String>[
+                      widget.app.name,
+                      widget.app.nameAr ?? '',
+                      widget.app.nameEn ?? '',
                     ],
+                    letterSeed: (widget.app.nameEn ?? '').isNotEmpty
+                        ? widget.app.nameEn!
+                        : widget.app.name,
+                    balance: userBalance,
+                    requiredAmount: customerPrice,
                   ),
-                  const Divider(height: 32, color: AppColors.outline),
+                  const SizedBox(height: 14),
 
                   // Pricing & Balance Comparison
                   Container(
