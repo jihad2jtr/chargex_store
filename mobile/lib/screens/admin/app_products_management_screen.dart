@@ -1097,20 +1097,17 @@ class _AppProductsManagementScreenState
     final bool canPop = Navigator.of(context).canPop();
 
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [AppColors.darkNav, AppColors.slate800],
-          begin: Alignment.topRight,
-          end: Alignment.bottomLeft,
-        ),
-        borderRadius: BorderRadius.circular(20),
+        color: AppColors.darkNav,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.slate800),
         boxShadow: [
           BoxShadow(
-            color: AppColors.darkNav.withValues(alpha: 0.22),
-            blurRadius: 18,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),

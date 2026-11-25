@@ -736,37 +736,28 @@ class _TopupScreenState extends State<TopupScreen> {
       backgroundColor: AppColors.background,
       appBar: widget.showAppBar
           ? AppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              scrolledUnderElevation: 1,
-              centerTitle: false,
-              title: Text(
-                'شحن المحفظة والرصيد',
-                style: AppTypography.cairo(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
+              title: const Text('شحن المحفظة والرصيد'),
               actions: [
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: BalanceBadge(balance: user?.balance ?? 0.0),
                 ),
               ],
             )
           : null,
       body: RefreshIndicator(
-        color: const Color(0xFF0284C7),
+        color: AppColors.primaryBlue,
         onRefresh: () async {
-          await wallet.fetchPaymentAccounts();
-          await wallet.fetchMyTopupRequests();
-          await auth.refreshProfile();
-          await rates.fetch(force: true);
+          await Future.wait([
+            wallet.fetchPaymentAccounts(),
+            wallet.fetchMyTopupRequests(),
+            auth.refreshProfile(),
+            rates.fetch(force: true),
+          ]);
         },
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

@@ -667,26 +667,16 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
     final activeCount = banners.where((b) => b.isActive).length;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        title: Text(
-          'إدارة لوحة الإعلانات',
-          style: AppTypography.cairo(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: AppColors.slate900,
-          ),
-        ),
+        title: const Text('إدارة لوحة الإعلانات'),
         actions: [
           IconButton(
             tooltip: 'تحديث',
-            icon: const Icon(Icons.refresh, color: AppColors.slate600),
+            icon: const Icon(Icons.refresh_rounded, color: AppColors.slate600),
             onPressed: () => admin.fetchAdminBanners(),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 6),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
@@ -716,11 +706,12 @@ class _BannersManagementScreenState extends State<BannersManagementScreen> {
                     decoration: BoxDecoration(
                       color: AppColors.slate900,
                       borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.slate800),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.slate900.withValues(alpha: 0.15),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withValues(alpha: 0.10),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
                         ),
                       ],
                     ),

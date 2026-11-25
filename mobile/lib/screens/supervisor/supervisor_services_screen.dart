@@ -52,20 +52,9 @@ class _SupervisorServicesScreenState extends State<SupervisorServicesScreen> {
     final services = provider.assignedServices;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: AppColors.surfaceCard,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        foregroundColor: AppColors.slate900,
-        title: Text(
-          'خدماتي المسندة',
-          style: AppTypography.cairo(
-            fontSize: 16.5,
-            fontWeight: FontWeight.w800,
-            color: AppColors.slate900,
-          ),
-        ),
+        title: const Text('خدماتي المسندة'),
         actions: [
           IconButton(
             tooltip: 'تحديث الخدمات',

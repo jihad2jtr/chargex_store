@@ -1018,19 +1018,9 @@ class _ProviderProductsScreenState extends State<ProviderProductsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        title: Text(
-          ' ${widget.provider.name}',
-          style: AppTypography.cairo(
-            fontSize: 16.5,
-            fontWeight: FontWeight.w800,
-            color: const Color(0xFF0F172A),
-          ),
-        ),
+        title: Text(widget.provider.name.trim()),
         actions: [
           // Add New App button
           IconButton(

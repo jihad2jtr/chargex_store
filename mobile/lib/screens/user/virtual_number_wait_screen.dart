@@ -223,12 +223,8 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
     final lowBalance = balance < 0.5;
 
     return Scaffold(
-      backgroundColor: AppColors.slate50,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 1,
-        surfaceTintColor: Colors.transparent,
         leading: IconButton(
           tooltip: 'رجوع (الرقم يبقى حيّاً في «طلباتي»)',
           icon: const Icon(Icons.arrow_forward_rounded, size: 20),
@@ -241,7 +237,7 @@ class _VirtualNumberWaitScreenState extends State<VirtualNumberWaitScreen>
               'انتظار الرمز',
               style: AppTypography.cairo(
                 fontSize: 15,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w800,
                 color: AppColors.slate900,
               ),
             ),

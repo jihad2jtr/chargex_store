@@ -505,42 +505,39 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
     final hasAccount = admin.paymentAccounts.any((a) => a.type == currentType);
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
         titleSpacing: 12,
         title: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
                 gradient: AppColors.brandGradient,
-                borderRadius: BorderRadius.circular(11),
+                borderRadius: BorderRadius.circular(9),
                 boxShadow: [
                   BoxShadow(
-                    color: AppColors.primaryBlue.withValues(alpha: 0.28),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
               child: const Icon(
                 Icons.account_balance_wallet_rounded,
                 color: Colors.white,
-                size: 18,
+                size: 15,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Flexible(
               child: Text(
                 'حسابات الدفع',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.cairo(
-                  fontSize: 17,
+                  fontSize: 15.5,
                   fontWeight: FontWeight.w800,
                   color: AppColors.slate900,
                 ),
@@ -698,19 +695,20 @@ class _PaymentAccountsScreenState extends State<PaymentAccountsScreen>
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 76,
-              height: 76,
+              width: 72,
+              height: 72,
               decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(24),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: AppColors.outline),
                 boxShadow: [
                   BoxShadow(
-                    color: color.withValues(alpha: 0.24),
-                    blurRadius: 18,
-                    offset: const Offset(0, 8),
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: BrandLogo(asset: _typeBrand(type), size: 76, radius: 24),
+              child: BrandLogo(asset: _typeBrand(type), size: 72, radius: 20),
             ),
             const SizedBox(height: 18),
             Text(

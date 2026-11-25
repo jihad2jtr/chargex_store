@@ -117,7 +117,7 @@ class _VirtualNumberManualServicesScreenState
             ? _buildEmpty()
             : ListView.separated(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 itemCount: services.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 2),
                 itemBuilder: (context, index) {

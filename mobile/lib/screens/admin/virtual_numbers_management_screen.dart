@@ -124,10 +124,10 @@ class _VirtualNumbersManagementScreenState
       body: RefreshIndicator(
         onRefresh: _reload,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(14, 12, 14, 28),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 24),
           children: [
             _overviewTicket(provider, stats),
-            const SizedBox(height: 14),
+            const SizedBox(height: 10),
             _searchField(),
             const SizedBox(height: 10),
             _statusTabs(stats),

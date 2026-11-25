@@ -492,18 +492,15 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               'طلب ',
               style: AppTypography.cairo(
-                fontSize: 17,
+                fontSize: 15.5,
                 fontWeight: FontWeight.w800,
                 color: AppColors.slate900,
               ),
@@ -516,7 +513,7 @@ class _ManualOrderDetailsScreenState extends State<ManualOrderDetailsScreen> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AppTypography.spaceMono(
-                  fontSize: 16,
+                  fontSize: 14.5,
                   fontWeight: FontWeight.w800,
                   color: AppColors.primaryBlue,
                 ),

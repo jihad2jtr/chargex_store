@@ -1104,24 +1104,21 @@ class _AppsAndProductsManagementScreenState
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
         title: Row(
           children: [
             Container(
-              padding: const EdgeInsets.all(7),
+              padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: AppColors.primaryBlue.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(9),
               ),
               child: const Icon(
                 Icons.widgets_rounded,
                 color: AppColors.primaryBlue,
-                size: 20,
+                size: 18,
               ),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1129,8 +1126,8 @@ class _AppsAndProductsManagementScreenState
                   Text(
                     'إدارة التطبيقات',
                     style: AppTypography.cairo(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 14.5,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 15,
                       color: AppColors.slate900,
                     ),
                   ),
@@ -1140,7 +1137,7 @@ class _AppsAndProductsManagementScreenState
                       fontSize: 7,
                       fontWeight: FontWeight.bold,
                       color: AppColors.slate500,
-                      letterSpacing: 0.8,
+                      letterSpacing: 0.7,
                     ),
                   ),
                 ],
@@ -1366,16 +1363,13 @@ class _AppsAndProductsManagementScreenState
     return Container(
       decoration: BoxDecoration(
         color: AppColors.darkNav,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.primaryBlue.withValues(alpha: 0.35),
-          width: 1.2,
-        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.slate800, width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0F172A).withValues(alpha: 0.18),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),

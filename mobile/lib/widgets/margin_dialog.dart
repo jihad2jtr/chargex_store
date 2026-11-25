@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/theme/app_colors.dart';
+import '../core/theme/app_typography.dart';
 import '../providers/margin_provider.dart';
 import 'top_notice.dart';
 
@@ -98,23 +99,23 @@ class _MarginDialogState extends State<MarginDialog> {
                   ),
                 ),
                 const SizedBox(width: 14),
-                const Expanded(
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         'تحديد نسبة الربح',
-                        style: TextStyle(
-                          fontSize: 18,
+                        style: AppTypography.cairo(
+                          fontSize: 16,
                           fontWeight: FontWeight.w800,
                           color: AppColors.onSurface,
                         ),
                       ),
-                      SizedBox(height: 2),
+                      const SizedBox(height: 2),
                       Text(
                         'تحديد هامش الربح المعروض للزبائن',
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: AppTypography.cairo(
+                          fontSize: 11.5,
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
@@ -164,9 +165,9 @@ class _MarginDialogState extends State<MarginDialog> {
                         _isEnabled
                             ? 'إضافة النسبة مفعلة'
                             : 'إضافة النسبة معطلة',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                        style: AppTypography.cairo(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w800,
                           color: _isEnabled
                               ? AppColors.onSurface
                               : AppColors.onSurfaceVariant,
@@ -189,15 +190,15 @@ class _MarginDialogState extends State<MarginDialog> {
             const SizedBox(height: 18),
 
             // Quick Preset Percentages
-            const Text(
+            Text(
               'النسب الشائعة:',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.bold,
+              style: AppTypography.cairo(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w800,
                 color: AppColors.onSurface,
               ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 8),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -206,16 +207,14 @@ class _MarginDialogState extends State<MarginDialog> {
                 return ChoiceChip(
                   label: Text('${percent.toInt()}%'),
                   selected: isSelected,
-                  selectedColor: AppColors.secondary.withValues(alpha: 0.25),
+                  selectedColor: AppColors.secondary.withValues(alpha: 0.22),
                   backgroundColor: AppColors.surfaceContainerHigh,
-                  labelStyle: TextStyle(
+                  labelStyle: AppTypography.plusJakartaSans(
                     color: isSelected
                         ? AppColors.secondaryBright
                         : AppColors.onSurfaceVariant,
-                    fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
-                    fontSize: 13,
+                    fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                    fontSize: 12.5,
                   ),
                   side: BorderSide(
                     color: isSelected ? AppColors.secondary : AppColors.outline,
@@ -237,8 +236,8 @@ class _MarginDialogState extends State<MarginDialog> {
                 decimal: true,
               ),
               onChanged: _onTextChanged,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
+              style: AppTypography.plusJakartaSans(
+                fontWeight: FontWeight.w800,
                 color: AppColors.onSurface,
               ),
               decoration: InputDecoration(
@@ -250,8 +249,8 @@ class _MarginDialogState extends State<MarginDialog> {
                   size: 20,
                 ),
                 suffixText: '%',
-                suffixStyle: const TextStyle(
-                  fontWeight: FontWeight.bold,
+                suffixStyle: AppTypography.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
                   color: AppColors.secondary,
                 ),
                 filled: true,
@@ -286,19 +285,19 @@ class _MarginDialogState extends State<MarginDialog> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Row(
+                  Row(
                     children: [
-                      Icon(
+                      const Icon(
                         Icons.calculate_outlined,
                         size: 18,
                         color: AppColors.secondary,
                       ),
-                      SizedBox(width: 8),
+                      const SizedBox(width: 8),
                       Text(
                         'معاينة التسعير التلقائي (مثال: منتج بـ \$10.00)',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                        style: AppTypography.cairo(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w700,
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
@@ -308,18 +307,18 @@ class _MarginDialogState extends State<MarginDialog> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'سعر التكلفة بالجملة:',
-                        style: TextStyle(
+                        style: AppTypography.cairo(
                           fontSize: 12,
                           color: AppColors.onSurfaceVariant,
                         ),
                       ),
                       Text(
                         '\$${sampleCost.toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: AppTypography.plusJakartaSans(
                           fontSize: 13,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.onSurface,
                         ),
                       ),
@@ -331,16 +330,16 @@ class _MarginDialogState extends State<MarginDialog> {
                     children: [
                       Text(
                         'هامش ربحك (${_isEnabled ? _selectedPercent.toStringAsFixed(1) : 0}%):',
-                        style: const TextStyle(
+                        style: AppTypography.cairo(
                           fontSize: 12,
                           color: AppColors.tertiaryLight,
                         ),
                       ),
                       Text(
                         '+ \$${profitAmount.toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: AppTypography.plusJakartaSans(
                           fontSize: 13,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.tertiaryLight,
                         ),
                       ),
@@ -350,17 +349,17 @@ class _MarginDialogState extends State<MarginDialog> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text(
+                      Text(
                         'السعر المعروض للزبون:',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
+                        style: AppTypography.cairo(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.onSurface,
                         ),
                       ),
                       Text(
                         '\$${customerPrice.toStringAsFixed(2)}',
-                        style: const TextStyle(
+                        style: AppTypography.plusJakartaSans(
                           fontSize: 16,
                           fontWeight: FontWeight.w900,
                           color: AppColors.secondaryBright,
@@ -386,9 +385,12 @@ class _MarginDialogState extends State<MarginDialog> {
                         borderRadius: BorderRadius.circular(14),
                       ),
                     ),
-                    child: const Text(
+                    child: Text(
                       'إلغاء',
-                      style: TextStyle(color: AppColors.onSurfaceVariant),
+                      style: AppTypography.cairo(
+                        color: AppColors.onSurfaceVariant,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),

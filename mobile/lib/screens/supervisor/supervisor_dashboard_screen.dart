@@ -130,7 +130,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
         .length;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       body: Stack(
         children: [
           SafeArea(
@@ -140,7 +140,7 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 14,
+                  horizontal: 12,
                   vertical: 8,
                 ),
                 child: Column(

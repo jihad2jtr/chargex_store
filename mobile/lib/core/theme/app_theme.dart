@@ -54,16 +54,21 @@ class AppTheme {
       textTheme: textTheme,
       scaffoldBackgroundColor: AppColors.surface,
       appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.onSurface,
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.slate900,
+        toolbarHeight: 52,
         elevation: 0,
         scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
         centerTitle: false,
         systemOverlayStyle: SystemUiOverlayStyle.dark,
+        shape: const Border(
+          bottom: BorderSide(color: AppColors.outline, width: 1),
+        ),
         titleTextStyle: GoogleFonts.cairo(
-          fontSize: 18,
+          fontSize: 15.5,
           fontWeight: FontWeight.w800,
-          color: AppColors.onSurface,
+          color: AppColors.slate900,
         ),
       ),
       cardTheme: CardThemeData(
@@ -78,18 +83,19 @@ class AppTheme {
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: AppColors.slate50,
-        hintStyle: const TextStyle(
+        hintStyle: GoogleFonts.cairo(
           color: AppColors.onSurfaceVariant,
-          fontSize: 14,
+          fontSize: 13.5,
         ),
-        labelStyle: const TextStyle(
+        labelStyle: GoogleFonts.cairo(
           color: AppColors.onSurfaceVariant,
-          fontSize: 14,
+          fontSize: 13.5,
+          fontWeight: FontWeight.w600,
         ),
         prefixIconColor: AppColors.onSurfaceVariant,
         contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
+          horizontal: 14,
+          vertical: 12,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
@@ -120,7 +126,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
-          textStyle: GoogleFonts.tajawal(
+          textStyle: GoogleFonts.cairo(
             fontSize: 14,
             fontWeight: FontWeight.w700,
           ),
@@ -138,14 +144,14 @@ class AppTheme {
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return GoogleFonts.tajawal(
-              fontSize: 12,
+            return GoogleFonts.cairo(
+              fontSize: 11.5,
               fontWeight: FontWeight.w700,
               color: AppColors.primary,
             );
           }
-          return GoogleFonts.tajawal(
-            fontSize: 12,
+          return GoogleFonts.cairo(
+            fontSize: 11.5,
             fontWeight: FontWeight.w500,
             color: AppColors.onSurfaceVariant,
           );
@@ -153,8 +159,19 @@ class AppTheme {
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: AppColors.surfaceContainer,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: GoogleFonts.cairo(
+          fontSize: 16,
+          fontWeight: FontWeight.w800,
+          color: AppColors.slate900,
+        ),
+        contentTextStyle: GoogleFonts.cairo(
+          fontSize: 13,
+          color: AppColors.slate600,
+          height: 1.5,
+        ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(18),
           side: const BorderSide(color: AppColors.outline, width: 1),
         ),
       ),

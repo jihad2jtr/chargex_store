@@ -212,11 +212,8 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
     final inactiveCount = templates.length - activeCount;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
         titleSpacing: 12,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,24 +223,24 @@ class _ServiceTemplatesScreenState extends State<ServiceTemplatesScreen> {
                 _iconChip(
                   AppColors.primaryBlue,
                   Icons.dashboard_customize_rounded,
-                  size: 32,
+                  size: 28,
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'أنواع قوالب الخدمة',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppTypography.cairo(
-                      fontSize: 16.5,
-                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
                       color: AppColors.slate900,
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 2),
+            const SizedBox(height: 1),
             Text(
               'SERVICE TEMPLATES // FIELD BUILDER',
               maxLines: 1,

@@ -182,30 +182,19 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
       backgroundColor: AppColors.background,
       appBar: widget.showAppBar
           ? AppBar(
-              backgroundColor: Colors.white,
-              elevation: 0,
-              scrolledUnderElevation: 1,
-              centerTitle: false,
-              title: Text(
-                'طلباتي وتذاكر الشحن الرقمية',
-                style: AppTypography.cairo(
-                  fontSize: 16.5,
-                  fontWeight: FontWeight.w800,
-                  color: const Color(0xFF0F172A),
-                ),
-              ),
+              title: const Text('طلباتي وتذاكر الشحن الرقمية'),
               actions: [
                 IconButton(
                   icon: Container(
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFF1F5F9),
+                      color: AppColors.slate100,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: const Icon(
                       Icons.refresh_rounded,
                       size: 18,
-                      color: Color(0xFF0F172A),
+                      color: AppColors.slate900,
                     ),
                   ),
                   tooltip: 'تحديث الطلبات',
@@ -214,7 +203,7 @@ class _OrdersHistoryScreenState extends State<OrdersHistoryScreen> {
                     numbers.fetchMyRequests();
                   },
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: 8),
               ],
             )
           : null,

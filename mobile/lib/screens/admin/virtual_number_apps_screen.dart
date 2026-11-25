@@ -309,16 +309,17 @@ class _VirtualNumberAppsScreenState extends State<VirtualNumberAppsScreen> {
     int nVisible,
   ) {
     return Container(
-      margin: const EdgeInsets.fromLTRB(14, 12, 14, 10),
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      margin: const EdgeInsets.fromLTRB(12, 10, 12, 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        gradient: AppColors.brandGradient,
+        color: AppColors.darkNav,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.slate800),
         boxShadow: [
           BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.28),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
           ),
         ],
       ),

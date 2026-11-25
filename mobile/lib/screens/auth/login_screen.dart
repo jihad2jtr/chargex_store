@@ -115,13 +115,12 @@ class _LoginScreenState extends State<LoginScreen> {
                           height: 76,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: AppColors.outline),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(
-                                  0xFFF18223,
-                                ).withValues(alpha: 0.16),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
+                                color: Colors.black.withValues(alpha: 0.06),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),
@@ -237,15 +236,13 @@ class _LoginScreenState extends State<LoginScreen> {
                     padding: const EdgeInsets.all(22),
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(22),
+                      borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: AppColors.outline),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(
-                            0xFF0F172A,
-                          ).withValues(alpha: 0.04),
-                          blurRadius: 16,
-                          offset: const Offset(0, 4),
+                          color: Colors.black.withValues(alpha: 0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
@@ -342,19 +339,17 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 20),
 
-                        // Login Action Button (Cyan FinTech gradient)
+                        // Login Action Button (Swiss Neo-Bento Cyan)
                         Container(
                           height: 48,
                           decoration: BoxDecoration(
                             gradient: AppColors.primaryButtonGradient,
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(12),
                             boxShadow: [
                               BoxShadow(
-                                color: AppColors.primaryBlue.withValues(
-                                  alpha: 0.35,
-                                ),
-                                blurRadius: 10,
-                                offset: const Offset(0, 3),
+                                color: Colors.black.withValues(alpha: 0.08),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
                               ),
                             ],
                           ),

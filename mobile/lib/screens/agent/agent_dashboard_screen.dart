@@ -83,7 +83,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                   // 0. Unified Top Bar
                   const SliverToBoxAdapter(
                     child: Padding(
-                      padding: EdgeInsets.fromLTRB(16, 8, 16, 0),
+                      padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
                       child: UnifiedTactileHeader(isDashboard: true),
                     ),
                   ),
@@ -94,7 +94,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                   // 2. جدول ملخص العمليات (مضغوط + هوية تذكرة)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
                       child: _opsSummaryTable(stats, agentUser),
                     ),
                   ),
@@ -102,7 +102,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                   // 3. أزرار الإجراءات السريعة
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 0),
                       child: _buildQuickActionBar(),
                     ),
                   ),
@@ -110,7 +110,7 @@ class _AgentDashboardScreenState extends State<AgentDashboardScreen>
                   // 4. التبويبات (العملاء / سجل التحويلات)
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 8),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
                       child: Container(
                         padding: const EdgeInsets.all(3),
                         decoration: BoxDecoration(

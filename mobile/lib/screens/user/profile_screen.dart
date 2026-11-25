@@ -294,22 +294,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = auth.currentUser;
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        title: Text(
-          'الملف الشخصي',
-          style: AppTypography.cairo(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: AppColors.slate900,
-          ),
-        ),
+        title: const Text('الملف الشخصي'),
         actions: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             child: BalanceBadge(
               balance: user?.balance ?? 0.0,
               onTap: () {
@@ -328,21 +318,22 @@ class _ProfileScreenState extends State<ProfileScreen> {
         color: AppColors.primaryBlue,
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // Swiss Neo-Bento Executive Passport Card
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: AppColors.slate900,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.slate800),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.slate900.withValues(alpha: 0.15),
-                      blurRadius: 16,
-                      offset: const Offset(0, 4),
+                      color: Colors.black.withValues(alpha: 0.10),
+                      blurRadius: 10,
+                      offset: const Offset(0, 3),
                     ),
                   ],
                 ),

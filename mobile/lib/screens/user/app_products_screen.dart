@@ -615,19 +615,9 @@ class _AppProductsScreenState extends State<AppProductsScreen> {
     final groups = _groupProducts(catalog.currentProducts);
 
     return Scaffold(
-      backgroundColor: AppColors.paper,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        centerTitle: false,
-        title: Text(
-          widget.app.name,
-          style: AppTypography.cairo(
-            fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: AppColors.slate900,
-          ),
-        ),
+        title: Text(widget.app.name),
         actions: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
