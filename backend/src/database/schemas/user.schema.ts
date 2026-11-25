@@ -31,6 +31,21 @@ export class User {
   @Prop({ type: Number, default: 0.0, min: 0 })
   balance: number; // Balance in USD
 
+  // محفظة مقدم الخدمة المستقلة عن الرصيد الأساسي للشراء
+  @Prop({ type: Number, default: 0.0, min: 0 })
+  providerBalance: number;
+
+  // نسبة أرباح الأدمن العامة (%) المضافة على خدمات مقدم الخدمة
+  @Prop({ type: Number, default: 0.0, min: 0, max: 100 })
+  supervisorProfitPercent: number;
+
+  // بيانات حساب الشام كاش الخاص بمقدم الخدمة لاستلام الأرباح المسحوبة
+  @Prop({ trim: true, default: '' })
+  shamCashAccountName?: string;
+
+  @Prop({ trim: true, default: '' })
+  shamCashAccountId?: string;
+
   @Prop({ trim: true })
   phone?: string;
 

@@ -85,6 +85,16 @@ class DashboardStatsModel {
   final int usersNewToday;
   final int usersSupervisors;
 
+  // مقدمو الخدمة (العمليات اليدوية)
+  final int manualProviderOrders;
+  final double manualProviderRevenue;
+  final double manualProviderShare;
+  final double manualAdminProfit;
+  final double manualTodayProfit;
+  final double manualLast30dProfit;
+  final int pendingProviderWithdrawals;
+  final double pendingProviderWithdrawalsAmount;
+
   const DashboardStatsModel({
     this.generatedAt,
     this.ordersToday = 0,
@@ -120,6 +130,14 @@ class DashboardStatsModel {
     this.usersTotal = 0,
     this.usersNewToday = 0,
     this.usersSupervisors = 0,
+    this.manualProviderOrders = 0,
+    this.manualProviderRevenue = 0,
+    this.manualProviderShare = 0,
+    this.manualAdminProfit = 0,
+    this.manualTodayProfit = 0,
+    this.manualLast30dProfit = 0,
+    this.pendingProviderWithdrawals = 0,
+    this.pendingProviderWithdrawalsAmount = 0,
   });
 
   factory DashboardStatsModel.fromJson(Map<String, dynamic> json) {
@@ -130,6 +148,7 @@ class DashboardStatsModel {
     final Map<String, dynamic> catalog = _asMap(json['catalog']);
     final Map<String, dynamic> providers = _asMap(json['providers']);
     final Map<String, dynamic> users = _asMap(json['users']);
+    final Map<String, dynamic> manualProviders = _asMap(json['manualProviders']);
 
     return DashboardStatsModel(
       generatedAt: DateTime.tryParse(json['generatedAt']?.toString() ?? ''),
@@ -172,6 +191,18 @@ class DashboardStatsModel {
       usersTotal: _toInt(users['total']),
       usersNewToday: _toInt(users['newToday']),
       usersSupervisors: _toInt(users['supervisors']),
+      manualProviderOrders: _toInt(manualProviders['orders']),
+      manualProviderRevenue: _toDouble(manualProviders['revenue']),
+      manualProviderShare: _toDouble(manualProviders['providerShare']),
+      manualAdminProfit: _toDouble(manualProviders['adminProfit']),
+      manualTodayProfit: _toDouble(manualProviders['todayProfit']),
+      manualLast30dProfit: _toDouble(manualProviders['last30dProfit']),
+      pendingProviderWithdrawals: _toInt(
+        manualProviders['pendingWithdrawalsCount'],
+      ),
+      pendingProviderWithdrawalsAmount: _toDouble(
+        manualProviders['pendingWithdrawalsAmount'],
+      ),
     );
   }
 

@@ -4503,9 +4503,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       dto.supervisorId,
       'معرّف المشرف غير صالح',
     );
+    let supervisorProfitPercent = 0;
     if (supervisorId) {
       const supervisor = await this.userModel.findById(supervisorId);
       if (!supervisor) throw new BadRequestException('المشرف غير موجود');
+      supervisorProfitPercent = Number((supervisor as any).supervisorProfitPercent ?? 0);
     }
 
     // القالب هو مصدر الحقول المعتمد: إن وُجد اشتُقت منه كل من المطلوبة والحساسة
@@ -4521,16 +4523,25 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
         : [];
     const isSensitive = sensitiveFields.length > 0;
 
+    const hasAdminMarkup = supervisorId != null && supervisorProfitPercent > 0;
+    const costPrice = hasAdminMarkup ? price : 0;
+    const profitMarginType = hasAdminMarkup
+      ? ProfitMarginType.PERCENTAGE
+      : ProfitMarginType.FIXED;
+    const profitMarginValue = hasAdminMarkup ? supervisorProfitPercent : 0;
+    const finalSalePrice = hasAdminMarkup
+      ? Number((price * (1 + supervisorProfitPercent / 100)).toFixed(2))
+      : price;
+
     const saved = await this.manualServiceModel.create({
       virtualNumberAppId: vnApp._id,
       name,
       description: (dto.description || '').trim(),
       type: ProductType.MANUAL,
-      // لا هامش ولا تكلفة مزود: السعر الذي تحدده الإدارة هو ما يُخصم من العميل
-      costPrice: 0,
-      profitMarginType: ProfitMarginType.FIXED,
-      profitMarginValue: 0,
-      salePrice: price,
+      costPrice,
+      profitMarginType,
+      profitMarginValue,
+      salePrice: finalSalePrice,
       kind: 'service',
       quantityLabel: '',
       // الفراغ قيمة صالحة: تُضاف خدمة بلا أي حقول فيقتصر طلبُ العميل على
@@ -4640,9 +4651,11 @@ export class VirtualNumbersService implements OnModuleInit, OnModuleDestroy {
       dto.supervisorId,
       'معرّف المشرف غير صالح',
     );
+    let supervisorProfitPercent = 0;
     if (supervisorId) {
       const supervisor = await this.userModel.findById(supervisorId);
       if (!supervisor) throw new BadRequestException('المشرف غير موجود');
+      supervisorProfitPercent = Number((supervisor as any).supervisorProfitPercent ?? 0);
     }
     service.assignedSupervisorId = supervisorId ?? undefined;
 

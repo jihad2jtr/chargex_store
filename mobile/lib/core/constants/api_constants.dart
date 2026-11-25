@@ -44,6 +44,20 @@ class ApiConstants {
   static const String walletBalance = '/wallet/balance';
   static const String walletTransactions = '/wallet/transactions';
   static const String adminAdjustBalance = '/wallet/admin/adjust-balance';
+  static const String providerWalletMe = '/provider-wallet/me';
+  static const String providerWalletShamCash = '/provider-wallet/sham-cash';
+  static const String providerWalletTransferToMain =
+      '/provider-wallet/transfer-to-main';
+  static const String providerWalletWithdrawals =
+      '/provider-wallet/withdrawals';
+  static const String providerWalletAdminOverview =
+      '/provider-wallet/admin/overview';
+  static String providerWalletApproveWithdrawal(String id) =>
+      '/provider-wallet/admin/withdrawals/$id/approve';
+  static String providerWalletRejectWithdrawal(String id) =>
+      '/provider-wallet/admin/withdrawals/$id/reject';
+  static String userSupervisorProfit(String id) =>
+      '/users/$id/supervisor-profit';
 
   static const String topupAccounts = '/topup/accounts';
   static const String topupRequest = '/topup/request';
@@ -135,6 +149,23 @@ class ApiConstants {
 
   // Users Management Endpoints
   static const String usersList = '/users';
+
+  static String userSupervisorProfit(String userId) =>
+      '$usersList/$userId/supervisor-profit';
+
+  // Provider Wallet Endpoints (محفظة مقدم الخدمة)
+  static const String providerWalletMe = '/provider-wallet/me';
+  static const String providerWalletShamCash = '/provider-wallet/sham-cash';
+  static const String providerWalletTransferToMain =
+      '/provider-wallet/transfer-to-main';
+  static const String providerWalletWithdrawals =
+      '/provider-wallet/withdrawals';
+  static const String providerWalletAdminOverview =
+      '/provider-wallet/admin/overview';
+  static String providerWalletApproveWithdrawal(String id) =>
+      '/provider-wallet/admin/withdrawals/$id/approve';
+  static String providerWalletRejectWithdrawal(String id) =>
+      '/provider-wallet/admin/withdrawals/$id/reject';
 
   // Agent (الوكيل) Endpoints
   static const String agentDashboard = '/agent/dashboard';

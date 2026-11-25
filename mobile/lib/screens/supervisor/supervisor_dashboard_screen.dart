@@ -70,11 +70,16 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
       context,
       listen: false,
     );
-    await provider.fetchSupervisorOrders();
-    // الخدمات المسندة تُجلب مع كل سحب للتحديث حتى يبقى العدّاد صادقاً
-    await provider.fetchAssignedServices(
-      silent: provider.assignedServices.isNotEmpty,
-    );
+    await Future.wait([
+      provider.fetchSupervisorOrders(),
+      // الخدمات المسندة تُجلب مع كل سحب للتحديث حتى يبقى العدّاد صادقاً
+      provider.fetchAssignedServices(
+        silent: provider.assignedServices.isNotEmpty,
+      ),
+      provider.fetchProviderWalletSummary(
+        silent: provider.providerWallet != null,
+      ),
+    ]);
   }
 
   List<OrderModel> _filterOrders(List<OrderModel> orders) {
@@ -160,6 +165,8 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                       issuesCount: issuesCount,
                       delayedCount: delayedCount,
                     ),
+                    const SizedBox(height: 12),
+                    _buildProviderWalletCard(manualProvider),
                     const SizedBox(height: 18),
 
                     // Orders List Header
@@ -1791,6 +1798,756 @@ class _SupervisorDashboardScreenState extends State<SupervisorDashboardScreen> {
                 color: AppColors.slate500,
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProviderWalletCard(ManualServicesProvider manualProvider) {
+    final wallet = manualProvider.providerWallet;
+    final providerBalance =
+        (wallet?['providerBalance'] as num?)?.toDouble() ?? 0.0;
+    final mainBalance = (wallet?['mainBalance'] as num?)?.toDouble() ?? 0.0;
+    final profitPct =
+        (wallet?['supervisorProfitPercent'] as num?)?.toDouble() ?? 0.0;
+    final shamName = (wallet?['shamCashAccountName'] ?? '').toString().trim();
+    final shamId = (wallet?['shamCashAccountId'] ?? '').toString().trim();
+    final hasShamCash = shamName.isNotEmpty && shamId.isNotEmpty;
+    final stats = wallet?['stats'] is Map
+        ? Map<String, dynamic>.from(wallet!['stats'] as Map)
+        : const <String, dynamic>{};
+    final totalEarned = (stats['totalEarned'] as num?)?.toDouble() ?? 0.0;
+    final pendingWithdrawals =
+        (stats['pendingWithdrawals'] as num?)?.toInt() ?? 0;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.outline),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.slate900.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  gradient: AppColors.brandGradient,
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: Colors.white,
+                  size: 19,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'محفظة مقدم الخدمة',
+                      style: AppTypography.cairo(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.slate900,
+                      ),
+                    ),
+                    Text(
+                      hasShamCash
+                          ? 'شام كاش: $shamName ($shamId)'
+                          : 'لم يتم إضافة حساب شام كاش بعد',
+                      style: AppTypography.cairo(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: hasShamCash
+                            ? AppColors.tertiary
+                            : AppColors.amber,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _openWalletHistorySheet(manualProvider),
+                icon: const Icon(Icons.history_rounded, size: 16),
+                label: Text(
+                  pendingWithdrawals > 0
+                      ? 'السجل ($pendingWithdrawals معلق)'
+                      : 'السجل',
+                  style: AppTypography.cairo(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.slate50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.outline),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'رصيد المحفظة الخاصة',
+                        style: AppTypography.cairo(
+                          fontSize: 10.5,
+                          color: AppColors.slate500,
+                        ),
+                      ),
+                      Text(
+                        '\$${providerBalance.toStringAsFixed(2)}',
+                        style: AppTypography.plusJakartaSans(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                          color: AppColors.primaryBlue,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Container(width: 1, height: 28, color: AppColors.outline),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'الرصيد الأساسي بالتطبيق',
+                        style: AppTypography.cairo(
+                          fontSize: 10.5,
+                          color: AppColors.slate500,
+                        ),
+                      ),
+                      Text(
+                        '\$${mainBalance.toStringAsFixed(2)}',
+                        style: AppTypography.plusJakartaSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.tertiary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (totalEarned > 0 || profitPct > 0) ...[
+                  Container(width: 1, height: 28, color: AppColors.outline),
+                  const SizedBox(width: 10),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'إجمالي الأرباح',
+                        style: AppTypography.cairo(
+                          fontSize: 10,
+                          color: AppColors.slate500,
+                        ),
+                      ),
+                      Text(
+                        '\$${totalEarned.toStringAsFixed(2)}',
+                        style: AppTypography.plusJakartaSans(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.slate700,
+                        ),
+                      ),
+                      if (profitPct > 0)
+                        Text(
+                          'عمولة المنصة ${profitPct.toStringAsFixed(1)}%',
+                          style: AppTypography.cairo(
+                            fontSize: 9.5,
+                            color: AppColors.slate500,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _walletActionBtn(
+                  icon: Icons.payments_outlined,
+                  label: 'سحب شام كاش',
+                  color: AppColors.tertiary,
+                  onTap: () => _openWithdrawSheet(manualProvider),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _walletActionBtn(
+                  icon: Icons.swap_horiz_rounded,
+                  label: 'تحويل للأساسي',
+                  color: AppColors.primaryBlue,
+                  onTap: () => _openTransferToMainSheet(manualProvider),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _walletActionBtn(
+                  icon: Icons.account_balance_outlined,
+                  label: hasShamCash ? 'تعديل شام كاش' : 'إضافة شام كاش',
+                  color: hasShamCash ? AppColors.slate700 : AppColors.amber,
+                  onTap: () => _openShamCashSheet(manualProvider),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _walletActionBtn({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.09),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: color.withValues(alpha: 0.25)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 4),
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AppTypography.cairo(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w800,
+                  color: color,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showWalletSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showTopSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: isError ? AppColors.rose : AppColors.tertiary,
+      ),
+    );
+  }
+
+  Future<void> _openShamCashSheet(ManualServicesProvider manualProvider) async {
+    final wallet = manualProvider.providerWallet;
+    final nameCtrl = TextEditingController(
+      text: (wallet?['shamCashAccountName'] ?? '').toString(),
+    );
+    final idCtrl = TextEditingController(
+      text: (wallet?['shamCashAccountId'] ?? '').toString(),
+    );
+    bool saving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'بيانات حساب شام كاش',
+                style: AppTypography.cairo(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'يُستخدم هذا الحساب لاستلام طلبات السحب التي يوافق عليها الأدمن.',
+                style: AppTypography.cairo(
+                  fontSize: 12,
+                  color: AppColors.slate600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                  labelText: 'الاسم الكامل على شام كاش',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: idCtrl,
+                decoration: InputDecoration(
+                  labelText: 'رقم الحساب / العنوان في شام كاش',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        if (nameCtrl.text.trim().isEmpty ||
+                            idCtrl.text.trim().isEmpty) {
+                          return;
+                        }
+                        setSheetState(() => saving = true);
+                        final ok = await manualProvider.saveShamCashAccount(
+                          accountName: nameCtrl.text,
+                          accountId: idCtrl.text,
+                        );
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        _showWalletSnack(
+                          ok
+                              ? 'تم حفظ بيانات حساب شام كاش بنجاح'
+                              : (manualProvider.errorMessage ?? 'تعذر الحفظ'),
+                          isError: !ok,
+                        );
+                      },
+                child: Text(saving ? 'جارٍ الحفظ...' : 'حفظ بيانات شام كاش'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    nameCtrl.dispose();
+    idCtrl.dispose();
+  }
+
+  Future<void> _openTransferToMainSheet(
+    ManualServicesProvider manualProvider,
+  ) async {
+    final providerBalance =
+        (manualProvider.providerWallet?['providerBalance'] as num?)
+            ?.toDouble() ??
+        0.0;
+    final amountCtrl = TextEditingController(
+      text: providerBalance > 0 ? providerBalance.toStringAsFixed(2) : '',
+    );
+    bool saving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'تحويل إلى الرصيد الأساسي',
+                style: AppTypography.cairo(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'الرصيد المتاح في محفظة مقدم الخدمة: \$${providerBalance.toStringAsFixed(2)}',
+                style: AppTypography.cairo(
+                  fontSize: 12,
+                  color: AppColors.slate600,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'المبلغ المراد تحويله (\$)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final amount = double.tryParse(amountCtrl.text.trim());
+                        if (amount == null || amount <= 0) return;
+                        setSheetState(() => saving = true);
+                        final ok = await manualProvider.transferToMainBalance(
+                          amount,
+                        );
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        _showWalletSnack(
+                          ok
+                              ? 'تم تحويل \$${amount.toStringAsFixed(2)} إلى رصيدك الأساسي'
+                              : (manualProvider.errorMessage ?? 'تعذر التحويل'),
+                          isError: !ok,
+                        );
+                      },
+                child: Text(saving ? 'جارٍ التحويل...' : 'تأكيد التحويل'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    amountCtrl.dispose();
+  }
+
+  Future<void> _openWithdrawSheet(ManualServicesProvider manualProvider) async {
+    final wallet = manualProvider.providerWallet;
+    final shamName = (wallet?['shamCashAccountName'] ?? '').toString().trim();
+    final shamId = (wallet?['shamCashAccountId'] ?? '').toString().trim();
+    if (shamName.isEmpty || shamId.isEmpty) {
+      await _openShamCashSheet(manualProvider);
+      return;
+    }
+
+    final providerBalance =
+        (wallet?['providerBalance'] as num?)?.toDouble() ?? 0.0;
+    final amountCtrl = TextEditingController(
+      text: providerBalance > 0 ? providerBalance.toStringAsFixed(2) : '',
+    );
+    final notesCtrl = TextEditingController();
+    bool saving = false;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            16,
+            16,
+            MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'طلب سحب عبر شام كاش',
+                style: AppTypography.cairo(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'سيتم إرسال الطلب للأدمن للموافقة والتحويل إلى: $shamName ($shamId)',
+                style: AppTypography.cairo(
+                  fontSize: 12,
+                  color: AppColors.slate600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'الرصيد المتاح للسحب: \$${providerBalance.toStringAsFixed(2)}',
+                style: AppTypography.cairo(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.primaryBlue,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: InputDecoration(
+                  labelText: 'مبلغ السحب (\$)',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: notesCtrl,
+                decoration: InputDecoration(
+                  labelText: 'ملاحظة اختيارية',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              FilledButton(
+                onPressed: saving
+                    ? null
+                    : () async {
+                        final amount = double.tryParse(amountCtrl.text.trim());
+                        if (amount == null || amount <= 0) return;
+                        setSheetState(() => saving = true);
+                        final ok = await manualProvider.requestWithdrawal(
+                          amount: amount,
+                          notes: notesCtrl.text,
+                        );
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        _showWalletSnack(
+                          ok
+                              ? 'تم إرسال طلب السحب بقيمة \$${amount.toStringAsFixed(2)} للمراجعة'
+                              : (manualProvider.errorMessage ??
+                                    'تعذر إرسال طلب السحب'),
+                          isError: !ok,
+                        );
+                      },
+                child: Text(saving ? 'جارٍ الإرسال...' : 'إرسال طلب السحب'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    amountCtrl.dispose();
+    notesCtrl.dispose();
+  }
+
+  Future<void> _openWalletHistorySheet(
+    ManualServicesProvider manualProvider,
+  ) async {
+    await manualProvider.fetchProviderWalletSummary(silent: true);
+    if (!mounted) return;
+    final wallet = manualProvider.providerWallet ?? const {};
+    final transactions = (wallet['transactions'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (wallet['transactions'] as List).whereType<Map>().map(
+              (e) => Map<String, dynamic>.from(e),
+            ),
+          )
+        : const <Map<String, dynamic>>[];
+    final withdrawals = (wallet['withdrawals'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (wallet['withdrawals'] as List).whereType<Map>().map(
+              (e) => Map<String, dynamic>.from(e),
+            ),
+          )
+        : const <Map<String, dynamic>>[];
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.65,
+        minChildSize: 0.4,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (_, scrollCtrl) => ListView(
+          controller: scrollCtrl,
+          padding: const EdgeInsets.all(16),
+          children: [
+            Text(
+              'طلبات السحب وسجل المحفظة',
+              style: AppTypography.cairo(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate900,
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (withdrawals.isNotEmpty) ...[
+              Text(
+                'طلبات السحب (شام كاش)',
+                style: AppTypography.cairo(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              for (final w in withdrawals) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.slate50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.outline),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '\$${((w['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} — ${w['shamCashAccountName'] ?? ''}',
+                              style: AppTypography.cairo(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppColors.slate900,
+                              ),
+                            ),
+                            if ((w['adminNote'] ?? '').toString().isNotEmpty)
+                              Text(
+                                'ملاحظة الأدمن: ${w['adminNote']}',
+                                style: AppTypography.cairo(
+                                  fontSize: 11,
+                                  color: AppColors.slate600,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: (w['status'] == 'approved'
+                                  ? AppColors.tertiary
+                                  : w['status'] == 'rejected'
+                                  ? AppColors.rose
+                                  : AppColors.amber)
+                              .withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          w['status'] == 'approved'
+                              ? 'مقبول'
+                              : w['status'] == 'rejected'
+                              ? 'مرفوض'
+                              : 'قيد المراجعة',
+                          style: AppTypography.cairo(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: w['status'] == 'approved'
+                                ? AppColors.tertiary
+                                : w['status'] == 'rejected'
+                                ? AppColors.rose
+                                : AppColors.amber,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+            ],
+            Text(
+              'آخر الحركات المالية',
+              style: AppTypography.cairo(
+                fontSize: 13,
+                fontWeight: FontWeight.w800,
+                color: AppColors.slate700,
+              ),
+            ),
+            const SizedBox(height: 6),
+            if (transactions.isEmpty)
+              Text(
+                'لا توجد حركات مسجلة بعد',
+                style: AppTypography.cairo(
+                  fontSize: 12,
+                  color: AppColors.slate500,
+                ),
+              )
+            else
+              for (final tx in transactions)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    (tx['description'] ?? tx['type'] ?? '').toString(),
+                    style: AppTypography.cairo(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  trailing: Text(
+                    '\$${((tx['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                    style: AppTypography.plusJakartaSans(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: tx['type'] == 'order_earning' ||
+                              tx['type'] == 'withdrawal_refund'
+                          ? AppColors.tertiary
+                          : AppColors.rose,
+                    ),
+                  ),
+                ),
           ],
         ),
       ),

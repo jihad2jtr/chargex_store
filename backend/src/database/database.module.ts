@@ -47,6 +47,14 @@ import {
   VirtualNumberQualityEvent,
   VirtualNumberQualityEventSchema,
 } from './schemas/virtual-number-quality-event.schema';
+import {
+  ProviderWalletTransaction,
+  ProviderWalletTransactionSchema,
+} from './schemas/provider-wallet-transaction.schema';
+import {
+  ProviderWithdrawal,
+  ProviderWithdrawalSchema,
+} from './schemas/provider-withdrawal.schema';
 
 const featureModels = [
   { name: User.name, schema: UserSchema },
@@ -83,6 +91,14 @@ const featureModels = [
   {
     name: VirtualNumberQualityEvent.name,
     schema: VirtualNumberQualityEventSchema,
+  },
+  {
+    name: ProviderWalletTransaction.name,
+    schema: ProviderWalletTransactionSchema,
+  },
+  {
+    name: ProviderWithdrawal.name,
+    schema: ProviderWithdrawalSchema,
   },
 ];
 

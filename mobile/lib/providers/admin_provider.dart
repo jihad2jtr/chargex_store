@@ -30,6 +30,7 @@ class AdminProvider extends ChangeNotifier {
   DateTime? _statsFetchedAt;
   int _pendingOrdersCount = 0;
   int _pendingTopupsCount = 0;
+  Map<String, dynamic>? _providerWalletOverview;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -55,6 +56,7 @@ class AdminProvider extends ChangeNotifier {
   DateTime? get statsFetchedAt => _statsFetchedAt;
   int get pendingOrdersCount => _pendingOrdersCount;
   int get pendingTopupsCount => _pendingTopupsCount;
+  Map<String, dynamic>? get providerWalletOverview => _providerWalletOverview;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -1207,6 +1209,99 @@ class AdminProvider extends ChangeNotifier {
       return true;
     } catch (e) {
       _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // --- محفظة مقدمي الخدمة وإدارة أرباحهم وطلبات السحب ---
+  bool _isProviderWalletOverviewLoading = false;
+
+  bool get isProviderWalletOverviewLoading => _isProviderWalletOverviewLoading;
+
+  Future<bool> updateSupervisorProfitPercent(
+    String userId,
+    double supervisorProfitPercent,
+  ) async {
+    try {
+      await _api.patch(
+        ApiConstants.userSupervisorProfit(userId),
+        body: {'supervisorProfitPercent': supervisorProfitPercent},
+      );
+      await fetchAllUsers(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = _failMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchProviderWalletAdminOverview({
+    String? status,
+    bool silent = false,
+  }) async {
+    if (!silent) {
+      _isProviderWalletOverviewLoading = true;
+      notifyListeners();
+    }
+    try {
+      final endpoint = status != null && status.isNotEmpty && status != 'all'
+          ? '${ApiConstants.providerWalletAdminOverview}?status=$status'
+          : ApiConstants.providerWalletAdminOverview;
+      final res = await _api.get(endpoint);
+      if (res is Map) {
+        _providerWalletOverview = Map<String, dynamic>.from(res);
+      }
+    } catch (e) {
+      _errorMessage = _failMessage(e);
+    }
+    if (!silent) {
+      _isProviderWalletOverviewLoading = false;
+    }
+    notifyListeners();
+    return _providerWalletOverview;
+  }
+
+  Future<bool> approveProviderWithdrawal(
+    String withdrawalId, {
+    String? adminNote,
+  }) async {
+    try {
+      await _api.post(
+        ApiConstants.providerWalletApproveWithdrawal(withdrawalId),
+        body: {
+          if (adminNote != null && adminNote.trim().isNotEmpty)
+            'adminNote': adminNote.trim(),
+        },
+      );
+      await fetchProviderWalletAdminOverview(silent: true);
+      await fetchAllUsers(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = _failMessage(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> rejectProviderWithdrawal(
+    String withdrawalId, {
+    String? adminNote,
+  }) async {
+    try {
+      await _api.post(
+        ApiConstants.providerWalletRejectWithdrawal(withdrawalId),
+        body: {
+          if (adminNote != null && adminNote.trim().isNotEmpty)
+            'adminNote': adminNote.trim(),
+        },
+      );
+      await fetchProviderWalletAdminOverview(silent: true);
+      await fetchAllUsers(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = _failMessage(e);
       notifyListeners();
       return false;
     }

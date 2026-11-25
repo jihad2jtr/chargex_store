@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { Order, OrderStatus } from '../../database/schemas/order.schema';
@@ -10,10 +10,14 @@ import { ShippingCode } from '../../database/schemas/shipping-code.schema';
 import { Banner } from '../../database/schemas/banner.schema';
 import { ShamCashAccount } from '../../database/schemas/sham-cash-account.schema';
 import { Provider, ProviderStatus, ProviderType } from '../../database/schemas/provider.schema';
-import { Product } from '../../database/schemas/product.schema';
+import { Product, ProductType } from '../../database/schemas/product.schema';
 import { App as AppEntity } from '../../database/schemas/app.schema';
 import { User } from '../../database/schemas/user.schema';
 import { ServiceTemplate } from '../../database/schemas/service-template.schema';
+import {
+  ProviderWithdrawal,
+  ProviderWithdrawalStatus,
+} from '../../database/schemas/provider-withdrawal.schema';
 import { Role } from '../../common/interfaces/role.enum';
 
 /** الطلبات التي ما زالت بحاجة إلى عمل بشري من الإدارة أو المشرف */
@@ -53,6 +57,9 @@ export class DashboardService {
     @InjectModel(User.name) private readonly userModel: Model<User>,
     @InjectModel(ServiceTemplate.name)
     private readonly serviceTemplateModel: Model<ServiceTemplate>,
+    @Optional()
+    @InjectModel(ProviderWithdrawal.name)
+    private readonly providerWithdrawalModel?: Model<ProviderWithdrawal>,
   ) {}
 
   /** بداية اليوم (أو اليوم قبل عدد أيام) بتوقيت العمل UTC+3 */
@@ -311,6 +318,7 @@ export class DashboardService {
       usersNewToday,
       supervisorsTotal,
       templatesTotal,
+      manualProviders,
     ] = await Promise.all([
       this.aggregateWindow(startToday),
       this.aggregateWindow(startYesterday, startToday),
@@ -343,6 +351,7 @@ export class DashboardService {
       this.userModel.countDocuments({ createdAt: { $gte: startToday } }),
       this.userModel.countDocuments({ role: Role.SUPERVISOR }),
       this.serviceTemplateModel.countDocuments({}),
+      this.manualProvidersSummary(startToday, start30),
     ]);
 
     // مقارنة اليوم بالأمس على نافذة أمس الكاملة (من بداية الأمس حتى بداية اليوم)
@@ -390,6 +399,73 @@ export class DashboardService {
         newToday: num(usersNewToday),
         supervisors: num(supervisorsTotal),
       },
+      manualProviders,
+    };
+  }
+
+  private async manualProvidersSummary(startToday: Date, start30: Date) {
+    const [orderRows, withdrawalRows] = await Promise.all([
+      this.orderModel.aggregate<{
+        _id: null;
+        orders: number;
+        revenue: number;
+        providerShare: number;
+        adminProfit: number;
+        todayProfit: number;
+        last30Profit: number;
+      }>([
+        {
+          $match: {
+            type: ProductType.MANUAL,
+            assignedSupervisorId: { $ne: null },
+            status: { $nin: VOID_STATUSES },
+          },
+        },
+        {
+          $group: {
+            _id: null,
+            orders: { $sum: 1 },
+            revenue: { $sum: '$amount' },
+            providerShare: { $sum: '$cost' },
+            adminProfit: { $sum: '$profit' },
+            todayProfit: {
+              $sum: { $cond: [{ $gte: ['$createdAt', startToday] }, '$profit', 0] },
+            },
+            last30Profit: {
+              $sum: { $cond: [{ $gte: ['$createdAt', start30] }, '$profit', 0] },
+            },
+          },
+        },
+      ]),
+      this.providerWithdrawalModel
+        ? this.providerWithdrawalModel.aggregate<{
+            _id: null;
+            count: number;
+            amount: number;
+          }>([
+            { $match: { status: ProviderWithdrawalStatus.PENDING } },
+            {
+              $group: {
+                _id: null,
+                count: { $sum: 1 },
+                amount: { $sum: '$amount' },
+              },
+            },
+          ])
+        : Promise.resolve([]),
+    ]);
+
+    const o = orderRows[0];
+    const w = withdrawalRows[0];
+    return {
+      orders: num(o?.orders),
+      revenue: round2(num(o?.revenue)),
+      providerShare: round2(num(o?.providerShare)),
+      adminProfit: round2(num(o?.adminProfit)),
+      todayProfit: round2(num(o?.todayProfit)),
+      last30dProfit: round2(num(o?.last30Profit)),
+      pendingWithdrawalsCount: num(w?.count),
+      pendingWithdrawalsAmount: round2(num(w?.amount)),
     };
   }
 

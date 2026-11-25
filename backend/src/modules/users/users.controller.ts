@@ -44,6 +44,14 @@ export class UsersController {
     return this.usersService.updateDetails(id, body);
   }
 
+  @Patch(':id/supervisor-profit')
+  async updateSupervisorProfit(
+    @Param('id') id: string,
+    @Body('supervisorProfitPercent') supervisorProfitPercent: number,
+  ) {
+    return this.usersService.updateSupervisorProfit(id, supervisorProfitPercent);
+  }
+
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);

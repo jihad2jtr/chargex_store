@@ -12,6 +12,8 @@ import { userIdFilter } from '../../common/utils/user-id.util';
 import {
   Product,
   ProductDocument,
+  ProductType,
+  ProfitMarginType,
 } from '../../database/schemas/product.schema';
 import {
   Order,
@@ -44,7 +46,7 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Product.name) private productModel: Model<ProductDocument>,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
-  ) {}
+  ) { }
 
   async findAll() {
     return this.userModel
@@ -112,7 +114,11 @@ export class UsersService {
       }),
     ]);
 
-    const shouldBeSupervisor = assignedProducts > 0 || activeOrders > 0;
+    const shouldBeSupervisor =
+      assignedProducts > 0 ||
+      activeOrders > 0 ||
+      (user.providerBalance ?? 0) > 0 ||
+      (user.supervisorProfitPercent ?? 0) > 0;
 
     if (shouldBeSupervisor && user.role === Role.USER) {
       user.role = Role.SUPERVISOR;
@@ -177,6 +183,11 @@ export class UsersService {
           `لا يمكن إرجاع الوكيل إلى عميل لأن لديه ${linkedCustomers} عميل مرتبط به ويستخدم رصيده. انقل عملاءه إلى وكيل آخر أولاً.`,
         );
       }
+      if ((user.providerBalance ?? 0) > 0) {
+        throw new BadRequestException(
+          `لا يمكن إرجاع "${user.name}" إلى عميل لأن لديه $${Number(user.providerBalance).toFixed(2)} في محفظة مقدم الخدمة. يجب تحويلها أو سحبها أولاً.`,
+        );
+      }
     }
 
     const previousRole = user.role;
@@ -239,8 +250,73 @@ export class UsersService {
         phone: user.phone,
         role: user.role,
         balance: user.balance,
+        providerBalance: user.providerBalance ?? 0,
+        supervisorProfitPercent: user.supervisorProfitPercent ?? 0,
         isActive: user.isActive,
       },
+    };
+  }
+
+  /** قراءة نسبة أرباح الأدمن العامة على خدمات مقدم الخدمة */
+  async getSupervisorProfitPercent(
+    userId?: string | Types.ObjectId | null,
+  ): Promise<number> {
+    const clean = userId?.toString();
+    if (!clean || !Types.ObjectId.isValid(clean)) return 0;
+    const u = await this.userModel
+      .findById(clean)
+      .select('supervisorProfitPercent');
+    return Number(u?.supervisorProfitPercent ?? 0);
+  }
+
+  /**
+   * تحديد/تعديل نسبة أرباح الأدمن العامة (%) على جميع الخدمات اليدوية
+   * المقدمة من هذا المشرف (خدمات متجر، اشتراكات، وأرقام مضمونة).
+   */
+  async updateSupervisorProfit(id: string, rawPercent: number) {
+    const percent = Number(rawPercent);
+    if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
+      throw new BadRequestException('نسبة الأرباح يجب أن تكون بين 0% و 100%');
+    }
+
+    const cleanId = id ? id.trim() : '';
+    let user = await this.userModel.findOne(userIdFilter(cleanId));
+    if (!user && Types.ObjectId.isValid(cleanId)) {
+      user = await this.userModel.findById(cleanId);
+    }
+    if (!user) throw new NotFoundException('المستخدم غير موجود');
+
+    const rounded = Math.round(percent * 100) / 100;
+    user.supervisorProfitPercent = rounded;
+    await user.save();
+
+    const assignedProducts = await this.productModel.find({
+      assignedSupervisorId: user._id,
+      type: ProductType.MANUAL,
+    });
+    let updatedCount = 0;
+    for (const prod of assignedProducts) {
+      const baseCost =
+        Number(prod.costPrice) > 0
+          ? Number(prod.costPrice)
+          : Number(prod.salePrice) || 0;
+      if (baseCost <= 0) continue;
+      prod.costPrice = baseCost;
+      prod.profitMarginType = ProfitMarginType.PERCENTAGE;
+      prod.profitMarginValue = rounded;
+      prod.salePrice = Number((baseCost * (1 + rounded / 100)).toFixed(2));
+      await prod.save();
+      updatedCount++;
+    }
+
+    this.logger.log(
+      `تحديث نسبة أرباح الأدمن لمقدّم الخدمة ${user.email} إلى ${rounded}% (${updatedCount} خدمة)`,
+    );
+
+    return {
+      message: `تم تحديث نسبة الأرباح إلى ${rounded}% وتطبيقها على ${updatedCount} خدمة`,
+      supervisorProfitPercent: rounded,
+      updatedProductsCount: updatedCount,
     };
   }
 

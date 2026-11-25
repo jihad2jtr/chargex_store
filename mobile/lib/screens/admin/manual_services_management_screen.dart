@@ -44,6 +44,7 @@ class _ManualServicesManagementScreenState
     await Future.wait([
       admin.fetchManualOrders(),
       admin.fetchAllUsers(silent: true),
+      admin.fetchProviderWalletAdminOverview(silent: true),
     ]);
   }
 
@@ -244,6 +245,12 @@ class _ManualServicesManagementScreenState
                 delayed: delayedCount,
                 issues: issuesCount,
               ),
+              const SizedBox(height: 10),
+              _buildProviderWalletAdminCard(admin),
+              const SizedBox(height: 12),
+
+              // Provider Wallet & Admin Profit Banner
+              _buildProviderWalletAdminBanner(admin),
               const SizedBox(height: 12),
 
               // Search + Supervisor Filter
@@ -1528,11 +1535,675 @@ class _ManualServicesManagementScreenState
     );
   }
 
+  Widget _buildProviderWalletAdminCard(AdminProvider admin) {
+    final overview = admin.providerWalletOverview;
+    if (overview == null) return const SizedBox.shrink();
+    final summary = overview['profitSummary'] is Map
+        ? Map<String, dynamic>.from(overview['profitSummary'] as Map)
+        : const <String, dynamic>{};
+    final pendingCount = (overview['pendingWithdrawalsCount'] as num?)?.toInt() ?? 0;
+    final todayProfit = (summary['todayAdminProfit'] as num?)?.toDouble() ?? 0.0;
+    final totalAdminProfit =
+        (summary['totalAdminProfit'] as num?)?.toDouble() ?? 0.0;
+    final totalProviderShare =
+        (summary['totalProviderShare'] as num?)?.toDouble() ?? 0.0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.savings_outlined,
+                size: 18,
+                color: AppColors.primaryBlue,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'أرباح الأدمن ومحافظ مقدمي الخدمة',
+                  style: AppTypography.cairo(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.slate900,
+                  ),
+                ),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => _showProviderWalletsSheet(context, admin),
+                icon: const Icon(Icons.account_balance_wallet_outlined, size: 15),
+                label: Text(
+                  pendingCount > 0
+                      ? 'طلبات السحب ($pendingCount)'
+                      : 'المحافظ والسحب',
+                  style: AppTypography.cairo(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: _walletStatPill(
+                  'أرباح اليوم',
+                  '\$${todayProfit.toStringAsFixed(2)}',
+                  AppColors.tertiary,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _walletStatPill(
+                  'إجمالي ربح الأدمن',
+                  '\$${totalAdminProfit.toStringAsFixed(2)}',
+                  AppColors.primaryBlue,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _walletStatPill(
+                  'حصة مقدمي الخدمة',
+                  '\$${totalProviderShare.toStringAsFixed(2)}',
+                  AppColors.slate700,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _walletStatPill(String label, String value, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: AppTypography.cairo(
+              fontSize: 10,
+              color: AppColors.slate600,
+            ),
+          ),
+          Text(
+            value,
+            style: AppTypography.plusJakartaSans(
+              fontSize: 13,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showProviderWalletsSheet(
+    BuildContext context,
+    AdminProvider admin,
+  ) async {
+    await admin.fetchProviderWalletAdminOverview(silent: true);
+    if (!context.mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Consumer<AdminProvider>(
+        builder: (ctx, prov, _) {
+          final overview = prov.providerWalletOverview ?? const {};
+          final withdrawals = (overview['withdrawals'] is List)
+              ? List<Map<String, dynamic>>.from(
+                  (overview['withdrawals'] as List).whereType<Map>().map(
+                    (e) => Map<String, dynamic>.from(e),
+                  ),
+                )
+              : const <Map<String, dynamic>>[];
+          final perSupervisor = (overview['perSupervisor'] is List)
+              ? List<Map<String, dynamic>>.from(
+                  (overview['perSupervisor'] as List).whereType<Map>().map(
+                    (e) => Map<String, dynamic>.from(e),
+                  ),
+                )
+              : const <Map<String, dynamic>>[];
+
+          return DraggableScrollableSheet(
+            initialChildSize: 0.78,
+            minChildSize: 0.45,
+            maxChildSize: 0.94,
+            expand: false,
+            builder: (_, scrollCtrl) => ListView(
+              controller: scrollCtrl,
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  'طلبات السحب (شام كاش) ومحافظ مقدمي الخدمة',
+                  style: AppTypography.cairo(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.slate900,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'طلبات السحب',
+                  style: AppTypography.cairo(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.slate700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (withdrawals.isEmpty)
+                  Text(
+                    'لا توجد طلبات سحب حالياً',
+                    style: AppTypography.cairo(
+                      fontSize: 12,
+                      color: AppColors.slate500,
+                    ),
+                  )
+                else
+                  for (final w in withdrawals) ...[
+                    Builder(
+                      builder: (_) {
+                        final id = (w['_id'] ?? '').toString();
+                        final status = (w['status'] ?? 'pending').toString();
+                        final amount =
+                            (w['amount'] as num?)?.toDouble() ?? 0.0;
+                        final sup = w['supervisorId'] is Map
+                            ? Map<String, dynamic>.from(
+                                w['supervisorId'] as Map,
+                              )
+                            : const <String, dynamic>{};
+                        final supName = (sup['name'] ?? 'مقدم خدمة').toString();
+                        final shamName =
+                            (w['shamCashAccountName'] ?? '').toString();
+                        final shamId =
+                            (w['shamCashAccountId'] ?? '').toString();
+
+                        return Container(
+                          margin: const EdgeInsets.only(bottom: 10),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppColors.slate50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.outline),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      '$supName — \$${amount.toStringAsFixed(2)}',
+                                      style: AppTypography.cairo(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w800,
+                                        color: AppColors.slate900,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    status == 'approved'
+                                        ? 'مقبول'
+                                        : status == 'rejected'
+                                        ? 'مرفوض'
+                                        : 'قيد الانتظار',
+                                    style: AppTypography.cairo(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w800,
+                                      color: status == 'approved'
+                                          ? AppColors.tertiary
+                                          : status == 'rejected'
+                                          ? AppColors.rose
+                                          : AppColors.amber,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'شام كاش: $shamName ($shamId)',
+                                style: AppTypography.cairo(
+                                  fontSize: 11.5,
+                                  color: AppColors.slate700,
+                                ),
+                              ),
+                              if (status == 'pending') ...[
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton(
+                                        style: FilledButton.styleFrom(
+                                          backgroundColor: AppColors.tertiary,
+                                        ),
+                                        onPressed: () async {
+                                          final ok = await prov
+                                              .approveProviderWithdrawal(id);
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showTopSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  ok
+                                                      ? 'تمت الموافقة على السحب'
+                                                      : (prov.errorMessage ??
+                                                            'تعذر التنفيذ'),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: const Text('موافقة وتحويل'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        style: OutlinedButton.styleFrom(
+                                          foregroundColor: AppColors.rose,
+                                        ),
+                                        onPressed: () async {
+                                          final ok = await prov
+                                              .rejectProviderWithdrawal(
+                                                id,
+                                                adminNote:
+                                                    'تم رفض الطلب وإرجاع الرصيد',
+                                              );
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showTopSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  ok
+                                                      ? 'تم رفض الطلب وإرجاع المبلغ لمحفظة مقدم الخدمة'
+                                                      : (prov.errorMessage ??
+                                                            'تعذر التنفيذ'),
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: const Text('رفض وإرجاع'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                const SizedBox(height: 14),
+                Text(
+                  'أرصدة وأرباح مقدمي الخدمة',
+                  style: AppTypography.cairo(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.slate700,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                for (final s in perSupervisor)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.outline),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${s['name'] ?? 'مقدم خدمة'} (${((s['supervisorProfitPercent'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)}%)',
+                                style: AppTypography.cairo(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              Text(
+                                'رصيد المحفظة: \$${((s['providerBalance'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} | ربح الأدمن: \$${((s['totalAdminProfit'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                style: AppTypography.cairo(
+                                  fontSize: 11,
+                                  color: AppColors.slate600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   // --- SUPERVISORS MANAGEMENT MODAL ---
   void _showSupervisorsManagementSheet(BuildContext context) {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const UsersManagementScreen()),
+    );
+  }
+
+  Widget _buildProviderWalletAdminBanner(AdminProvider admin) {
+    final overview = admin.providerWalletOverview;
+    final profitSummary = overview?['profitSummary'] is Map
+        ? Map<String, dynamic>.from(overview!['profitSummary'] as Map)
+        : const <String, dynamic>{};
+    final double todayProfit = (profitSummary['todayAdminProfit'] is num)
+        ? (profitSummary['todayAdminProfit'] as num).toDouble()
+        : 0.0;
+    final double totalProfit = (profitSummary['totalAdminProfit'] is num)
+        ? (profitSummary['totalAdminProfit'] as num).toDouble()
+        : 0.0;
+    final double providerShare = (profitSummary['totalProviderShare'] is num)
+        ? (profitSummary['totalProviderShare'] as num).toDouble()
+        : 0.0;
+    final int pendingCount = (overview?['pendingWithdrawalsCount'] is num)
+        ? (overview!['pendingWithdrawalsCount'] as num).toInt()
+        : 0;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.outline),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              gradient: AppColors.brandGradient,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: const Icon(
+              Icons.account_balance_wallet_rounded,
+              color: Colors.white,
+              size: 19,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'أرباح الأدمن من مقدمي الخدمة',
+                  style: AppTypography.cairo(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.slate900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'اليوم: \$${todayProfit.toStringAsFixed(2)} • الإجمالي: \$${totalProfit.toStringAsFixed(2)} • حصة المزودين: \$${providerShare.toStringAsFixed(2)}',
+                  style: AppTypography.cairo(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.slate600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          FilledButton.tonal(
+            onPressed: () => _showProviderWalletOverviewSheet(context, admin),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            ),
+            child: Text(
+              pendingCount > 0 ? 'السحب ($pendingCount)' : 'المحافظ والسحب',
+              style: AppTypography.cairo(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProviderWalletOverviewSheet(
+    BuildContext context,
+    AdminProvider admin,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final overview = admin.providerWalletOverview ?? const {};
+          final withdrawals = (overview['withdrawals'] is List)
+              ? (overview['withdrawals'] as List)
+                    .whereType<Map>()
+                    .map((e) => Map<String, dynamic>.from(e))
+                    .toList()
+              : <Map<String, dynamic>>[];
+          final perSupervisor = (overview['perSupervisor'] is List)
+              ? (overview['perSupervisor'] as List)
+                    .whereType<Map>()
+                    .map((e) => Map<String, dynamic>.from(e))
+                    .toList()
+              : <Map<String, dynamic>>[];
+
+          return DraggableScrollableSheet(
+            expand: false,
+            initialChildSize: 0.72,
+            maxChildSize: 0.92,
+            builder: (_, ctrl) => ListView(
+              controller: ctrl,
+              padding: const EdgeInsets.all(16),
+              children: [
+                Text(
+                  'طلبات السحب ومحافظ مقدمي الخدمة',
+                  style: AppTypography.cairo(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'طلبات السحب (شام كاش)',
+                  style: AppTypography.cairo(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.slate800,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                if (withdrawals.isEmpty)
+                  Text(
+                    'لا توجد طلبات سحب حالياً',
+                    style: AppTypography.cairo(
+                      fontSize: 12.5,
+                      color: AppColors.slate500,
+                    ),
+                  )
+                else
+                  for (final w in withdrawals)
+                    Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(10),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    '${w['supervisorName'] ?? 'مقدم خدمة'} — \$${((w['amount'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                                    style: AppTypography.cairo(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                Text(
+                                  '${w['status']}',
+                                  style: AppTypography.cairo(
+                                    fontSize: 11.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: w['status'] == 'pending'
+                                        ? AppColors.amber
+                                        : w['status'] == 'approved'
+                                        ? AppColors.tertiary
+                                        : AppColors.rose,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            Text(
+                              'شام كاش: ${w['shamCashAccountName'] ?? ''} (${w['shamCashAccountId'] ?? ''})',
+                              style: AppTypography.cairo(
+                                fontSize: 12,
+                                color: AppColors.slate600,
+                              ),
+                            ),
+                            if (w['status'] == 'pending') ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: FilledButton(
+                                      onPressed: () async {
+                                        final ok = await admin
+                                            .approveProviderWithdrawal(
+                                              (w['_id'] ?? '').toString(),
+                                            );
+                                        if (ctx.mounted) {
+                                          setModalState(() {});
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showTopSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                ok
+                                                    ? 'تمت الموافقة على السحب'
+                                                    : (admin.errorMessage ??
+                                                          'تعذر التنفيذ'),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      style: FilledButton.styleFrom(
+                                        backgroundColor: AppColors.tertiary,
+                                      ),
+                                      child: const Text('موافقة'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: OutlinedButton(
+                                      onPressed: () async {
+                                        final ok = await admin
+                                            .rejectProviderWithdrawal(
+                                              (w['_id'] ?? '').toString(),
+                                            );
+                                        if (ctx.mounted) {
+                                          setModalState(() {});
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showTopSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                ok
+                                                    ? 'تم رفض الطلب وإرجاع المبلغ لمحفظة المزود'
+                                                    : (admin.errorMessage ??
+                                                          'تعذر التنفيذ'),
+                                              ),
+                                            ),
+                                          );
+                                        }
+                                      },
+                                      child: const Text('رفض وإرجاع'),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                if (perSupervisor.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'ملخص أرباح مقدمي الخدمة',
+                    style: AppTypography.cairo(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.slate800,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  for (final s in perSupervisor)
+                    ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        '${s['name'] ?? ''} (${((s['supervisorProfitPercent'] as num?)?.toDouble() ?? 0).toStringAsFixed(1)}%)',
+                        style: AppTypography.cairo(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      subtitle: Text(
+                        'محفظته: \$${((s['providerBalance'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)} • ربح الأدمن: \$${((s['totalAdminProfit'] as num?)?.toDouble() ?? 0).toStringAsFixed(2)}',
+                        style: AppTypography.cairo(fontSize: 11.5),
+                      ),
+                    ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 

@@ -126,8 +126,21 @@ export class ProductsService {
     sensitiveFields?: string[];
     instructions?: string;
   }) {
-    const marginType = createDto.profitMarginType || ProfitMarginType.PERCENTAGE;
-    const marginValue = createDto.profitMarginValue !== undefined ? createDto.profitMarginValue : 10;
+    let marginType = createDto.profitMarginType || ProfitMarginType.PERCENTAGE;
+    let marginValue = createDto.profitMarginValue !== undefined ? createDto.profitMarginValue : 10;
+    if (
+      (createDto.type || ProductType.MANUAL) === ProductType.MANUAL &&
+      createDto.assignedSupervisorId &&
+      (createDto.profitMarginValue === undefined || Number(createDto.profitMarginValue) === 0)
+    ) {
+      const supPct = await this.usersService.getSupervisorProfitPercent(
+        createDto.assignedSupervisorId,
+      );
+      if (supPct > 0) {
+        marginType = ProfitMarginType.PERCENTAGE;
+        marginValue = supPct;
+      }
+    }
     const salePrice = this.calculateSalePrice(createDto.costPrice, marginType, marginValue);
 
     const templateId =
@@ -218,6 +231,21 @@ export class ProductsService {
       updateDto.assignedSupervisorId = updateDto.assignedSupervisorId && Types.ObjectId.isValid(updateDto.assignedSupervisorId)
         ? new Types.ObjectId(updateDto.assignedSupervisorId)
         : null;
+      if (
+        product.type === ProductType.MANUAL &&
+        updateDto.assignedSupervisorId &&
+        (updateDto.profitMarginValue === undefined || Number(updateDto.profitMarginValue) === 0)
+      ) {
+        const supPct = await this.usersService.getSupervisorProfitPercent(
+          updateDto.assignedSupervisorId,
+        );
+        if (supPct > 0) {
+          const cost = updateDto.costPrice !== undefined ? updateDto.costPrice : product.costPrice;
+          updateDto.profitMarginType = ProfitMarginType.PERCENTAGE;
+          updateDto.profitMarginValue = supPct;
+          updateDto.salePrice = this.calculateSalePrice(cost, ProfitMarginType.PERCENTAGE, supPct);
+        }
+      }
     }
 
     // إعادة اشتقاق الحقول عند تغيير قالب الخدمة المرتبط

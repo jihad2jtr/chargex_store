@@ -895,6 +895,18 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
   bool get _isActive => _u['isActive'] != false;
   double get _balance =>
       (_u['balance'] is num) ? (_u['balance'] as num).toDouble() : 0.0;
+  double get _providerBalance => (_u['providerBalance'] is num)
+      ? (_u['providerBalance'] as num).toDouble()
+      : 0.0;
+  double get _supervisorProfitPercent => (_u['supervisorProfitPercent'] is num)
+      ? (_u['supervisorProfitPercent'] as num).toDouble()
+      : 0.0;
+  String get _shamCashAccountName =>
+      (_u['shamCashAccountName'] ?? '').toString().trim();
+  String get _shamCashAccountId =>
+      (_u['shamCashAccountId'] ?? '').toString().trim();
+  String get _shamCashAccountId =>
+      (_u['shamCashAccountId'] ?? '').toString().trim();
 
   void _snack(String msg, {bool ok = true}) {
     if (!mounted) return;
@@ -1044,6 +1056,178 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
     if (!mounted || newBalance == null) return;
     setState(() => _u['balance'] = newBalance);
     _snack('تم تحديث رصيد "$_name" إلى \$${newBalance.toStringAsFixed(2)}');
+  }
+
+  Future<void> _openSupervisorProfitDialog() async {
+    final ctrl = TextEditingController(
+      text: _supervisorProfitPercent > 0
+          ? _supervisorProfitPercent.toStringAsFixed(1)
+          : '',
+    );
+    final pct = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.percent_rounded, color: AppColors.primaryBlue),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'نسبة أرباح الأدمن (%)',
+                style: AppTypography.cairo(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'تُطبّق هذه النسبة على جميع الخدمات اليدوية المسندة إلى "$_name" '
+              '(أرقام، خدمات، اشتراكات) وتُحدّث أسعار البيع تلقائياً.',
+              style: AppTypography.cairo(
+                fontSize: 12,
+                color: AppColors.slate600,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'النسبة المئوية (0 - 100)',
+                suffixText: '%',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final val = double.tryParse(ctrl.text.trim());
+              if (val == null || val < 0 || val > 100) {
+                return;
+              }
+              Navigator.pop(ctx, val);
+            },
+            child: const Text('حفظ وتطبيق'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (pct == null || !mounted) return;
+    final ok = await widget.admin.updateSupervisorProfitPercent(_id, pct);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _u['supervisorProfitPercent'] = pct);
+    }
+    _snack(
+      ok
+          ? 'تم تحديث نسبة أرباح الأدمن إلى ${pct.toStringAsFixed(1)}% وتحديث الخدمات المسندة'
+          : (widget.admin.errorMessage ?? 'تعذر تحديث النسبة'),
+      ok: ok,
+    );
+  }
+
+  Future<void> _openSupervisorProfitDialog() async {
+    final ctrl = TextEditingController(
+      text: _supervisorProfitPercent > 0
+          ? _supervisorProfitPercent.toStringAsFixed(1)
+          : '',
+    );
+    final pct = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.percent_rounded, color: AppColors.primaryBlue),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'نسبة أرباح الأدمن (%)',
+                style: AppTypography.cairo(
+                  fontSize: 15.5,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.slate900,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'تُطبّق هذه النسبة على جميع الخدمات اليدوية المسندة إلى "$_name" '
+              '(أرقام، خدمات، اشتراكات) وتُحدّث أسعار البيع تلقائياً.',
+              style: AppTypography.cairo(
+                fontSize: 12,
+                color: AppColors.slate600,
+                height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                labelText: 'النسبة المئوية (0 - 100)',
+                suffixText: '%',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final val = double.tryParse(ctrl.text.trim());
+              if (val == null || val < 0 || val > 100) {
+                return;
+              }
+              Navigator.pop(ctx, val);
+            },
+            child: const Text('حفظ وتطبيق'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (pct == null || !mounted) return;
+    final ok = await widget.admin.updateSupervisorProfitPercent(_id, pct);
+    if (!mounted) return;
+    if (ok) {
+      setState(() => _u['supervisorProfitPercent'] = pct);
+    }
+    _snack(
+      ok
+          ? 'تم تحديث نسبة أرباح الأدمن إلى ${pct.toStringAsFixed(1)}% وتحديث الخدمات المسندة'
+          : (widget.admin.errorMessage ?? 'تعذر تحديث النسبة'),
+      ok: ok,
+    );
   }
 
   Future<void> _toggleActive() async {
@@ -1277,13 +1461,27 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
                           ),
                         ],
                       )
-                    else if (_role == 'supervisor' || _role == 'agent')
+                    else if (_role == 'supervisor' || _role == 'agent') ...[
+                      if (_role == 'supervisor') ...[
+                        _buildGradientButton(
+                          icon: Icons.percent_rounded,
+                          label:
+                              'تحديد نسبة أرباح الأدمن (${_supervisorProfitPercent.toStringAsFixed(1)}%)',
+                          colors: const [
+                            Color(0xFF0284C7),
+                            Color(0xFF0EA5E9),
+                          ],
+                          onTap: _openSupervisorProfitDialog,
+                        ),
+                        const SizedBox(height: 10),
+                      ],
                       _buildOutlineButton(
                         icon: Icons.undo_rounded,
                         label: 'إرجاع إلى عميل',
                         color: AppColors.slate500,
                         onTap: () => _changeRole('user'),
-                      )
+                      ),
+                    ]
                     else
                       _buildAccountTag(_role),
 
@@ -1355,10 +1553,34 @@ class _UserDetailsSheetState extends State<_UserDetailsSheet> {
             const Divider(height: 1, color: AppColors.outline),
             _detailRow(
               Icons.account_balance_wallet_outlined,
-              'الرصيد',
+              'الرصيد الأساسي',
               '\$${_balance.toStringAsFixed(2)}',
               valueColor: AppColors.tertiary,
             ),
+            if (_role == 'supervisor' || _providerBalance > 0) ...[
+              const Divider(height: 1, color: AppColors.outline),
+              _detailRow(
+                Icons.savings_outlined,
+                'محفظة مقدم الخدمة',
+                '\$${_providerBalance.toStringAsFixed(2)}',
+                valueColor: AppColors.primaryBlue,
+              ),
+              const Divider(height: 1, color: AppColors.outline),
+              _detailRow(
+                Icons.percent_rounded,
+                'نسبة أرباح الأدمن',
+                '${_supervisorProfitPercent.toStringAsFixed(1)}%',
+                valueColor: AppColors.amber,
+              ),
+              const Divider(height: 1, color: AppColors.outline),
+              _detailRowBlock(
+                Icons.account_balance_outlined,
+                'حساب شام كاش',
+                (_shamCashAccountName.isNotEmpty || _shamCashAccountId.isNotEmpty)
+                    ? '${_shamCashAccountName.isEmpty ? '—' : _shamCashAccountName}\n${_shamCashAccountId.isEmpty ? '' : _shamCashAccountId}'
+                    : 'غير مضاف',
+              ),
+            ],
             const Divider(height: 1, color: AppColors.outline),
             _detailRow(
               Icons.event_outlined,

@@ -5,9 +5,16 @@ import { DatabaseModule } from '../../database/database.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ProvidersModule } from '../providers/providers.module';
 import { UsersModule } from '../users/users.module';
+import { ProviderWalletModule } from '../provider-wallet/provider-wallet.module';
 
 @Module({
-  imports: [DatabaseModule, NotificationsModule, ProvidersModule, UsersModule],
+  imports: [
+    DatabaseModule,
+    NotificationsModule,
+    ProvidersModule,
+    UsersModule,
+    ProviderWalletModule,
+  ],
   controllers: [OrdersController],
   providers: [OrdersService],
   exports: [OrdersService],

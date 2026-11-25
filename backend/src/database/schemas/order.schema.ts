@@ -182,6 +182,13 @@ export class Order {
   @Prop()
   completedAt?: Date;
 
+  // تم ترحيل حصة مقدم الخدمة إلى محفظته الخاصة (منع التكرار)
+  @Prop({ type: Boolean, default: false })
+  providerCredited?: boolean;
+
+  @Prop()
+  providerCreditedAt?: Date;
+
   @Prop({ type: Boolean, default: false })
   isSensitive?: boolean; // Sensitive credentials flag
 

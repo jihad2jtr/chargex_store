@@ -19,6 +19,7 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ServiceTemplatesModule } from './modules/service-templates/service-templates.module';
 import { ExchangeRatesModule } from './modules/exchange-rates/exchange-rates.module';
 import { VirtualNumbersModule } from './modules/virtual-numbers/virtual-numbers.module';
+import { ProviderWalletModule } from './modules/provider-wallet/provider-wallet.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -59,6 +60,7 @@ import { AppService } from './app.service';
     ServiceTemplatesModule,
     ExchangeRatesModule,
     VirtualNumbersModule,
+    ProviderWalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,4 +1,4 @@
-import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ForbiddenException, Logger, OnModuleInit, OnModuleDestroy, Optional } from '@nestjs/common';
 import { InjectModel, InjectConnection } from '@nestjs/mongoose';
 import { Model, Types, Connection } from 'mongoose';
 import * as crypto from 'crypto';
@@ -10,6 +10,7 @@ import { WalletTransaction, WalletTransactionDocument, TransactionType, Transact
 import { NotificationsService } from '../notifications/notifications.service';
 import { ProvidersService } from '../providers/providers.service';
 import { UsersService } from '../users/users.service';
+import { ProviderWalletService } from '../provider-wallet/provider-wallet.service';
 import { CryptoUtil } from '../../common/utils/crypto.util';
 
 // إشارة داخلية تُستعمل فقط للتحكّم بالسيطرة داخل المعاملة؛ تُترجَم إلى BadRequest خارجها
@@ -38,6 +39,7 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     private providersService: ProvidersService,
     private usersService: UsersService,
     @InjectConnection() private readonly connection: Connection,
+    @Optional() private readonly providerWalletService?: ProviderWalletService,
   ) {}
 
   onModuleInit() {
@@ -663,6 +665,44 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
         assignedSupervisorId = product.assignedSupervisorId;
         assignedSupervisorUser = await this.userModel.findById(assignedSupervisorId);
         initialStatus = OrderStatus.ASSIGNED;
+
+        if (assignedSupervisorUser && Number(product.costPrice) <= 0) {
+          const supPct = Number(
+            (assignedSupervisorUser as any).supervisorProfitPercent ?? 0,
+          );
+          const providerShare =
+            supPct > 0
+              ? Number((price / (1 + supPct / 100)).toFixed(2))
+              : price;
+          order.cost = providerShare;
+          order.profit = Number(Math.max(0, price - providerShare).toFixed(2));
+        }
+
+        // ضبط حصة مقدم الخدمة وصافي ربح الأدمن للطلبات اليدوية (خدمات/اشتراكات/أرقام)
+        if (assignedSupervisorUser && Number(product.costPrice) <= 0) {
+          const supPct = Number(
+            (assignedSupervisorUser as any).supervisorProfitPercent ?? 0,
+          );
+          const providerShare =
+            supPct > 0
+              ? Number((price / (1 + supPct / 100)).toFixed(2))
+              : price;
+          order.cost = providerShare;
+          order.profit = Number(Math.max(0, price - providerShare).toFixed(2));
+        }
+
+        // احتساب حصة مقدم الخدمة وربح الأدمن للخدمات اليدوية (بما فيها الأرقام المضمونة)
+        if (assignedSupervisorUser && Number(product.costPrice) <= 0) {
+          const supPct = Number(
+            (assignedSupervisorUser as any).supervisorProfitPercent ?? 0,
+          );
+          const providerShare =
+            supPct > 0
+              ? Number((price / (1 + supPct / 100)).toFixed(2))
+              : price;
+          order.cost = providerShare;
+          order.profit = Number(Math.max(0, price - providerShare).toFixed(2));
+        }
 
         order.timeline.push({
           action: 'assigned',
@@ -1471,6 +1511,11 @@ export class OrdersService implements OnModuleInit, OnModuleDestroy {
     });
 
     await order.save();
+
+    // ترحيل حصة مقدم الخدمة إلى محفظته الخاصة بعد الإغلاق
+    if (this.providerWalletService) {
+      await this.providerWalletService.creditForCompletedOrder(order);
+    }
 
     // Notify customer that their order was finalized and closed
     await this.notificationsService.createNotification({

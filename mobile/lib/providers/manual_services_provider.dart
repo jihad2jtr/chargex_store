@@ -10,15 +10,46 @@ class ManualServicesProvider extends ChangeNotifier {
 
   List<OrderModel> _supervisorOrders = [];
   List<ProductModel> _assignedServices = [];
+  Map<String, dynamic>? _providerWallet;
   bool _isLoading = false;
   bool _isTogglingService = false;
+  bool _isWalletLoading = false;
   String? _errorMessage;
 
   List<OrderModel> get supervisorOrders => _supervisorOrders;
   List<ProductModel> get assignedServices => _assignedServices;
+  Map<String, dynamic>? get providerWallet => _providerWallet;
   bool get isLoading => _isLoading;
   bool get isTogglingService => _isTogglingService;
+  bool get isWalletLoading => _isWalletLoading;
   String? get errorMessage => _errorMessage;
+
+  double get providerBalance =>
+      ((_providerWallet?['providerBalance'] as num?) ?? 0).toDouble();
+  double get mainBalance =>
+      ((_providerWallet?['mainBalance'] as num?) ?? 0).toDouble();
+  double get supervisorProfitPercent =>
+      ((_providerWallet?['supervisorProfitPercent'] as num?) ?? 0).toDouble();
+  String get shamCashAccountName =>
+      (_providerWallet?['shamCashAccountName'] ?? '').toString();
+  String get shamCashAccountId =>
+      (_providerWallet?['shamCashAccountId'] ?? '').toString();
+  bool get hasShamCashAccount =>
+      shamCashAccountName.trim().isNotEmpty &&
+      shamCashAccountId.trim().isNotEmpty;
+  Map<String, dynamic> get walletStats => _providerWallet?['stats'] is Map
+      ? Map<String, dynamic>.from(_providerWallet!['stats'])
+      : const {};
+  List<Map<String, dynamic>> get walletTransactions =>
+      (_providerWallet?['transactions'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+  List<Map<String, dynamic>> get providerWithdrawals =>
+      (_providerWallet?['withdrawals'] as List? ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
 
   // --- Supervisor: Fetch assigned orders ---
   Future<void> fetchSupervisorOrders([
@@ -320,5 +351,86 @@ class ManualServicesProvider extends ChangeNotifier {
       }
     } catch (_) {}
     return null;
+  }
+
+  // --- محفظة مقدم الخدمة (Provider Wallet) ---
+  Future<Map<String, dynamic>?> fetchProviderWalletSummary({
+    bool silent = false,
+  }) async {
+    if (!silent) {
+      _isWalletLoading = true;
+      _errorMessage = null;
+      notifyListeners();
+    }
+    try {
+      final res = await _api.get(ApiConstants.providerWalletMe);
+      if (res is Map) {
+        _providerWallet = Map<String, dynamic>.from(res);
+      }
+    } catch (e) {
+      if (!silent) _errorMessage = e.toString();
+    }
+    if (!silent) {
+      _isWalletLoading = false;
+    }
+    notifyListeners();
+    return _providerWallet;
+  }
+
+  Future<bool> saveShamCashAccount({
+    required String accountName,
+    required String accountId,
+  }) async {
+    _errorMessage = null;
+    try {
+      await _api.patch(
+        ApiConstants.providerWalletShamCash,
+        body: {'accountName': accountName.trim(), 'accountId': accountId.trim()},
+      );
+      await fetchProviderWalletSummary(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> transferToMainBalance(double amount) async {
+    _errorMessage = null;
+    try {
+      await _api.post(
+        ApiConstants.providerWalletTransferToMain,
+        body: {'amount': amount},
+      );
+      await fetchProviderWalletSummary(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> requestWithdrawal({
+    required double amount,
+    String? notes,
+  }) async {
+    _errorMessage = null;
+    try {
+      await _api.post(
+        ApiConstants.providerWalletWithdrawals,
+        body: {
+          'amount': amount,
+          if (notes != null && notes.trim().isNotEmpty) 'notes': notes.trim(),
+        },
+      );
+      await fetchProviderWalletSummary(silent: true);
+      return true;
+    } catch (e) {
+      _errorMessage = e.toString();
+      notifyListeners();
+      return false;
+    }
   }
 }
